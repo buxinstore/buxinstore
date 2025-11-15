@@ -1,0 +1,200 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block title %}Order #{{ order.id }} - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6">
+        <a href="{{ url_for('admin_orders') }}" class="inline-flex items-center text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+            <i class="fas fa-arrow-left mr-2"></i> Back to Orders
+        </a>
+    </div>
+
+    <!-- Order Information -->
+    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg mb-8">
+        <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+            <div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+                    Order #{{ order.id }}
+                </h3>
+                <p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                    Placed on {{ order.created_at.strftime('%B %d, %Y at %I:%M %p') }}
+                </p>
+            </div>
+            <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full 
+                {% if order.status == 'delivered' or order.status == 'completed' %}
+                    bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100
+                {% elif order.status == 'processing' or order.status == 'shipped' %}
+                    bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100
+                {% elif order.status == 'cancelled' %}
+                    bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100
+                {% else %}
+                    bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100
+                {% endif %}">
+                {{ order.status|title }}
+            </span>
+        </div>
+        <div class="border-t border-gray-200 dark:border-gray-700">
+            <dl>
+                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
+                        Customer
+                    </dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white sm:mt-0 sm:col-span-2">
+                        {{ order.customer.username }} ({{ order.customer.email }})
+                    </dd>
+                </div>
+                <div class="bg-white dark:bg-gray-800 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
+                        Order Total
+                    </dt>
+                    <dd class="mt-1 text-sm font-semibold text-gray-900 dark:text-white sm:mt-0 sm:col-span-2">
+                        D{{ "%.2f"|format(order.total) }}
+                    </dd>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
+                        Payment Method
+                    </dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white sm:mt-0 sm:col-span-2">
+                        {% if order.payment_method %}
+                            {{ order.payment_method|title }}
+                        {% else %}
+                            Not specified
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="bg-white dark:bg-gray-800 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
+                        Delivery Address
+                    </dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white sm:mt-0 sm:col-span-2">
+                        {{ order.delivery_address }}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    <!-- Update Order Status -->
+    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg mb-8">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+                Update Order Status
+            </h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                Change the status of this order
+            </p>
+        </div>
+        <div class="border-t border-gray-200 dark:border-gray-700 px-4 py-5 sm:px-6">
+            <form method="POST" action="{{ url_for('admin_order_detail', order_id=order.id) }}" class="flex items-center gap-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <select name="status" id="status" class="block w-64 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm">
+                    <option value="pending" {% if order.status == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="processing" {% if order.status == 'processing' %}selected{% endif %}>Processing</option>
+                    <option value="shipped" {% if order.status == 'shipped' %}selected{% endif %}>Shipped</option>
+                    <option value="delivered" {% if order.status == 'delivered' %}selected{% endif %}>Delivered</option>
+                    <option value="cancelled" {% if order.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                </select>
+                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Update Status
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Order Items -->
+    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+                Order Items
+            </h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                Products included in this order
+            </p>
+        </div>
+        <div class="border-t border-gray-200 dark:border-gray-700">
+            {% if order.items %}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                    Image
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                    Product
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                    Quantity
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                    Unit Price
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                    Subtotal
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            {% for item in order.items %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if item.product and item.product.image %}
+                                        <img src="{{ url_for('static', filename=item.product.image) }}" 
+                                             alt="{{ item.product.name }}" 
+                                             class="h-16 w-16 object-cover rounded-md">
+                                    {% else %}
+                                        <div class="h-16 w-16 bg-gray-200 dark:bg-gray-600 rounded-md flex items-center justify-center">
+                                            <i class="fas fa-image text-gray-400"></i>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-gray-900 dark:text-white">
+                                        {% if item.product %}
+                                            {{ item.product.name }}
+                                        {% else %}
+                                            Product #{{ item.product_id }} (Deleted)
+                                        {% endif %}
+                                    </div>
+                                    {% if item.product %}
+                                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                                            Product ID: {{ item.product.id }}
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                    {{ item.quantity }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                    D{{ "%.2f"|format(item.price) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                    D{{ "%.2f"|format(item.price * item.quantity) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <td colspan="4" class="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">
+                                    Total:
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
+                                    D{{ "%.2f"|format(order.total) }}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            {% else %}
+                <div class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                    No items found for this order.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

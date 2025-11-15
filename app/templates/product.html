@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} - Buxin Electronics Store{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-12 px-4 sm:py-16 sm:px-6 lg:px-8 space-y-12">
+    <div class="bg-[color:var(--app-card)] dark:bg-slate-900/70 border border-[color:var(--app-border)] dark:border-slate-800 rounded-3xl shadow-sm transition-colors duration-300 p-6 sm:p-10 text-[color:var(--app-text)]">
+        <div class="lg:grid lg:grid-cols-2 lg:gap-x-10 lg:items-start">
+            <!-- Image gallery -->
+            <div class="flex flex-col-reverse">
+                <!-- Image selector -->
+                <div class="hidden mt-6 w-full max-w-2xl mx-auto sm:block lg:max-w-none">
+                    <div class="grid grid-cols-4 gap-4" aria-orientation="horizontal" role="tablist">
+                        <button id="tabs-1-tab-1" class="relative h-24 rounded-2xl border border-[color:var(--app-border)] dark:border-slate-800 bg-[color:var(--app-card)] dark:bg-slate-900/60 flex items-center justify-center text-sm font-medium uppercase text-[color:var(--app-text)] dark:text-white cursor-pointer hover:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:ring-offset-2 dark:focus:ring-offset-slate-900" aria-controls="tabs-1-panel-1" role="tab" type="button">
+                            <span class="sr-only">Angled view</span>
+                            <img src="{{ product.image|product_image_url if product.image else 'https://via.placeholder.com/300x200?text=' + product.name|urlencode }}" alt="{{ product.name }}" class="h-full w-full object-cover object-center">
+                        </button>
+                        <!-- Additional images would go here -->
+                        <button id="tabs-1-tab-2" class="relative h-24 rounded-2xl border border-[color:var(--app-border)] dark:border-slate-800 bg-[color:var(--app-card)] dark:bg-slate-900/60 flex items-center justify-center text-sm font-medium uppercase text-[color:var(--app-text)] dark:text-white cursor-pointer hover:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:ring-offset-2 dark:focus:ring-offset-slate-900" aria-controls="tabs-1-panel-2" role="tab" type="button">
+                            <span class="sr-only">Angled view</span>
+                            <img src="https://via.placeholder.com/300x200?text=Product+Image+2" alt="" class="h-full w-full object-cover object-center">
+                        </button>
+                    </div>
+                </div>
+
+                <div class="w-full aspect-w-1 aspect-h-1 overflow-hidden rounded-3xl border border-[color:var(--app-border)] dark:border-slate-800 bg-[color:var(--app-card)] dark:bg-slate-900/40 relative">
+                    <!-- Tab panel, show/hide based on tab state -->
+                    <div id="tabs-1-panel-1" aria-labelledby="tabs-1-tab-1" role="tabpanel" tabindex="0">
+                        <img src="{{ product.image|product_image_url if product.image else 'https://via.placeholder.com/800x600?text=' + product.name|urlencode }}" alt="{{ product.name }}" class="w-full h-full object-cover object-center">
+                    </div>
+                    
+                    {% if product.available_in_gambia %}
+                    <div class="absolute top-3 left-3 w-10 h-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-full shadow-xl flex items-center justify-center z-10" title="Available in Gambia">
+                        <span class="text-2xl">🇬🇲</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Product info -->
+            <div class="mt-10 sm:mt-16 lg:mt-0 lg:pl-10 space-y-6">
+                <div class="flex items-center gap-3">
+                    <h1 class="text-3xl font-extrabold tracking-tight text-[color:var(--app-text)] dark:text-white">{{ product.name }}</h1>
+                    {% if product.available_in_gambia %}
+                    <div class="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-full border border-emerald-200 dark:border-emerald-800" title="Available in Gambia">
+                        <span class="text-lg">🇬🇲</span>
+                        <span class="text-xs font-medium text-emerald-700 dark:text-emerald-300">Available in Gambia</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="mt-3">
+                    <h2 class="sr-only">Product information</h2>
+                    <p class="text-3xl font-bold text-[color:var(--app-text)] dark:text-white">D{{ "%.2f"|format(product.price) }}</p>
+                    
+                    {% if product.delivery_price %}
+                    <p class="mt-2 text-lg text-[color:var(--app-muted)] dark:text-slate-400">
+                        <span class="font-medium">Delivery Fee:</span> D{{ "%.2f"|format(product.delivery_price) }}
+                    </p>
+                    {% endif %}
+                    
+                    {% if product.stock > 0 %}
+                        <p class="mt-2">
+                            <span class="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1 text-sm font-semibold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
+                                <i class="fas fa-check-circle text-xs"></i>
+                                In Stock ({{ product.stock }} available)
+                            </span>
+                        </p>
+                    {% else %}
+                        <p class="mt-2">
+                            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500/15 px-3 py-1 text-sm font-semibold text-rose-600 dark:bg-rose-500/20 dark:text-rose-300">
+                                <i class="fas fa-exclamation-triangle text-xs"></i>
+                                Out of Stock
+                            </span>
+                        </p>
+                    {% endif %}
+                </div>
+
+                <!-- Delivery Information -->
+                {% if product.location %}
+                <div class="mt-4 p-4 rounded-xl border border-[color:var(--app-border)] dark:border-slate-800 bg-[color:var(--app-card)] dark:bg-slate-900/60">
+                    {% if product.location == 'In The Gambia' %}
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0 mt-0.5">
+                            <span class="text-2xl">🕒</span>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-[color:var(--app-text)] dark:text-white">
+                                You can receive your order the same day. Just call our support team after placing your order.
+                            </p>
+                        </div>
+                    </div>
+                    {% elif product.location == 'Outside The Gambia' %}
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0 mt-0.5">
+                            <span class="text-2xl">🕐</span>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-[color:var(--app-text)] dark:text-white">
+                                Estimated delivery: minimum 14 days, maximum 30 days.
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div class="mt-6">
+                    <h3 class="sr-only">Description</h3>
+                    <div class="prose prose-sm text-[color:var(--app-muted)] dark:text-slate-300 max-w-none space-y-4">
+                        <p>{{ product.description }}</p>
+                    </div>
+                </div>
+
+                <form class="add-to-cart-form mt-8" action="{{ url_for('add_to_cart', product_id=product.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="quantity" value="1">
+                    <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+                        {% if product.stock > 0 %}
+                            <button type="submit" class="add-to-cart-btn flex-1 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 py-3 px-8 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900 sm:w-auto">
+                                <span class="add-to-cart-text">Add to cart</span>
+                                <span class="add-to-cart-loader hidden ml-2">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                </span>
+                            </button>
+                        {% else %}
+                            <button type="button" class="flex-1 rounded-xl bg-[color:var(--app-surface-hover)] dark:bg-slate-800/70 py-3 px-8 text-base font-semibold text-[color:var(--app-muted)] dark:text-slate-300 cursor-not-allowed border border-[color:var(--app-border)] sm:w-auto" disabled>
+                                Out of Stock
+                            </button>
+                        {% endif %}
+                        
+                        <button type="button" class="sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-[color:var(--app-border)] dark:border-slate-800 px-4 py-3 text-sm font-medium text-[color:var(--app-text)] dark:text-slate-300 hover:border-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 transition-colors">
+                            <i class="far fa-heart text-lg"></i>
+                            <span class="sr-only">Add to favorites</span>
+                        </button>
+                    </div>
+                </form>
+
+                <section aria-labelledby="details-heading" class="mt-12">
+                    <h2 id="details-heading" class="sr-only">Additional details</h2>
+
+                    <div class="border-t border-[color:var(--app-border)] dark:border-slate-800 divide-y divide-[color:var(--app-border)] dark:divide-slate-800">
+                        <div>
+                            <h3>
+                                <button type="button" class="group relative w-full py-6 flex justify-between items-center text-left" aria-controls="disclosure-1" aria-expanded="false">
+                                    <span class="text-[color:var(--app-text)] dark:text-white font-medium group-hover:text-cyan-500 dark:group-hover:text-cyan-300 transition-colors">Specifications</span>
+                                    <span class="ml-6 flex items-center">
+                                        <i class="fas fa-plus text-[color:var(--app-muted)] group-hover:text-cyan-500 dark:group-hover:text-cyan-300 transition-colors"></i>
+                                    </span>
+                                </button>
+                            </h3>
+                            <div class="pb-6 prose prose-sm text-[color:var(--app-muted)] dark:text-slate-300" id="disclosure-1">
+                                <ul role="list" class="space-y-1">
+                                    <li>Category: {{ category.name }}</li>
+                                    <li>SKU: {{ product.id }}</li>
+                                    <li>Weight: 0.5 kg</li>
+                                    <li>Dimensions: 10 x 5 x 3 cm</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3>
+                                <button type="button" class="group relative w-full py-6 flex justify-between items-center text-left" aria-controls="disclosure-2" aria-expanded="false">
+                                    <span class="text-[color:var(--app-text)] dark:text-white font-medium group-hover:text-cyan-500 dark:group-hover:text-cyan-300 transition-colors">Shipping & Returns</span>
+                                    <span class="ml-6 flex items-center">
+                                        <i class="fas fa-plus text-[color:var(--app-muted)] group-hover:text-cyan-500 dark:group-hover:text-cyan-300 transition-colors"></i>
+                                    </span>
+                                </button>
+                            </h3>
+                            <div class="pb-6 prose prose-sm text-[color:var(--app-muted)] dark:text-slate-300" id="disclosure-2">
+                                <div class="space-y-3">
+                                    <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Product Price: D{{ "%.2f"|format(product.price) }}</p>
+                                    <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Shipping Fee: D{{ "%.2f"|format(shipping_fee) }}</p>
+                                    <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Final Price: D{{ "%.2f"|format(final_price) }}</p>
+                                    <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Location: {{ product.location if product.location else "Not specified" }}</p>
+                                    <div class="mt-4">
+                                        <p class="font-semibold text-[color:var(--app-text)] dark:text-white mb-2">Customer Message:</p>
+                                        {% if product.location == "In The Gambia" %}
+                                        <p>You can receive your order today by calling our support team.</p>
+                                        {% else %}
+                                        <p>Estimated delivery: 14–30 days.</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- Related products -->
+        {% if related_products %}
+        <section aria-labelledby="related-heading" class="border-t border-[color:var(--app-border)] dark:border-slate-800 pt-12">
+            <h2 id="related-heading" class="text-xl font-bold text-[color:var(--app-text)] dark:text-white mb-8">You may also like</h2>
+
+            <div class="grid grid-cols-1 gap-y-10 gap-x-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-x-8">
+                {% for related in related_products %}
+                <a href="{{ url_for('product', product_id=related.id) }}" class="group rounded-2xl border border-[color:var(--app-border)] hover:border-cyan-400/60 transition-colors bg-[color:var(--app-card)] dark:border-slate-800 dark:bg-slate-900/60">
+                    <div class="w-full aspect-w-1 aspect-h-1 bg-[color:var(--app-card)] dark:bg-slate-900/50 rounded-2xl overflow-hidden xl:aspect-w-7 xl:aspect-h-8">
+                        <img src="{{ related.image or 'https://via.placeholder.com/300x200?text=' + related.name|urlencode }}" alt="{{ related.name }}" class="w-full h-full object-center object-cover transition-transform duration-200 group-hover:scale-105">
+                    </div>
+                    <h3 class="mt-4 text-sm font-medium text-[color:var(--app-text)] dark:text-slate-200 group-hover:text-cyan-500 dark:group-hover:text-cyan-300">{{ related.name }}</h3>
+                    <p class="mt-1 text-lg font-semibold text-[color:var(--app-text)] dark:text-white">D{{ "%.2f"|format(related.price) }}</p>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Toggle accordion functionality
+    document.querySelectorAll('[aria-controls^="disclosure-"]').forEach(button => {
+        button.addEventListener('click', function() {
+            const targetId = this.getAttribute('aria-controls');
+            const target = document.getElementById(targetId);
+            const isExpanded = this.getAttribute('aria-expanded') === 'true';
+            
+            // Toggle the expanded state
+            this.setAttribute('aria-expanded', !isExpanded);
+            
+            // Toggle the icon
+            const icon = this.querySelector('i');
+            if (isExpanded) {
+                icon.classList.remove('fa-minus');
+                icon.classList.add('fa-plus');
+            } else {
+                icon.classList.remove('fa-plus');
+                icon.classList.add('fa-minus');
+            }
+            
+            // Toggle the content
+            target.style.display = isExpanded ? 'none' : 'block';
+        });
+    });
+
+    // Image gallery tab functionality
+    const tabs = document.querySelectorAll('[role="tab"]');
+    const panels = document.querySelectorAll('[role="tabpanel"]');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Hide all panels
+            panels.forEach(panel => {
+                panel.style.display = 'none';
+            });
+            
+            // Deactivate all tabs
+            tabs.forEach(t => {
+                t.setAttribute('aria-selected', 'false');
+                t.classList.remove('ring-2', 'ring-blue-500');
+            });
+            
+            // Show the selected panel
+            const panelId = this.getAttribute('aria-controls');
+            document.getElementById(panelId).style.display = 'block';
+            
+            // Activate the clicked tab
+            this.setAttribute('aria-selected', 'true');
+            this.classList.add('ring-2', 'ring-blue-500');
+        });
+    });
+</script>
+{% endblock %}

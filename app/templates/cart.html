@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+
+{% block title %}Shopping Cart - Buxin Electronics Store{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 space-y-8">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold tracking-tight text-[color:var(--app-text)] dark:text-white sm:text-4xl">
+                Shopping Cart
+            </h1>
+            <p class="mt-1 text-sm text-[color:var(--app-muted)] dark:text-slate-400">
+                Review your items and proceed to checkout.
+            </p>
+        </div>
+        <a href="{{ url_for('home') }}" class="inline-flex items-center text-sm font-semibold text-cyan-500 hover:text-cyan-400 dark:text-cyan-300 dark:hover:text-cyan-200 transition-colors">
+            Continue Shopping
+            <span aria-hidden="true" class="ml-1 text-base">&rarr;</span>
+        </a>
+    </div>
+
+        {% set currency = cart_summary.currency if cart_summary is defined else 'D' %}
+        <div class="mt-10 lg:grid lg:grid-cols-12 lg:gap-8 xl:gap-12 lg:items-start"
+             data-cart-root
+             data-currency="{{ currency }}">
+            <section aria-labelledby="cart-heading" class="lg:col-span-7 bg-[color:var(--app-card)] dark:bg-slate-900/70 border border-[color:var(--app-border)] dark:border-slate-800 rounded-3xl p-6 shadow-sm transition-colors duration-300 text-[color:var(--app-text)]" data-cart-items-section>
+                <h2 id="cart-heading" class="sr-only">Items in your shopping cart</h2>
+
+                {% if not cart_items %}
+                    <div class="py-16 text-center" data-empty-cart>
+                        <svg class="mx-auto h-20 w-20 text-[color:var(--app-muted)] dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                        <h2 class="mt-4 text-2xl font-semibold text-[color:var(--app-text)] dark:text-white">Your cart is empty</h2>
+                        <p class="mt-2 text-sm text-[color:var(--app-muted)] dark:text-slate-400">Looks like you haven't added anything yet.</p>
+                        <div class="mt-6">
+                            <a href="{{ url_for('home') }}" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
+                                <i class="fas fa-shopping-bag text-xs"></i>
+                                Start Shopping
+                            </a>
+                        </div>
+                    </div>
+                {% else %}
+                    <ul role="list" class="divide-y divide-[color:var(--app-border)] dark:divide-slate-800" data-cart-items>
+                        {% for item in cart_items %}
+                        <li class="flex flex-col gap-4 py-6 sm:flex-row sm:items-start sm:py-8 cart-item"
+                            data-product-id="{{ item.id }}"
+                            data-price="{{ item.price }}"
+                            data-quantity="{{ item.quantity }}">
+                            <div class="flex-shrink-0">
+                                <img src="{{ url_for('static', filename=item.image) if item.image else url_for('static', filename='images/placeholder-product.png') }}" 
+                                     alt="{{ item.name }}" 
+                                     class="h-28 w-28 rounded-2xl object-cover object-center sm:h-32 sm:w-32">
+                            </div>
+
+                            <div class="flex-1">
+                                <div class="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-6">
+                                    <div class="space-y-2">
+                                        <h3 class="text-base font-semibold text-[color:var(--app-text)] dark:text-white">
+                                            <a href="{{ url_for('product', product_id=item.id) }}" class="hover:text-cyan-500 dark:hover:text-cyan-300 transition-colors">
+                                                {{ item.name }}
+                                            </a>
+                                        </h3>
+                                        <p class="text-lg font-bold text-[color:var(--app-text)] dark:text-white">{{ currency }}{{ "%.2f"|format(item.price) }}</p>
+                                        <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-400">
+                                            {% if item.stock > 10 %}
+                                                <span class="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
+                                                    <i class="fas fa-check-circle"></i>
+                                                    In Stock
+                                                </span>
+                                            {% elif item.stock > 0 %}
+                                                <span class="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 dark:bg-amber-500/20 dark:text-amber-300">
+                                                    <i class="fas fa-clock"></i>
+                                                    Only {{ item.stock }} left
+                                                </span>
+                                            {% else %}
+                                                <span class="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-600 dark:bg-rose-500/20 dark:text-rose-300">
+                                                    <i class="fas fa-exclamation-triangle"></i>
+                                                    Out of Stock
+                                                </span>
+                                            {% endif %}
+                                        </p>
+                                    </div>
+
+                                    <div class="relative flex flex-col items-end gap-4 sm:items-stretch sm:justify-between">
+                                        <label for="quantity-{{ loop.index }}" class="sr-only">Quantity</label>
+                                        <select id="quantity-{{ loop.index }}" name="quantity" data-product-id="{{ item.id }}" class="max-w-full rounded-xl border border-[color:var(--app-border)] dark:border-slate-700 py-2 pl-3 pr-10 text-sm font-medium text-[color:var(--app-text)] dark:text-slate-200 bg-[color:var(--app-card)] dark:bg-slate-900/40 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40">
+                                            {% set max_quantity = [item.stock, 10]|min if item.stock > 0 else 10 %}
+                                            {% for i in range(1, max_quantity + 1) %}
+                                                <option value="{{ i }}" {% if i == item.quantity %}selected{% endif %}>{{ i }}</option>
+                                            {% endfor %}
+                                        </select>
+
+                                        <button type="button" class="remove-item inline-flex items-center gap-2 text-sm font-medium text-rose-500 hover:text-rose-400 dark:text-rose-300 dark:hover:text-rose-200 transition-colors" data-product-id="{{ item.id }}">
+                                            <i class="fas fa-trash text-xs"></i>
+                                            Remove
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 flex flex-col gap-2">
+                                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                        <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">
+                                            <span class="font-semibold">Subtotal:</span>
+                                            <span class="font-bold text-[color:var(--app-text)] dark:text-white" data-item-total>{{ currency }}{{ "%.2f"|format(item.price * item.quantity) }}</span>
+                                        </p>
+                                        {% if item.quantity > item.stock and item.stock > 0 %}
+                                            <p class="text-xs font-medium text-amber-600 dark:text-amber-300">
+                                                Only {{ item.stock }} available
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">
+                                            <span class="font-semibold">Shipping:</span>
+                                            <span class="text-[color:var(--app-text)] dark:text-white" data-item-shipping>{{ currency }}{{ "%.2f"|format(item.shipping_per_unit) }} × {{ item.quantity }} = {{ currency }}{{ "%.2f"|format(item.shipping) }}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </section>
+
+            <section aria-labelledby="summary-heading" class="mt-8 lg:mt-0 bg-[color:var(--app-card)] dark:bg-slate-900/70 border border-[color:var(--app-border)] dark:border-slate-800 rounded-3xl px-6 py-8 lg:sticky lg:top-8 shadow-sm transition-colors duration-300 text-[color:var(--app-text)]">
+                <h2 id="summary-heading" class="text-lg font-semibold text-[color:var(--app-text)] dark:text-white">Order Summary</h2>
+
+                <dl class="mt-6 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <dt class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">Subtotal</dt>
+                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-subtotal>{{ currency }}{{ "%.2f"|format(cart_summary.cart_subtotal) }}</dd>
+                    </div>
+                    <div class="flex items-center justify-between border-t border-[color:var(--app-border)] dark:border-slate-800 pt-4">
+                        <dt class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">Tax</dt>
+                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-tax>{{ currency }}{{ "%.2f"|format(cart_summary.cart_tax) }}</dd>
+                    </div>
+                    <div class="flex items-center justify-between border-t border-[color:var(--app-border)] dark:border-slate-800 pt-4">
+                        <dt class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">Shipping</dt>
+                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-shipping>{{ currency }}{{ "%.2f"|format(cart_summary.cart_shipping) }}</dd>
+                    </div>
+                    <div class="border-t border-[color:var(--app-border)] dark:border-slate-800 pt-4 flex items-center justify-between">
+                        <dt class="text-base font-semibold text-[color:var(--app-text)] dark:text-white">Order Total</dt>
+                        <dd class="text-base font-bold text-cyan-500 dark:text-cyan-300" data-cart-total>{{ currency }}{{ "%.2f"|format(cart_summary.cart_total) }}</dd>
+                    </div>
+                </dl>
+
+                <div class="mt-6">
+                    <a href="{{ url_for('cart_proceed') }}" 
+                       data-checkout-button
+                       class="block w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 py-3 px-4 text-center text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-60 disabled:cursor-not-allowed {% if not cart_items %}opacity-60 cursor-not-allowed{% endif %}"
+                       {% if not cart_items %}aria-disabled="true" tabindex="-1"{% endif %}>
+                        Proceed to Checkout
+                    </a>
+                </div>
+
+                <div class="mt-4 text-center text-sm">
+                    <p class="text-[color:var(--app-muted)] dark:text-slate-400">
+                        or
+                        <a href="{{ url_for('home') }}" class="font-semibold text-cyan-500 hover:text-cyan-400 dark:text-cyan-300 dark:hover:text-cyan-200 transition-colors">
+                            Continue Shopping
+                            <span aria-hidden="true"> &rarr;</span>
+                        </a>
+                    </p>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="cart-summary-data" type="application/json">{{ cart_summary | tojson }}</script>
+<script>
+    // Function to show flash message
+    function showFlashMessage(message, type = 'success') {
+        // Check if message already exists
+        const existingMessage = document.querySelector('.flash-message');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+        
+        // Create message element
+        const flashMessage = document.createElement('div');
+        flashMessage.className = `flash-message fixed top-4 right-4 z-50 px-6 py-3 rounded-md shadow-lg text-white ${
+            type === 'success' ? 'bg-green-500' : 'bg-red-500'
+        } transform transition-all duration-300 ease-in-out translate-x-0 opacity-100`;
+        
+        // Add message content
+        const messageContent = document.createElement('div');
+        messageContent.className = 'flex items-center';
+        messageContent.innerHTML = `
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>
+            <span>${message}</span>
+        `;
+        
+        flashMessage.appendChild(messageContent);
+        
+        // Add to body
+        document.body.appendChild(flashMessage);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            flashMessage.classList.add('opacity-0', 'translate-x-full');
+            setTimeout(() => flashMessage.remove(), 300);
+        }, 3000);
+    }
+
+    const DEFAULT_CURRENCY = document.body.dataset.cartCurrency || '{{ currency }}';
+    const STATIC_ROOT = "{{ url_for('static', filename='') }}";
+    const CART_PLACEHOLDER_IMAGE = "{{ url_for('static', filename='images/placeholder-product.png') }}";
+
+    function formatCurrency(value, currency = DEFAULT_CURRENCY) {
+        const numericValue = Number(value) || 0;
+        return `${currency}${numericValue.toFixed(2)}`;
+    }
+
+    function sanitizeImagePath(imagePath) {
+        if (!imagePath) {
+            return CART_PLACEHOLDER_IMAGE;
+        }
+
+        if (/^https?:\/\//i.test(imagePath)) {
+            return imagePath;
+        }
+
+        const trimmed = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+        return `${STATIC_ROOT}${trimmed}`;
+    }
+
+    function updateNavbarCartCount(count) {
+        if (typeof window.updateCartBadgeCount === 'function') {
+            window.updateCartBadgeCount(count);
+        }
+
+        const cartCount = document.getElementById('cart-count');
+        if (cartCount) {
+            cartCount.textContent = count > 0 ? count : '';
+            cartCount.classList.toggle('hidden', count <= 0);
+        }
+    }
+
+    function toggleCheckoutButton(disabled) {
+        const checkoutButton = document.querySelector('[data-checkout-button]');
+        if (!checkoutButton) {
+            return;
+        }
+
+        if (disabled) {
+            checkoutButton.classList.add('opacity-60', 'cursor-not-allowed');
+            checkoutButton.setAttribute('aria-disabled', 'true');
+            checkoutButton.setAttribute('tabindex', '-1');
+        } else {
+            checkoutButton.classList.remove('opacity-60', 'cursor-not-allowed');
+            checkoutButton.removeAttribute('aria-disabled');
+            checkoutButton.removeAttribute('tabindex');
+        }
+    }
+
+    function applyCartSummary(summary) {
+        if (!summary) {
+            return;
+        }
+
+        const currency = summary.currency || DEFAULT_CURRENCY;
+        const root = document.querySelector('[data-cart-root]');
+        if (root && summary.currency) {
+            root.dataset.currency = summary.currency;
+        }
+
+        const subtotalEl = document.querySelector('[data-cart-subtotal]');
+        if (subtotalEl) {
+            const value = summary.subtotal ?? summary.cart_subtotal ?? 0;
+            subtotalEl.textContent = formatCurrency(value, currency);
+        }
+
+        const taxEl = document.querySelector('[data-cart-tax]');
+        if (taxEl) {
+            const value = summary.tax ?? summary.cart_tax ?? 0;
+            taxEl.textContent = formatCurrency(value, currency);
+        }
+
+        const shippingEl = document.querySelector('[data-cart-shipping]');
+        if (shippingEl) {
+            const value = summary.shipping ?? summary.cart_shipping ?? 0;
+            shippingEl.textContent = formatCurrency(value, currency);
+        }
+
+        const totalEl = document.querySelector('[data-cart-total]');
+        if (totalEl) {
+            const value = summary.total ?? summary.cart_total ?? 0;
+            totalEl.textContent = formatCurrency(value, currency);
+        }
+
+        const count = summary.count ?? summary.cart_count ?? 0;
+        updateNavbarCartCount(count);
+        toggleCheckoutButton(count <= 0);
+    }
+
+    function emitCartUpdated(payload) {
+        if (!payload) {
+            return;
+        }
+
+        window.dispatchEvent(new CustomEvent('cart:updated', { detail: payload }));
+    }
+
+    function buildStockLabel(item) {
+        if (typeof item.stock !== 'number') {
+            return '';
+        }
+
+        if (item.stock > 10) {
+            return '<span class="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300"><i class="fas fa-check-circle"></i><span>In Stock</span></span>';
+        }
+
+        if (item.stock > 0) {
+            return `<span class="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 dark:bg-amber-500/20 dark:text-amber-300"><i class="fas fa-clock"></i><span>Only ${item.stock} left</span></span>`;
+        }
+
+        return '<span class="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-600 dark:bg-rose-500/20 dark:text-rose-300"><i class="fas fa-exclamation-triangle"></i><span>Out of Stock</span></span>';
+    }
+
+    function buildQuantityOptions(currentQuantity, item) {
+        const stock = typeof item.stock === 'number' && item.stock > 0 ? item.stock : 10;
+        const maxQuantity = Math.min(stock, 10);
+        let options = '';
+
+        for (let i = 1; i <= maxQuantity; i += 1) {
+            const selected = i === currentQuantity ? 'selected' : '';
+            options += `<option value="${i}" ${selected}>${i}</option>`;
+        }
+
+        return options;
+    }
+
+    function buildCartItemMarkup(item, currency) {
+        const imageSrc = sanitizeImagePath(item.image);
+        const stockLabel = buildStockLabel(item);
+        const quantityOptions = buildQuantityOptions(item.quantity, item);
+        const subtotal = formatCurrency(item.item_total, currency);
+        const unitPrice = formatCurrency(item.price, currency);
+        const shippingPerUnit = formatCurrency(item.shipping_per_unit || 0, currency);
+        const itemShipping = formatCurrency(item.shipping || 0, currency);
+        const shippingDisplay = item.shipping_per_unit ? `${shippingPerUnit} × ${item.quantity} = ${itemShipping}` : itemShipping;
+
+        return `
+            <li class="flex flex-col gap-4 py-6 sm:flex-row sm:items-start sm:py-8 cart-item"
+                data-product-id="${item.id}"
+                data-price="${item.price}"
+                data-quantity="${item.quantity}">
+                <div class="flex-shrink-0">
+                    <img src="${imageSrc}"
+                         alt="${item.name}"
+                         class="h-28 w-28 rounded-2xl object-cover object-center sm:h-32 sm:w-32">
+                </div>
+
+                <div class="flex-1">
+                    <div class="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-6">
+                        <div class="space-y-2">
+                            <h3 class="text-base font-semibold text-[color:var(--app-text)] dark:text-white">
+                                <a href="${item.url}"
+                                   class="hover:text-cyan-500 dark:hover:text-cyan-300 transition-colors">
+                                    ${item.name}
+                                </a>
+                            </h3>
+                            <p class="text-lg font-bold text-[color:var(--app-text)] dark:text-white">${unitPrice}</p>
+                            <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-400">
+                                ${stockLabel || ''}
+                            </p>
+                        </div>
+
+                        <div class="relative flex flex-col items-end gap-4 sm:items-stretch sm:justify-between">
+                            <label class="sr-only">Quantity</label>
+                            <select name="quantity"
+                                    data-product-id="${item.id}"
+                                    class="max-w-full rounded-xl border border-[color:var(--app-border)] dark:border-slate-700 py-2 pl-3 pr-10 text-sm font-medium text-[color:var(--app-text)] dark:text-slate-200 bg-[color:var(--app-card)] dark:bg-slate-900/40 shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40">
+                                ${quantityOptions}
+                            </select>
+
+                            <button type="button"
+                                    class="remove-item inline-flex items-center gap-2 text-sm font-medium text-rose-500 hover:text-rose-400 dark:text-rose-300 dark:hover:text-rose-200 transition-colors"
+                                    data-product-id="${item.id}">
+                                <i class="fas fa-trash text-xs"></i>
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex flex-col gap-2">
+                        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">
+                                <span class="font-semibold">Subtotal:</span>
+                                <span class="font-bold text-[color:var(--app-text)] dark:text-white" data-item-total>${subtotal}</span>
+                            </p>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">
+                                <span class="font-semibold">Shipping:</span>
+                                <span class="text-[color:var(--app-text)] dark:text-white" data-item-shipping>${shippingDisplay}</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </li>
+        `;
+    }
+
+    function bindCartEventHandlers(scope) {
+        if (!scope) {
+            return;
+        }
+
+        scope.querySelectorAll('select[name="quantity"]').forEach(select => {
+            select.addEventListener('change', function() {
+                const productId = this.getAttribute('data-product-id');
+                const quantity = this.value;
+                updateCartItem(productId, quantity);
+            });
+        });
+
+        scope.querySelectorAll('.remove-item').forEach(button => {
+            button.addEventListener('click', function(event) {
+                event.preventDefault();
+                const productId = this.getAttribute('data-product-id');
+                removeFromCart(productId);
+            });
+        });
+    }
+
+    function renderCartContents(summary) {
+        const section = document.querySelector('[data-cart-items-section]');
+        if (!section) {
+            return;
+        }
+
+        if (!summary || !summary.items || summary.items.length === 0) {
+            section.innerHTML = `
+                <div class="py-16 text-center" data-empty-cart>
+                    <svg class="mx-auto h-20 w-20 text-[color:var(--app-muted)] dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <h2 class="mt-4 text-2xl font-semibold text-[color:var(--app-text)] dark:text-white">Your cart is empty</h2>
+                    <p class="mt-2 text-sm text-[color:var(--app-muted)] dark:text-slate-400">Looks like you haven't added anything yet.</p>
+                    <div class="mt-6">
+                        <a href="{{ url_for('home') }}" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
+                            <i class="fas fa-shopping-bag text-xs"></i>
+                            Start Shopping
+                        </a>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const currency = summary.currency || DEFAULT_CURRENCY;
+        const itemsMarkup = summary.items.map(item => buildCartItemMarkup(item, currency)).join('');
+
+        section.innerHTML = `
+            <ul role="list" class="divide-y divide-[color:var(--app-border)] dark:divide-slate-800" data-cart-items>
+                ${itemsMarkup}
+            </ul>
+        `;
+
+        bindCartEventHandlers(section);
+    }
+
+    async function updateCartItem(productId, quantity) {
+        const section = document.querySelector('[data-cart-items-section]');
+        const cartItem = section?.querySelector(`.cart-item[data-product-id="${productId}"]`);
+        const selectElement = cartItem?.querySelector('select[name="quantity"]');
+        const previousQuantity = cartItem?.dataset.quantity || selectElement?.value;
+
+        try {
+            if (selectElement) {
+                selectElement.disabled = true;
+                selectElement.classList.add('opacity-60');
+            }
+
+            const response = await fetch(`/update_cart/${productId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ quantity: parseInt(quantity, 10) })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data.status !== 'success') {
+                throw new Error(data.message || 'Failed to update cart');
+            }
+
+            const summary = data.cart;
+            applyCartSummary(summary);
+            renderCartContents(summary);
+            emitCartUpdated(summary);
+
+            showFlashMessage(data.message || 'Cart updated', 'success');
+        } catch (error) {
+            console.error('Error updating cart:', error);
+            showFlashMessage(error.message || 'An error occurred while updating your cart', 'error');
+
+            if (selectElement && previousQuantity !== undefined) {
+                selectElement.value = previousQuantity;
+            }
+        } finally {
+            if (selectElement) {
+                selectElement.disabled = false;
+                selectElement.classList.remove('opacity-60');
+            }
+        }
+    }
+
+    async function removeFromCart(productId) {
+        if (!confirm('Are you sure you want to remove this item from your cart?')) {
+            return;
+        }
+
+        const section = document.querySelector('[data-cart-items-section]');
+        const cartItem = section?.querySelector(`.cart-item[data-product-id="${productId}"]`);
+
+        try {
+            if (cartItem) {
+                cartItem.style.opacity = '0.5';
+                cartItem.style.pointerEvents = 'none';
+            }
+
+            const response = await fetch(`/remove_from_cart/${productId}`, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || data.status !== 'success') {
+                throw new Error(data.message || 'Failed to remove item');
+            }
+
+            const summary = data.cart;
+            applyCartSummary(summary);
+            renderCartContents(summary);
+            emitCartUpdated(summary);
+            showFlashMessage(data.message || 'Product removed from cart', 'success');
+        } catch (error) {
+            console.error('Error removing item from cart:', error);
+            showFlashMessage(error.message || 'An error occurred while removing the item', 'error');
+
+            if (cartItem) {
+                cartItem.style.opacity = '1';
+                cartItem.style.pointerEvents = 'auto';
+            }
+        }
+    }
+
+    function initializeCart() {
+        try {
+            const summaryEl = document.getElementById('cart-summary-data');
+            const initialSummary = summaryEl ? JSON.parse(summaryEl.textContent || '{}') : {};
+            if (initialSummary && initialSummary.items) {
+                applyCartSummary(initialSummary);
+                renderCartContents(initialSummary);
+                emitCartUpdated(initialSummary);
+            }
+        } catch (error) {
+            console.error('Failed to parse initial cart summary:', error);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeCart);
+</script>
+{% endblock %}

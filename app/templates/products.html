@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}All Products - Buxin Electronics Store{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-10 sm:py-12">
+    <div class="flex flex-col gap-10 md:flex-row">
+        <!-- Sidebar (Desktop only) -->
+        <div class="hidden md:block w-full md:w-64 flex-shrink-0">
+            <div class="sticky top-4 rounded-3xl border border-[color:var(--app-border)] dark:border-slate-800 bg-[color:var(--app-card)] dark:bg-slate-900/70 p-5 shadow-sm transition-colors duration-300 text-[color:var(--app-text)]">
+                <h2 class="text-lg font-semibold text-[color:var(--app-text)] dark:text-white mb-4">Categories</h2>
+                <ul class="space-y-2">
+                    <li>
+                        <a href="{{ url_for('all_products') }}" 
+                           class="block px-3 py-2 rounded-xl text-sm font-medium text-[color:var(--app-muted)] dark:text-slate-300 hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800/80 transition-colors {{ 'bg-cyan-50 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300' if not current_category }}">
+                            All Products
+                        </a>
+                    </li>
+                    {% for category in categories %}
+                    <li>
+                        <a href="{{ url_for('all_products', category=category.id) }}" 
+                           class="block px-3 py-2 rounded-xl text-sm font-medium text-[color:var(--app-muted)] dark:text-slate-300 hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800/80 transition-colors {{ 'bg-cyan-50 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300' if current_category == category.id }}">
+                            {{ category.name }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="flex-1">
+            <!-- Mobile Category Dropdown -->
+            <div class="block md:hidden mb-4">
+                <label for="category-select" class="block text-sm font-medium text-[color:var(--app-text)] dark:text-white mb-2">
+                    Select Category
+                </label>
+                <select id="category-select" 
+                        class="w-full px-4 py-2.5 rounded-xl border border-[color:var(--app-border)] dark:border-slate-800 bg-[color:var(--app-card)] dark:bg-slate-900/70 text-[color:var(--app-text)] dark:text-white text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-400/60 transition-colors appearance-none cursor-pointer">
+                    <option value="{{ url_for('all_products') }}" {% if not current_category %}selected{% endif %}>All Products</option>
+                    {% for category in categories %}
+                    <option value="{{ url_for('all_products', category=category.id) }}" {% if current_category == category.id %}selected{% endif %}>
+                        {{ category.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+                <h1 class="text-2xl font-bold text-[color:var(--app-text)] dark:text-white">All Products</h1>
+                <div class="relative w-full sm:w-72">
+                    <form action="{{ url_for('all_products') }}" method="get" class="flex rounded-xl border border-[color:var(--app-border)] dark:border-slate-800 overflow-hidden focus-within:ring-2 focus-within:ring-cyan-400/60 transition-shadow bg-[color:var(--app-card)]">
+                        <input type="text" 
+                               name="q" 
+                               value="{{ search_query }}"
+                               placeholder="Search products..." 
+                               class="w-full px-4 py-2 text-sm bg-[color:var(--app-input)] dark:bg-slate-900/40 text-[color:var(--app-text)] dark:text-slate-100 placeholder:text-[color:var(--app-muted)] focus:outline-none">
+                        <button type="submit" 
+                                class="bg-cyan-500 hover:bg-cyan-600 dark:hover:bg-cyan-400 text-white px-4 py-2 transition-colors">
+                            <i data-lucide="search" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            {% if not products %}
+            <div class="text-center py-12 border border-dashed border-[color:var(--app-border)] dark:border-slate-800 rounded-3xl bg-[color:var(--app-card)] text-[color:var(--app-text)]">
+                <i data-lucide="package" class="w-12 h-12 mx-auto text-[color:var(--app-muted)] dark:text-slate-500 mb-4"></i>
+                <p class="text-[color:var(--app-muted)] dark:text-slate-400">No products found.</p>
+                {% if search_query %}
+                <a href="{{ url_for('all_products') }}" class="text-cyan-500 dark:text-cyan-300 hover:underline mt-2 inline-block">
+                    Clear search
+                </a>
+                {% endif %}
+            </div>
+            {% else %}
+            <div id="products-container" class="grid grid-cols-2 gap-3">
+                {% for product in products %}
+                <div class="product-card cursor-pointer bg-[color:var(--app-card)] dark:bg-slate-900/60 border border-[color:var(--app-border)] dark:border-slate-700/60 rounded-xl overflow-hidden hover:border-cyan-500/50 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/10 text-[color:var(--app-text)]"
+                     data-wishlist-card
+                     data-product-id="{{ product.id }}">
+                    <div class="relative">
+                        <a href="{{ url_for('product', product_id=product.id) }}" class="block h-40 overflow-hidden">
+                            {% if product.image %}
+                            <img src="{{ product.image|product_image_url }}" alt="{{ product.name }}" 
+                                class="w-full h-full object-cover hover:scale-105 transition-transform duration-200" 
+                                onerror="this.src='https://placehold.co/400x400/34d399/ffffff?text=No+Image'; this.onerror=null;">
+                            {% else %}
+                            <div class="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
+                                <i data-lucide="image" class="w-10 h-10 text-[color:var(--app-muted)] dark:text-slate-400"></i>
+                            </div>
+                            {% endif %}
+                        </a>
+                        
+                        <button type="button"
+                                class="wishlist-button absolute top-2 right-2 p-2 bg-[color:var(--app-card)] dark:bg-slate-900/80 backdrop-blur-md rounded-full shadow-md hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 transition-all group"
+                                data-product-id="{{ product.id }}"
+                                aria-label="Toggle wishlist">
+                            <i class="heart-icon fas fa-heart text-red-500 absolute inset-0 m-auto hidden"></i>
+                            <i class="heart-outline-icon fas fa-heart text-[color:var(--app-muted)] dark:text-slate-500"></i>
+                        </button>
+                        
+                        {% if product.available_in_gambia %}
+                        <div class="absolute top-2 left-2 w-8 h-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center z-10" title="Available in Gambia">
+                            <span class="text-xl">🇬🇲</span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if product.stock == 0 %}
+                        <div class="absolute {% if product.available_in_gambia %}top-12{% else %}top-2{% endif %} left-2 bg-rose-500 text-white text-xs px-2 py-1 rounded-lg font-semibold shadow z-10">
+                            Out of Stock
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="p-3">
+                        <p class="text-xs text-[color:var(--app-muted)] dark:text-slate-400 mb-1">{{ product.category.name if product.category else 'Electronics' }}</p>
+                        <h4 class="font-semibold text-sm text-[color:var(--app-text)] dark:text-white mb-2 line-clamp-2">{{ product.name }}</h4>
+                        
+                        <div class="mt-1 mb-2">
+                            <span class="text-sm font-semibold text-green-600 dark:text-green-400">
+                                D{{ product.price }}
+                            </span>
+                        </div>
+                        
+                        <div class="flex items-center justify-end">
+                            <form class="add-to-cart-form inline-block" action="{{ url_for('add_to_cart', product_id=product.id) }}" method="POST" data-wishlist-ignore>
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="quantity" value="1">
+                                <button type="submit" class="add-to-cart-btn bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:shadow-lg hover:shadow-cyan-500/30 transition-all {% if product.stock == 0 %}opacity-60 cursor-not-allowed{% endif %}"
+                                        {% if product.stock == 0 %}disabled{% endif %}>
+                                    <span class="add-to-cart-text">
+                                        {% if product.stock > 0 %}
+                                            Add to Cart
+                                        {% else %}
+                                            Out of Stock
+                                        {% endif %}
+                                    </span>
+                                    <span class="add-to-cart-loader hidden ml-1">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    // Handle mobile category dropdown selection
+    document.addEventListener('DOMContentLoaded', function() {
+        const categorySelect = document.getElementById('category-select');
+        if (categorySelect) {
+            categorySelect.addEventListener('change', function() {
+                const selectedUrl = this.value;
+                if (selectedUrl) {
+                    window.location.href = selectedUrl;
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

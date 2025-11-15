@@ -1,0 +1,721 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}Order Management Dashboard{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <!-- Page Header -->
+    <div class="mb-6 flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Order Management Dashboard / 订单管理仪表板</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Welcome, {{ current_user.username }}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('logout') }}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                <i class="fas fa-sign-out-alt mr-1"></i> 🔐 Logout
+            </a>
+        </div>
+    </div>
+
+    <!-- Order Statistics Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-yellow-500">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-yellow-100 dark:bg-yellow-900 rounded-md p-3">
+                    <span class="text-2xl">🟡</span>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Pending Orders</p>
+                    <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ pending_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-blue-500">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-blue-100 dark:bg-blue-900 rounded-md p-3">
+                    <span class="text-2xl">🚚</span>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Shipped Orders</p>
+                    <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ shipped_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-green-500">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-green-100 dark:bg-green-900 rounded-md p-3">
+                    <span class="text-2xl">📦</span>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Delivered Orders</p>
+                    <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ delivered_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-gray-500">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-gray-100 dark:bg-gray-700 rounded-md p-3">
+                    <span class="text-2xl">🔢</span>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Orders</p>
+                    <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ total_count }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Filter Tabs -->
+    <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
+        <nav class="-mb-px flex space-x-8">
+            <a href="{{ url_for('admin_order_management', status='all', sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" 
+               class="{% if status == 'all' %}border-blue-500 text-blue-600 dark:text-blue-400{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                All Orders
+            </a>
+            <a href="{{ url_for('admin_order_management', status='pending', sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" 
+               class="{% if status == 'pending' %}border-yellow-500 text-yellow-600 dark:text-yellow-400{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                🟡 Pending
+            </a>
+            <a href="{{ url_for('admin_order_management', status='shipped', sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" 
+               class="{% if status == 'shipped' %}border-blue-500 text-blue-600 dark:text-blue-400{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                🚚 Shipped
+            </a>
+            <a href="{{ url_for('admin_order_management', status='delivered', sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" 
+               class="{% if status == 'delivered' %}border-green-500 text-green-600 dark:text-green-400{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                📦 Delivered
+            </a>
+            <a href="{{ url_for('admin_order_management', status='submitted_price', sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" 
+               class="{% if status == 'submitted_price' %}border-purple-500 text-purple-600 dark:text-purple-400{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                🧾 Submitted Price
+            </a>
+        </nav>
+    </div>
+
+    <!-- Submitted Price Section (shown when status='submitted_price') -->
+    {% if status == 'submitted_price' %}
+    <div class="mb-6">
+        <!-- Summary Header Section -->
+        <div class="mb-6 p-6 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                🧾 Submitted Price Summary / 已提交价格摘要
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                This section provides evidence of all submitted shipment totals from China partners.
+                📦 Each record includes total product weight, shipping cost, and overall shipment cost,
+                along with the submitter's name and submission date for verification.
+            </p>
+            {% if shipment_stats %}
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">📅 Latest submission</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white">
+                        {{ shipment_stats.latest_date.strftime('%d-%b-%Y') if shipment_stats.latest_date else 'N/A' }}
+                    </p>
+                </div>
+                <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">👤 Total Partners Submitted</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ shipment_stats.total_partners }}</p>
+                </div>
+                <div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">📦 Total Orders Recorded</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ shipment_stats.total_orders }}</p>
+                </div>
+                <div class="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">💰 Grand Total Cost</p>
+                    <p class="text-lg font-semibold text-gray-900 dark:text-white">D{{ shipment_stats.grand_total_cost_formatted }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Filters and Export -->
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-4">
+                <select id="sortShipments" onchange="window.location.href='{{ url_for('admin_order_management', status='submitted_price', location=location_filter, customer=customer_filter, search=search_query) }}&sort=' + this.value" 
+                        class="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm">
+                    <option value="newest" {% if sort_by == 'newest' %}selected{% endif %}>🕒 Newest First</option>
+                    <option value="oldest" {% if sort_by == 'oldest' %}selected{% endif %}>🕒 Oldest First</option>
+                </select>
+            </div>
+            <a href="{{ url_for('admin_export_shipments') }}" 
+               class="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors text-sm">
+                <i class="fas fa-file-excel mr-2"></i>Export to Excel / 导出为Excel
+            </a>
+        </div>
+
+        <!-- Shipments Table -->
+        {% if shipments %}
+        <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm bg-white dark:bg-gray-800">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-100 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">⚖️ Total Weight (kg) / 总重量(公斤)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">💸 Total Shipping Price (GMD) / 运费(达拉西)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">💰 Total Product Cost (GMD) / 总产品费用(达拉西)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">🕒 Date Submitted / 提交日期</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">🧑‍💼 Submitted By / 提交人</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">🆔 Related Orders / 关联订单</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Status / 状态</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions / 操作</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for shipment in shipments %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                            {{ "%.2f"|format(shipment.weight_total) }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                            D{{ shipment.shipping_price|currency }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                            D{{ shipment.total_cost|currency }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                            {{ shipment.submission_date.strftime('%d-%b-%Y') if shipment.submission_date else 'N/A' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                            🇨🇳 {{ shipment.submitter.username if shipment.submitter else 'Unknown' }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
+                            {% set order_ids_list = shipment.order_ids.split(',') if shipment.order_ids else [] %}
+                            {% for order_id in order_ids_list %}
+                                #{{ order_id.strip() }}{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            {% if shipment.verified %}
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100">
+                                🟩 Verified / ✅ 已核实
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100">
+                                ⏳ Pending
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div class="flex items-center gap-2">
+                                <button onclick="viewShipmentDetails({{ shipment.id }})" 
+                                        class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+                                    <i class="fas fa-eye"></i> 🔍 View Details
+                                </button>
+                                {% if not shipment.verified %}
+                                <form method="POST" action="{{ url_for('admin_verify_shipment', shipment_id=shipment.id) }}" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" 
+                                            class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                                            onclick="return confirm('Mark this shipment as verified? / 将此运输记录标记为已核实？')">
+                                        <i class="fas fa-check"></i> Verify
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-12 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl">
+            <i class="fas fa-inbox text-gray-400 text-5xl mb-4"></i>
+            <p class="text-gray-500 dark:text-gray-400 text-lg">No submitted price details available yet.</p>
+            <p class="text-gray-400 dark:text-gray-500 text-sm mt-2">Waiting for China Partner to submit shipment details.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Shipment Details Modal -->
+    <div id="shipmentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white">Shipment Details / 运输详情</h3>
+                    <button onclick="closeShipmentModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+                <div id="shipmentModalContent" class="text-gray-700 dark:text-gray-300">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function viewShipmentDetails(shipmentId) {
+            fetch(`/admin/shipment/${shipmentId}/details`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const shipment = data.shipment;
+                        const orders = data.orders;
+                        
+                        let html = `
+                            <div class="mb-6">
+                                <h4 class="text-lg font-semibold mb-4">Shipment Information / 运输信息</h4>
+                                <div class="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">⚖️ Total Weight</p>
+                                        <p class="font-semibold">${shipment.weight_total} kg</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">💸 Shipping Price</p>
+                                        <p class="font-semibold">D${shipment.shipping_price.toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">💰 Total Cost</p>
+                                        <p class="font-semibold">D${shipment.total_cost.toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">🕒 Date Submitted</p>
+                                        <p class="font-semibold">${shipment.submission_date}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">🧑‍💼 Submitted By</p>
+                                        <p class="font-semibold">🇨🇳 ${shipment.submitted_by}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">Status</p>
+                                        <p class="font-semibold">${shipment.verified ? '🟩 Verified' : '⏳ Pending'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">Orders in this Batch / 此批次的订单</h4>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                        <thead class="bg-gray-50 dark:bg-gray-700">
+                                            <tr>
+                                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">Order ID</th>
+                                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">Customer</th>
+                                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">Items</th>
+                                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        `;
+                        
+                        orders.forEach(order => {
+                            html += `
+                                <tr>
+                                    <td class="px-4 py-2 text-sm">#${order.id}</td>
+                                    <td class="px-4 py-2 text-sm">${order.customer_name}</td>
+                                    <td class="px-4 py-2 text-sm">
+                                        <ul class="list-disc list-inside">
+                            `;
+                            order.items.forEach(item => {
+                                html += `<li>${item.product_name} (Qty: ${item.quantity}) - D${item.price.toLocaleString()}</li>`;
+                            });
+                            html += `
+                                        </ul>
+                                    </td>
+                                    <td class="px-4 py-2 text-sm font-semibold">D${order.total.toLocaleString()}</td>
+                                </tr>
+                            `;
+                        });
+                        
+                        html += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        `;
+                        
+                        document.getElementById('shipmentModalContent').innerHTML = html;
+                        document.getElementById('shipmentModal').classList.remove('hidden');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error loading shipment details / 加载运输详情时出错');
+                });
+        }
+        
+        function closeShipmentModal() {
+            document.getElementById('shipmentModal').classList.add('hidden');
+        }
+        
+        // Close modal when clicking outside
+        document.getElementById('shipmentModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeShipmentModal();
+            }
+        });
+    </script>
+    {% endif %}
+
+    <!-- Shipment Details Input Section (shown for pending orders, not for submitted_price tab) -->
+    {% if status == 'pending' and status != 'submitted_price' %}
+    <div class="mb-6 p-6 border border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-800 shadow-sm">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            🧾 Shipment Details (运输信息填写)
+        </h3>
+        <form method="POST" action="{{ url_for('admin_submit_order_details_batch', status=status, sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" id="shipmentForm" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="selected_orders" id="selected_orders_input" value=""/>
+            
+            <div>
+                <label for="product_weight_kg" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    ⚖️ Product Weight (kg) / 产品重量(公斤)
+                </label>
+                <input type="number" 
+                       step="0.01" 
+                       min="0"
+                       name="product_weight_kg" 
+                       id="product_weight_kg"
+                       placeholder="e.g. 2.5" 
+                       required
+                       class="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            
+            <div>
+                <label for="shipping_price_gmd" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    💸 Shipping Price (GMD) / 运费(达拉西)
+                </label>
+                <input type="number" 
+                       step="0.01" 
+                       min="0"
+                       name="shipping_price_gmd" 
+                       id="shipping_price_gmd"
+                       placeholder="e.g. 800" 
+                       required
+                       class="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            
+            <div>
+                <label for="total_cost_gmd" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    💰 Total Cost (GMD) / 总费用(达拉西)
+                </label>
+                <input type="number" 
+                       step="0.01" 
+                       min="0"
+                       name="total_cost_gmd" 
+                       id="total_cost_gmd"
+                       placeholder="e.g. 10200" 
+                       required
+                       class="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            
+            <div class="flex items-end">
+                <button type="submit" 
+                        class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold p-3 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                    <i class="fas fa-paper-plane mr-2"></i>
+                    🟢 Submit Details (提交信息)
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Sorting, Filtering, and Search -->
+    <div class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-4">
+            <!-- Sort By -->
+            <div>
+                <label for="sort_by" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Sort By:</label>
+                <select id="sort_by" name="sort" 
+                        onchange="window.location.href='{{ url_for('admin_order_management', status=status, location=location_filter, customer=customer_filter, search=search_query) }}&sort=' + this.value"
+                        class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="newest" {% if sort_by == 'newest' %}selected{% endif %}>Newest First</option>
+                    <option value="oldest" {% if sort_by == 'oldest' %}selected{% endif %}>Oldest First</option>
+                    <option value="customer" {% if sort_by == 'customer' %}selected{% endif %}>By Customer</option>
+                </select>
+            </div>
+
+            <!-- Location Filter -->
+            <div>
+                <label for="location_filter" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Location:</label>
+                <select id="location_filter" name="location"
+                        onchange="window.location.href='{{ url_for('admin_order_management', status=status, sort=sort_by, customer=customer_filter, search=search_query) }}&location=' + this.value"
+                        class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="all" {% if location_filter == 'all' %}selected{% endif %}>All</option>
+                    <option value="china" {% if location_filter == 'china' %}selected{% endif %}>🇨🇳 China</option>
+                    <option value="gambia" {% if location_filter == 'gambia' %}selected{% endif %}>🇬🇲 Gambia</option>
+                </select>
+            </div>
+
+            <!-- Customer Filter -->
+            <div>
+                <label for="customer_filter" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Customer:</label>
+                <select id="customer_filter" name="customer"
+                        onchange="window.location.href='{{ url_for('admin_order_management', status=status, sort=sort_by, location=location_filter, search=search_query) }}&customer=' + this.value"
+                        class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="all" {% if customer_filter == 'all' %}selected{% endif %}>All Customers</option>
+                    {% for customer in customers %}
+                    <option value="{{ customer.id }}" {% if customer_filter == customer.id|string %}selected{% endif %}>{{ customer.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="flex-1 max-w-md">
+            <form method="GET" action="{{ url_for('admin_order_management') }}" class="flex gap-2">
+                <input type="hidden" name="status" value="{{ status }}">
+                <input type="hidden" name="sort" value="{{ sort_by }}">
+                <input type="hidden" name="location" value="{{ location_filter }}">
+                <input type="hidden" name="customer" value="{{ customer_filter }}">
+                <input type="text" 
+                       name="search" 
+                       value="{{ search_query }}"
+                       placeholder="Search by Order ID / Customer / Product..." 
+                       class="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    <i class="fas fa-search"></i>
+                </button>
+                {% if search_query %}
+                <a href="{{ url_for('admin_order_management', status=status, sort=sort_by, location=location_filter, customer=customer_filter) }}" 
+                   class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">
+                    <i class="fas fa-times"></i>
+                </a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- Orders Table (hidden when status='submitted_price') -->
+    {% if status != 'submitted_price' %}
+    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            <input type="checkbox" id="selectAll" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">🆔 Order ID</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">🖼️ Product Image</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">🧾 Product Name</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">🔢 Quantity</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">👤 Customer</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">📍 Address</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">📞 Phone</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">🌍 Location</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">🚦 Status</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">⚙️ Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for order in orders.items %}
+                        {% for item in order.items %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {% if loop.index % 2 == 0 %}bg-gray-50/50 dark:bg-gray-800/50{% endif %}">
+                            <td class="px-4 py-3">
+                                {% if loop.first %}
+                                <input type="checkbox" 
+                                       class="order-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                                       value="{{ order.id }}"
+                                       data-order-id="{{ order.id }}">
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                {% if loop.first %}
+                                <span class="font-mono">#{{ order.id }}</span>
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                {% if item.product.image %}
+                                    <img src="{{ url_for('static', filename=item.product.image) }}" 
+                                         alt="{{ item.product.name }}" 
+                                         class="w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-600 object-cover">
+                                {% else %}
+                                    <div class="w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                                        <i class="fas fa-image text-gray-400"></i>
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">{{ item.product.name }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{{ item.quantity }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                                {% if loop.first %}
+                                {{ order.customer_name or order.customer.username }}
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                                {% if loop.first %}
+                                {{ (order.customer_address or order.delivery_address or 'To be confirmed')[:30] }}{% if (order.customer_address or order.delivery_address or '')|length > 30 %}...{% endif %}
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                {% if loop.first %}
+                                {{ order.customer_phone or 'N/A' }}
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                {% if loop.first %}
+                                    {% if order.location == 'In The Gambia' %}
+                                        🇬🇲 Gambia
+                                    {% else %}
+                                        🇨🇳 China
+                                    {% endif %}
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                {% if loop.first %}
+                                    {% if order.shipping_status == 'delivered' %}
+                                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100">
+                                            🟩 Delivered
+                                        </span>
+                                    {% elif order.shipping_status == 'shipped' %}
+                                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100">
+                                            🟦 Shipped
+                                        </span>
+                                    {% else %}
+                                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100">
+                                            🟡 Pending
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                                {% if loop.first %}
+                                    {% if order.shipping_status == 'pending' %}
+                                        <form method="POST" action="{{ url_for('admin_mark_shipped', order_id=order.id, status=status, sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" class="inline">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-2">
+                                                🔘 Mark as Shipped
+                                            </button>
+                                        </form>
+                                    {% elif order.shipping_status == 'shipped' %}
+                                        <form method="POST" action="{{ url_for('admin_mark_delivered', order_id=order.id, status=status, sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" class="inline">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 mr-2">
+                                                🔘 Mark as Delivered
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <span class="text-gray-400">—</span>
+                                    {% endif %}
+                                    <a href="{{ url_for('admin_edit_order_details', order_id=order.id, status=status, sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" 
+                                       class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-2">
+                                        🖊️ Edit
+                                    </a>
+                                    <form method="POST" action="{{ url_for('admin_delete_order', order_id=order.id, status=status, sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" 
+                                          class="inline"
+                                          onsubmit="return confirm('Are you sure you want to delete order #{{ order.id }}?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                                            ❌ Delete
+                                        </button>
+                                    </form>
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="11" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">No orders found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+    <!-- End Orders Table -->
+
+    <!-- Pagination Footer (hidden when status='submitted_price') -->
+    {% if status != 'submitted_price' and orders.pages > 1 %}
+    <div class="mt-4 flex justify-between items-center">
+        <div class="text-sm text-gray-500 dark:text-gray-400">
+            Showing page {{ orders.page }} of {{ orders.pages }}
+        </div>
+        <div class="flex space-x-2">
+            {% if orders.has_prev %}
+            <a href="{{ url_for('admin_order_management', page=orders.prev_num, status=status, sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" 
+               class="px-3 py-1 rounded-md border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:bg-gray-600">
+                &lt;&lt; Previous
+            </a>
+            {% endif %}
+            {% if orders.has_next %}
+            <a href="{{ url_for('admin_order_management', page=orders.next_num, status=status, sort=sort_by, location=location_filter, customer=customer_filter, search=search_query) }}" 
+               class="px-3 py-1 rounded-md border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:bg-gray-600">
+                Next &gt;&gt;
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // Select All functionality
+    document.getElementById('selectAll')?.addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.order-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateSelectedOrders();
+    });
+
+    // Update selected orders when individual checkboxes change
+    document.querySelectorAll('.order-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateSelectedOrders();
+            updateSelectAllState();
+        });
+    });
+
+    function updateSelectedOrders() {
+        const selected = Array.from(document.querySelectorAll('.order-checkbox:checked'))
+            .map(cb => cb.value);
+        // Deduplicate order IDs
+        const uniqueOrderIds = [...new Set(selected)];
+        const input = document.getElementById('selected_orders_input');
+        if (input) {
+            input.value = uniqueOrderIds.join(',');
+        }
+    }
+
+    function updateSelectAllState() {
+        const checkboxes = document.querySelectorAll('.order-checkbox');
+        const checked = document.querySelectorAll('.order-checkbox:checked');
+        const selectAll = document.getElementById('selectAll');
+        if (selectAll && checkboxes.length > 0) {
+            if (checked.length === checkboxes.length) {
+                selectAll.checked = true;
+                selectAll.indeterminate = false;
+            } else if (checked.length > 0) {
+                selectAll.checked = false;
+                selectAll.indeterminate = true;
+            } else {
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+            }
+        }
+    }
+
+    // Form submission - validate that at least one order is selected
+    const shipmentForm = document.getElementById('shipmentForm');
+    if (shipmentForm) {
+        shipmentForm.addEventListener('submit', function(e) {
+            const selected = document.getElementById('selected_orders_input')?.value;
+            if (!selected || selected.trim() === '') {
+                e.preventDefault();
+                alert('Please select at least one order to update. / 请至少选择一个订单进行更新。');
+                return false;
+            }
+        });
+    }
+
+    // Initialize select all state on page load
+    updateSelectAllState();
+</script>
+{% endblock %}

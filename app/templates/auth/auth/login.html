@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Buxin Electronics Store{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 bg-[color:var(--app-bg)]">
+    <div class="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <h2 class="text-3xl font-extrabold text-slate-900 dark:text-white">
+            Sign in to your account
+        </h2>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            Or
+            <a href="{{ url_for('register') }}" class="font-semibold text-cyan-500 hover:text-cyan-400 dark:text-cyan-300 dark:hover:text-cyan-200">
+                create a new account
+            </a>
+        </p>
+    </div>
+
+    <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div class="bg-[color:var(--app-card)] dark:bg-slate-900/70 border border-[color:var(--app-border)] dark:border-slate-800 py-8 px-6 sm:px-8 shadow-sm rounded-3xl transition-colors duration-300">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mb-4 rounded-xl border {% if category == 'error' %}border-rose-200/60 bg-rose-500/10 text-rose-600 dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-200{% else %}border-emerald-200/60 bg-emerald-500/10 text-emerald-600 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200{% endif %} p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="h-5 w-5 {% if category == 'error' %}text-rose-500 fa-exclamation-circle{% else %}text-emerald-500 fa-check-circle{% endif %} fas"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm font-semibold">
+                                        {{ message }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form class="space-y-6" action="{{ url_for('login') }}" method="POST">
+                {% if csrf_token %}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% endif %}
+                
+                <div>
+                    <label for="username" class="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Username
+                    </label>
+                    <div class="mt-1">
+                        <input id="username" name="username" type="text" required 
+                            class="appearance-none block w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 bg-white dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="password" class="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Password
+                    </label>
+                    <div class="mt-1">
+                        <input id="password" name="password" type="password" autocomplete="current-password" required
+                            class="appearance-none block w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 bg-white dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <input id="remember-me" name="remember" type="checkbox"
+                            class="h-4 w-4 text-cyan-500 focus:ring-cyan-400 border-slate-300 rounded dark:bg-slate-900 dark:border-slate-700">
+                        <label for="remember-me" class="ml-2 block text-sm text-slate-700 dark:text-slate-300">
+                            Remember me
+                        </label>
+                    </div>
+
+                    <div class="text-sm">
+                        <a href="{{ url_for('forgot_password') }}" class="font-semibold text-cyan-500 hover:text-cyan-400 dark:text-cyan-300 dark:hover:text-cyan-200">
+                            Forgot your password?
+                        </a>
+                    </div>
+                </div>
+
+                <div>
+                    <button type="submit"
+                        class="w-full flex justify-center py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/20 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-all">
+                        Sign in
+                    </button>
+                </div>
+            </form>
+
+            <div class="mt-6">
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-slate-200 dark:border-slate-700"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-[color:var(--app-card)] dark:bg-slate-900/70 text-[color:var(--app-muted)] dark:text-slate-400">
+                            Or continue with
+                        </span>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <a href="{{ url_for('google_login', next=request.args.get('next')) }}"
+                        class="w-full inline-flex items-center justify-center gap-3 py-2.5 px-4 border border-[color:var(--app-border)] dark:border-slate-700 rounded-xl shadow-sm bg-[color:var(--app-card)] dark:bg-slate-900/60 text-sm font-medium text-[color:var(--app-muted)] dark:text-slate-200 hover:border-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 transition-colors">
+                        <i class="fab fa-google text-red-500"></i>
+                        Sign in with Google
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

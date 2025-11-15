@@ -1,0 +1,527 @@
+{% extends "base.html" %}
+
+{% block title %}Checkout - Buxin Electronics Store{% endblock %}
+
+{% block content %}
+{% set currency = cart_summary.currency if cart_summary is defined else 'D' %}
+<div class="max-w-7xl mx-auto pt-12 pb-20 px-4 sm:px-6 lg:px-8 space-y-10 bg-[color:var(--app-bg)]">
+        <div class="max-w-2xl mx-auto lg:max-w-none">
+            <h1 class="sr-only">Checkout</h1>
+
+            <div class="lg:grid lg:grid-cols-2 lg:gap-x-10 xl:gap-x-16">
+                <!-- Order summary -->
+                <div class="lg:col-span-1">
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Order summary</h2>
+
+                    <div class="mt-4 bg-[color:var(--app-card)] dark:bg-slate-900/70 border border-[color:var(--app-border)] dark:border-slate-800 rounded-3xl shadow-sm transition-colors duration-300">
+                        <div class="{% if cart_items %}hidden{% endif %} py-12 px-6 text-center text-[color:var(--app-muted)] dark:text-slate-400" data-checkout-empty>
+                            <p>Your cart is currently empty.</p>
+                            <p class="mt-2 text-sm">
+                                <a href="{{ url_for('cart') }}" class="text-cyan-500 hover:text-cyan-400 dark:text-cyan-300 dark:hover:text-cyan-200 font-semibold">
+                                    Return to cart
+                                </a>
+                            </p>
+                        </div>
+                        <ul role="list" class="divide-y divide-slate-200 dark:divide-slate-800 {% if not cart_items %}hidden{% endif %}" data-checkout-items>
+                            {% for item in cart_items %}
+                            <li class="py-6 px-4 sm:px-6" data-checkout-item="{{ item.id }}">
+                            <div class="flex items-center">
+                                    <div class="flex-shrink-0 w-20 h-20 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                                        <img data-checkout-image src="{{ url_for('static', filename=item.image) if item.image else url_for('static', filename='images/placeholder.png') }}" alt="{{ item.name }}" class="w-full h-full object-center object-cover">
+                                    </div>
+
+                                    <div class="ml-6 flex-1 flex flex-col">
+                                        <div class="flex">
+                                            <h3 class="text-sm">
+                                                <a href="{{ url_for('product', product_id=item.id) }}" data-checkout-name class="font-medium text-slate-700 hover:text-cyan-500 dark:text-slate-200 dark:hover:text-cyan-300 transition-colors">
+                                                    {{ item.name }}
+                                                </a>
+                                            </h3>
+                                        </div>
+
+                                        <div class="mt-1 flex-1 flex flex-col gap-1">
+                                            <div class="flex items-end justify-between">
+                                                <p class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-price>{{ currency }}{{ "%.2f"|format(item.price) }}</p>
+                                                <p class="text-sm text-slate-500 dark:text-slate-400" data-checkout-quantity>Qty {{ item.quantity }}</p>
+                                            </div>
+                                            <div class="flex items-center justify-between">
+                                                <p class="text-xs text-slate-500 dark:text-slate-400">
+                                                    Shipping: <span data-checkout-item-shipping>{{ currency }}{{ "%.2f"|format(item.shipping_per_unit) }} × {{ item.quantity }} = {{ currency }}{{ "%.2f"|format(item.shipping) }}</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+
+                        <dl class="border-t border-[color:var(--app-border)] dark:border-slate-800 py-6 px-4 space-y-6 sm:px-6">
+                            <div class="flex items-center justify-between">
+                                <dt class="text-sm">Subtotal</dt>
+                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-subtotal>{{ currency }}{{ "%.2f"|format(checkout_summary.subtotal) }}</dd>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <dt class="text-sm">Tax</dt>
+                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-tax>{{ currency }}{{ "%.2f"|format(checkout_summary.tax) }}</dd>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <dt class="text-sm">Shipping</dt>
+                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-shipping>{{ currency }}{{ "%.2f"|format(checkout_summary.shipping) }}</dd>
+                            </div>
+                            <div class="flex items-center justify-between border-t border-[color:var(--app-border)] dark:border-slate-800 pt-6">
+                                <dt class="text-base font-semibold text-slate-900 dark:text-white">Total</dt>
+                                <dd class="text-base font-bold text-cyan-500 dark:text-cyan-300" data-checkout-total>{{ currency }}{{ "%.2f"|format(checkout_summary.total) }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+
+                <!-- ModemPay Payment Form -->
+                <div class="mt-10 lg:mt-0">
+                    <div class="bg-[color:var(--app-card)] dark:bg-slate-900/70 border border-[color:var(--app-border)] dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm transition-colors duration-300">
+                        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Payment Information</h2>
+                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Pay securely using ModemPay</p>
+
+                        <form id="modempay-form" class="mt-6 space-y-6">
+                            <!-- Amount (read-only, from cart total) -->
+                            <div>
+                                <label for="amount" class="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    Amount ({{ currency }})
+                                </label>
+                                <div class="mt-2">
+                                    <input 
+                                        type="number" 
+                                        id="amount" 
+                                        name="amount" 
+                                        value="{{ "%.2f"|format(checkout_summary.total) }}" 
+                                        readonly
+                                        step="0.01"
+                                        class="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/50 text-slate-900 dark:text-white cursor-not-allowed px-4 py-2"
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Order ID (hidden) -->
+                            <input type="hidden" id="order_id" name="order_id" value="{{ order_id }}">
+
+                            <!-- Pay Now Button -->
+                            <div class="pt-2">
+                                <button 
+                                    type="submit" 
+                                    id="pay-button"
+                                    class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 py-3 px-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    <span id="button-text">Pay Now</span>
+                                    <span id="button-loading" class="hidden">Processing...</span>
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Response Display Area -->
+                        <div id="response" class="mt-6 hidden" style="display:none !important;" aria-hidden="true">
+                            <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-4 shadow-inner">
+                                <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">Payment Response</h3>
+                                <pre id="response-content" class="text-xs bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 overflow-auto max-h-64 text-slate-800 dark:text-slate-200"></pre>
+                            </div>
+                        </div>
+                         
+
+                        <!-- Success/Error Messages -->
+                        <div id="message" class="mt-4 hidden" style="display:none !important;" aria-hidden="true">
+                            <div id="message-content" class="rounded-xl p-4 text-sm font-medium"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script id="checkout-summary-data" type="application/json">{{ cart_summary | tojson }}</script>
+<script>
+    // Get CSRF token from meta tag or form
+    function getCSRFToken() {
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+            return metaTag.getAttribute('content');
+        }
+        // Fallback: try to get from form
+    const form = document.querySelector('form');
+        if (form) {
+            const csrfInput = form.querySelector('input[name="csrf_token"]');
+            if (csrfInput) {
+                return csrfInput.value;
+            }
+        }
+        return '';
+    }
+
+    // Format phone number
+    function formatPhoneNumber(phone) {
+        // Remove all non-digit characters
+        let cleaned = phone.replace(/\D/g, '');
+        
+        // Add country code if not present (Gambia: +220)
+        if (!cleaned.startsWith('220')) {
+            cleaned = '220' + cleaned;
+        }
+        
+        // Format as +220XXXXXXXXX
+        return '+' + cleaned;
+    }
+
+    const CHECKOUT_CURRENCY = document.body.dataset.cartCurrency || "{{ currency }}";
+    const STATIC_BASE = "{{ url_for('static', filename='') }}";
+    const PLACEHOLDER_IMAGE = "{{ url_for('static', filename='images/placeholder.png') }}";
+
+    function formatCheckoutCurrency(value, currency = CHECKOUT_CURRENCY) {
+        const numeric = Number(value) || 0;
+        return `${currency}${numeric.toFixed(2)}`;
+    }
+
+    function sanitizeImagePath(imagePath) {
+        if (!imagePath) {
+            return PLACEHOLDER_IMAGE;
+        }
+
+        if (/^https?:\/\//i.test(imagePath)) {
+            return imagePath;
+        }
+
+        const trimmed = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+        return `${STATIC_BASE}${trimmed}`;
+    }
+
+    function updateCheckoutItemRow(row, item, currency) {
+        const imageEl = row.querySelector('[data-checkout-image]');
+        if (imageEl) {
+            imageEl.src = sanitizeImagePath(item.image);
+            imageEl.alt = item.name || 'Cart item';
+        }
+
+        const nameLink = row.querySelector('[data-checkout-name]');
+        if (nameLink) {
+            nameLink.textContent = item.name || 'Product';
+            nameLink.href = `/product/${item.id}`;
+        }
+
+        const priceEl = row.querySelector('[data-checkout-price]');
+        if (priceEl) {
+            priceEl.textContent = formatCheckoutCurrency(item.price, currency);
+        }
+
+        const quantityEl = row.querySelector('[data-checkout-quantity]');
+        if (quantityEl) {
+            quantityEl.textContent = `Qty ${item.quantity}`;
+        }
+
+        const itemShippingEl = row.querySelector('[data-checkout-item-shipping]');
+        if (itemShippingEl) {
+            const shippingPerUnit = item.shipping_per_unit || 0;
+            const itemShipping = item.shipping || 0;
+            if (shippingPerUnit > 0) {
+                itemShippingEl.textContent = `${formatCheckoutCurrency(shippingPerUnit, currency)} × ${item.quantity} = ${formatCheckoutCurrency(itemShipping, currency)}`;
+            } else {
+                itemShippingEl.textContent = formatCheckoutCurrency(itemShipping, currency);
+            }
+        }
+    }
+
+    function normalizeSummary(payload) {
+        if (!payload) {
+            return null;
+        }
+
+        if (payload.cart) {
+            return payload.cart;
+        }
+
+        if (payload.checkout && payload.items) {
+            return payload;
+        }
+
+        return null;
+    }
+
+    function updateCheckoutView(summary) {
+        if (!summary) {
+            return;
+        }
+
+        const currency = summary.currency || CHECKOUT_CURRENCY;
+        const checkout = summary.checkout || {};
+        const itemsData = summary.items || checkout.items || [];
+
+        const itemsContainer = document.querySelector('[data-checkout-items]');
+        const emptyState = document.querySelector('[data-checkout-empty]');
+
+        if (itemsContainer) {
+            const existingItems = new Map();
+            itemsContainer.querySelectorAll('[data-checkout-item]').forEach(node => {
+                existingItems.set(Number(node.dataset.checkoutItem), node);
+            });
+
+            const visibleIds = new Set();
+
+            itemsData.forEach(item => {
+                const id = Number(item.id);
+                visibleIds.add(id);
+                let row = existingItems.get(id);
+                if (!row) {
+                    row = document.createElement('li');
+                    row.className = 'py-6 px-4 sm:px-6';
+                    row.dataset.checkoutItem = id;
+                    row.innerHTML = `
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 w-20 h-20 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                                <img data-checkout-image class="w-full h-full object-center object-cover" alt="">
+                            </div>
+                            <div class="ml-6 flex-1 flex flex-col">
+                                <div class="flex">
+                                    <h3 class="text-sm">
+                                        <a data-checkout-name class="font-medium text-slate-700 hover:text-cyan-500 dark:text-slate-200 dark:hover:text-cyan-300 transition-colors"></a>
+                                    </h3>
+                                </div>
+                                <div class="mt-1 flex-1 flex flex-col gap-1">
+                                    <div class="flex items-end justify-between">
+                                        <p class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-price></p>
+                                        <p class="text-sm text-slate-500 dark:text-slate-400" data-checkout-quantity></p>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                                            Shipping: <span data-checkout-item-shipping></span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    itemsContainer.appendChild(row);
+                }
+
+                updateCheckoutItemRow(row, item, currency);
+            });
+
+            existingItems.forEach((row, id) => {
+                if (!visibleIds.has(id)) {
+                    row.remove();
+                }
+            });
+
+            const hasItems = itemsData.length > 0;
+            itemsContainer.classList.toggle('hidden', !hasItems);
+            if (emptyState) {
+                emptyState.classList.toggle('hidden', hasItems);
+            }
+        }
+
+        const subtotalEl = document.querySelector('[data-checkout-subtotal]');
+        if (subtotalEl) {
+            subtotalEl.textContent = formatCheckoutCurrency(summary.cart_subtotal ?? checkout.subtotal ?? 0, currency);
+        }
+
+        const taxEl = document.querySelector('[data-checkout-tax]');
+        if (taxEl) {
+            taxEl.textContent = formatCheckoutCurrency(summary.cart_tax ?? checkout.tax ?? 0, currency);
+        }
+
+        const shippingEl = document.querySelector('[data-checkout-shipping]');
+        if (shippingEl) {
+            shippingEl.textContent = formatCheckoutCurrency(summary.cart_shipping ?? checkout.shipping ?? 0, currency);
+        }
+
+        const totalEl = document.querySelector('[data-checkout-total]');
+        if (totalEl) {
+            totalEl.textContent = formatCheckoutCurrency(summary.cart_total ?? checkout.total ?? 0, currency);
+        }
+
+        const amountInput = document.getElementById('amount');
+        if (amountInput) {
+            amountInput.value = (checkout.total ?? summary.cart_total ?? 0).toFixed(2);
+        }
+
+        const payButton = document.getElementById('pay-button');
+        if (payButton) {
+            const hasItems = (checkout.count ?? summary.cart_count ?? itemsData.length) > 0;
+            payButton.disabled = !hasItems;
+        }
+
+        const cartCountValue = checkout.count ?? summary.cart_count ?? itemsData.length;
+        if (typeof window.updateCartBadgeCount === 'function') {
+            window.updateCartBadgeCount(cartCountValue);
+        }
+    }
+
+    function syncCheckoutSummary() {
+        fetch('{{ url_for("api_get_cart_summary") }}', {
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const normalized = normalizeSummary(data);
+            if (normalized) {
+                updateCheckoutView(normalized);
+            }
+        })
+        .catch(error => console.error('Error syncing checkout summary:', error));
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        try {
+            const summaryEl = document.getElementById('checkout-summary-data');
+            const initialSummary = summaryEl ? JSON.parse(summaryEl.textContent || '{}') : {};
+            updateCheckoutView(initialSummary);
+        } catch (error) {
+            console.error('Failed to parse initial checkout summary:', error);
+        }
+        syncCheckoutSummary();
+    });
+
+    window.addEventListener('cart:updated', event => {
+        const normalized = normalizeSummary(event.detail);
+        if (normalized) {
+            updateCheckoutView(normalized);
+        }
+    });
+
+    // Handle form submission
+    document.getElementById('modempay-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Get form elements
+        const form = e.target;
+        const payButton = document.getElementById('pay-button');
+        const buttonText = document.getElementById('button-text');
+        const buttonLoading = document.getElementById('button-loading');
+        const responseDiv = document.getElementById('response');
+        const responseContent = document.getElementById('response-content');
+        const messageDiv = document.getElementById('message');
+        const messageContent = document.getElementById('message-content');
+        
+        // Get form values
+        const orderId = document.getElementById('order_id').value;
+        const amount = parseFloat(document.getElementById('amount').value);
+        const provider = 'modempay';
+        
+        // Validation
+        // No client-side phone/provider validation; handled by server
+        
+        // Disable button and show loading
+        payButton.disabled = true;
+        buttonText.classList.add('hidden');
+        buttonLoading.classList.remove('hidden');
+        responseDiv.classList.add('hidden');
+        messageDiv.classList.add('hidden');
+        
+        try {
+            // Prepare payment data
+            const paymentData = {
+                order_id: parseInt(orderId),
+                amount: amount,
+                // phone omitted; server derives from current user if needed
+                provider: provider
+            };
+            
+            console.log('Initiating ModemPay payment:', paymentData);
+            
+            // Make API call to ModemPay payment endpoint
+            const response = await fetch('/payments/modempay/pay', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(paymentData)
+            });
+            
+            // Parse response
+            const data = await response.json();
+            
+            console.log('ModemPay response:', data);
+            
+            // Display response
+            responseContent.textContent = JSON.stringify(data, null, 2);
+            
+            // Handle response
+            if (data.success) {
+                showMessage('Payment initiated successfully!', 'success');
+                
+                // Support both { payment_url } and { data: { payment_url } }
+                const paymentUrl = data.payment_url || (data.data && data.data.payment_url);
+                if (paymentUrl) {
+                    showMessage('Redirecting to payment page...', 'info');
+                    window.location.href = paymentUrl;
+                }                
+                
+                // Show transaction details
+                if (data.data) {
+                    const details = [];
+                    if (data.data.transaction_id) {
+                        details.push(`Transaction ID: ${data.data.transaction_id}`);
+                    }
+                    if (data.data.reference) {
+                        details.push(`Reference: ${data.data.reference}`);
+                    }
+                    if (details.length > 0) {
+                        showMessage(details.join('<br>'), 'info');
+                    }
+                }
+            } else {
+                showMessage(data.message || 'Payment initiation failed', 'error');
+            }
+            
+        } catch (error) {
+            console.error('Payment error:', error);
+            showMessage('An error occurred while processing your payment. Please try again.', 'error');
+            
+            // Show error in response area
+            responseContent.textContent = JSON.stringify({
+                error: error.message,
+                stack: error.stack
+            }, null, 2);
+        } finally {
+            // Re-enable button
+            payButton.disabled = false;
+            buttonText.classList.remove('hidden');
+            buttonLoading.classList.add('hidden');
+        }
+    });
+    
+    // Show message function
+    function showMessage(message, type) {
+        const messageDiv = document.getElementById('message');
+        const messageContent = document.getElementById('message-content');
+        
+        // Remove existing classes
+        messageContent.className = 'rounded-md p-4';
+        
+        // Add type-specific classes
+        if (type === 'success') {
+            messageContent.classList.add('bg-green-50', 'text-green-800', 'border', 'border-green-200', 'dark:bg-green-900', 'dark:text-green-200', 'dark:border-green-700');
+        } else if (type === 'error') {
+            messageContent.classList.add('bg-red-50', 'text-red-800', 'border', 'border-red-200', 'dark:bg-red-900', 'dark:text-red-200', 'dark:border-red-700');
+        } else if (type === 'info') {
+            messageContent.classList.add('bg-blue-50', 'text-blue-800', 'border', 'border-blue-200', 'dark:bg-blue-900', 'dark:text-blue-200', 'dark:border-blue-700');
+        } else {
+            messageContent.classList.add('bg-slate-100', 'text-slate-800', 'border', 'border-slate-200', 'dark:bg-slate-900/60', 'dark:text-slate-200', 'dark:border-slate-800');
+        }
+        
+        messageContent.innerHTML = message;
+        
+        // Auto-hide after 10 seconds
+        setTimeout(() => {
+            messageDiv.classList.add('hidden');
+        }, 10000);
+    }
+    
+    // Phone input removed
+</script>
+{% endblock %}

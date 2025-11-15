@@ -1,0 +1,142 @@
+{% extends "admin/admin/base.html" %}
+
+{% block title %}Test Email Configuration{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 px-4">
+    <h1 class="text-2xl font-semibold mb-6">Test Email Configuration</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="mb-4 p-4 rounded {% if category == 'error' %}bg-red-50 text-red-800 border border-red-200{% else %}bg-green-50 text-green-800 border border-green-200{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if error %}
+    <div class="mb-4 p-4 rounded bg-red-50 text-red-800 border border-red-200">
+        <strong>Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <!-- Environment Variables -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Environment Variables (.env)</h2>
+            <dl class="space-y-2 text-sm">
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_SERVER:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ env_config.MAIL_SERVER }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_PORT:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ env_config.MAIL_PORT }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_USE_TLS:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ env_config.MAIL_USE_TLS }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_USERNAME:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ env_config.MAIL_USERNAME }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_PASSWORD:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ env_config.MAIL_PASSWORD }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- App Configuration -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Flask App Configuration</h2>
+            <dl class="space-y-2 text-sm">
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_SERVER:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ app_config.MAIL_SERVER }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_PORT:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ app_config.MAIL_PORT }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_USE_TLS:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ app_config.MAIL_USE_TLS }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_USERNAME:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ app_config.MAIL_USERNAME }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_PASSWORD:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ app_config.MAIL_PASSWORD }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">MAIL_DEFAULT_SENDER:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ app_config.MAIL_DEFAULT_SENDER }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium text-gray-700 dark:text-gray-300">Mail Initialized:</dt>
+                    <dd class="text-gray-900 dark:text-gray-100">{{ app_config['Mail Initialized'] }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    {% if smtp_test %}
+    <div class="mb-6 p-4 rounded {% if '✅' in smtp_test %}bg-green-50 text-green-800 border border-green-200{% else %}bg-red-50 text-red-800 border border-red-200{% endif %}">
+        <strong>SMTP Connection Test:</strong> {{ smtp_test }}
+    </div>
+    {% endif %}
+
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold mb-4">Send Test Email</h2>
+        <form method="POST" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Test Email Address
+                </label>
+                <input 
+                    type="email" 
+                    name="test_email" 
+                    value="buxinstore9@gmail.com"
+                    class="w-full border-gray-300 rounded-md shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    required
+                >
+                <p class="mt-1 text-xs text-gray-500">Default: buxinstore9@gmail.com</p>
+            </div>
+            <div class="flex gap-3">
+                <button 
+                    type="submit" 
+                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                >
+                    Send Test Email
+                </button>
+                <a 
+                    href="{{ url_for('test_email_config') }}?test_smtp=true" 
+                    class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                >
+                    Test SMTP Connection
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <div class="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+        <h3 class="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">Troubleshooting Tips:</h3>
+        <ul class="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
+            <li>Check Flask console/logs for detailed error messages</li>
+            <li>Verify Gmail App Password is correct (not your regular password)</li>
+            <li>Ensure 2-Step Verification is enabled on your Gmail account</li>
+            <li>Check spam/junk folder for test emails</li>
+            <li>If SMTP test fails, check firewall/network settings</li>
+            <li>Gmail may block emails if "Less secure app access" is disabled (use App Password instead)</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+

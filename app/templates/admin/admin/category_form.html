@@ -1,0 +1,71 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}{% if category %}Edit{% else %}Add New{% endif %} Category{% endblock %}
+
+{% block content %}
+<div class="py-6">
+    <div class="max-w-2xl mx-auto">
+        <form method="POST" enctype="multipart/form-data" class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <div class="space-y-6">
+                        <!-- Category Name -->
+                        <div>
+                            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Category Name <span class="text-red-500">*</span>
+                            </label>
+                            <div class="mt-1">
+                                <input type="text" 
+                                       name="name" 
+                                       id="name" 
+                                       required
+                                       value="{{ category.name if category else '' }}"
+                                       class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            </div>
+                        </div>
+
+                        <!-- Category Image -->
+                        <div>
+                            <label for="image" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Category Image
+                            </label>
+                            <div class="mt-1">
+                                <input type="file" 
+                                       name="image" 
+                                       id="image" 
+                                       accept="image/*"
+                                       class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            </div>
+                            {% if category and category.image %}
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Current image:</p>
+                                <img src="{{ url_for('static', filename=category.image) }}" 
+                                     alt="{{ category.name }}" 
+                                     class="h-24 w-24 rounded-lg object-cover">
+                            </div>
+                            {% endif %}
+                            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                Upload an image for this category (optional). Supported formats: JPG, PNG, GIF, WebP
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="px-4 py-3 bg-gray-50 dark:bg-gray-700 sm:px-6 flex justify-end space-x-3">
+                    <a href="{{ url_for('admin_categories') }}" 
+                       class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-500">
+                        Cancel
+                    </a>
+                    <button type="submit" 
+                            class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        {% if category %}Update Category{% else %}Create Category{% endif %}
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

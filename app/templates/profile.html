@@ -1,0 +1,1010 @@
+{% extends "base.html" %}
+
+{% block title %}Account Profile · Buxin Electronics{% endblock %}
+
+{% block content %}
+<style>
+  :root {
+    --profile-bg: #f5f7fb;
+    --profile-card: #ffffff;
+    --profile-text: #0f172a;
+    --profile-muted: #6b7280;
+    --profile-soft: #eff6ff;
+    --profile-border: rgba(15, 23, 42, 0.08);
+    --profile-accent: #2563eb;
+    --profile-success: #0ea5e9;
+    --profile-danger: #ef4444;
+    --profile-radius-lg: 24px;
+    --profile-radius-md: 18px;
+    --profile-shadow-sm: 0 16px 32px rgba(15, 23, 42, 0.08);
+    --profile-shadow-lg: 0 28px 60px rgba(15, 23, 42, 0.14);
+    --profile-transition: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  html.dark {
+    --profile-bg: #0f172a;
+    --profile-card: rgba(15, 23, 42, 0.85);
+    --profile-text: #f8fafc;
+    --profile-muted: #9aa5c5;
+    --profile-soft: rgba(37, 99, 235, 0.12);
+    --profile-border: rgba(148, 163, 184, 0.15);
+    --profile-shadow-sm: 0 16px 32px rgba(2, 6, 23, 0.55);
+    --profile-shadow-lg: 0 28px 60px rgba(2, 6, 23, 0.65);
+  }
+  .profile-app-shell {
+    background: var(--profile-bg);
+    padding: 24px 0 120px;
+  }
+  .profile-app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .profile-card {
+    background: var(--profile-card);
+    border-radius: var(--profile-radius-lg);
+    box-shadow: var(--profile-shadow-sm);
+    border: 1px solid var(--profile-border);
+    padding: 20px;
+    position: relative;
+  }
+  .profile-header-card {
+    background: linear-gradient(145deg, #2563eb, #7c3aed);
+    color: #fff;
+    padding: 30px 22px;
+    text-align: center;
+    position: sticky;
+    top: 84px;
+    z-index: 2;
+    border: none;
+    box-shadow: var(--profile-shadow-lg);
+    transition: transform 220ms var(--profile-transition), opacity 200ms ease;
+  }
+  .profile-header-card.is-hidden {
+    transform: translateY(-120%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .profile-header-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.18), transparent);
+    pointer-events: none;
+  }
+  .profile-header-inner {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-items: center;
+  }
+  .profile-avatar-touch {
+    width: 108px;
+    height: 108px;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 4px solid rgba(255,255,255,0.85);
+    box-shadow: var(--profile-shadow-lg);
+    position: relative;
+  }
+  .profile-avatar-touch.is-uploading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(15,23,42,0.45);
+    backdrop-filter: blur(2px);
+  }
+  .profile-avatar-touch.is-uploading::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: 3px solid rgba(255,255,255,0.35);
+    border-top-color: #fff;
+    transform: translate(-50%, -50%);
+    animation: avatar-spin 0.8s linear infinite;
+  }
+  @keyframes avatar-spin {
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+  .profile-avatar-touch img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .profile-avatar-touch span {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: rgba(15,23,42,0.78);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 14px;
+    box-shadow: 0 16px 24px rgba(15,23,42,0.35);
+  }
+  .profile-avatar-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  #avatar-upload-row {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #avatar-upload-row button {
+    cursor: pointer;
+  }
+  .profile-header-info h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .profile-header-info p {
+    margin-top: 4px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.82);
+  }
+  .profile-status-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .status-pill {
+    background: rgba(15,23,42,0.35);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-pill.success {
+    background: rgba(16,185,129,0.25);
+    color: #bbf7d0;
+  }
+  .profile-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  .profile-btn {
+    min-height: 48px;
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 180ms var(--profile-transition), box-shadow 180ms var(--profile-transition);
+  }
+  .profile-btn:active { transform: scale(.97); }
+  .profile-btn.primary {
+    background: #fff;
+    color: #1d4ed8;
+    box-shadow: var(--profile-shadow-sm);
+  }
+  .profile-btn.small {
+    min-height: 44px;
+    padding: 12px 18px;
+    font-size: 14px;
+    width: 100%;
+    justify-content: center;
+  }
+  .profile-btn.outline {
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.35);
+  }
+  .avatar-upload-button {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.28);
+    transition: background 160ms ease;
+  }
+  .avatar-remove-button {
+    background: rgba(15,23,42,0.18);
+    color: rgba(255,255,255,0.85);
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .profile-card__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--profile-text);
+  }
+  .profile-card__subtitle {
+    font-size: 13px;
+    color: var(--profile-muted);
+    margin-top: 4px;
+  }
+  .stats-scroll {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 6px 2px 4px;
+    scrollbar-width: none;
+  }
+  .stats-scroll::-webkit-scrollbar { display: none; }
+  .stat-chip {
+    min-width: 148px;
+    padding: 16px;
+    border-radius: var(--profile-radius-md);
+    background: var(--profile-card);
+    border: 1px solid var(--profile-border);
+    box-shadow: var(--profile-shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stat-chip span:nth-child(1) { font-size: 18px; }
+  .stat-chip span:nth-child(2) {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--profile-muted);
+  }
+  .stat-chip span:nth-child(3) {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--profile-text);
+  }
+  .collapsible {
+    padding-bottom: 10px;
+  }
+  .collapsible-toggle {
+    width: 100%;
+    background: none;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0;
+  }
+  .collapsible-body {
+    overflow: hidden;
+    transition: max-height 220ms var(--profile-transition), opacity 200ms ease;
+  }
+  .collapsible.collapsed .collapsible-body {
+    max-height: 0;
+    opacity: 0;
+  }
+  .chevron {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: var(--profile-soft);
+    color: var(--profile-accent);
+    transition: transform 200ms var(--profile-transition);
+  }
+  .collapsible.collapsed .chevron { transform: rotate(-90deg); }
+  .info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 18px;
+  }
+  .info-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+  }
+  .info-item span:first-child { color: var(--profile-muted); }
+  .info-item span:last-child {
+    color: var(--profile-text);
+    font-weight: 600;
+    max-width: 55%;
+    text-align: right;
+  }
+  .toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+  }
+  .toggle-row + .toggle-row { border-top: 1px solid var(--profile-border); }
+  .toggle-row h4 { font-size: 14px; font-weight: 600; color: var(--profile-text); }
+  .toggle-row p { font-size: 12px; color: var(--profile-muted); margin-top: 2px; }
+  .profile-switch {
+    appearance: none;
+    width: 56px;
+    height: 30px;
+    border-radius: 999px;
+    background: rgba(15,23,42,0.15);
+    position: relative;
+    transition: background 180ms ease;
+  }
+  .profile-switch::before {
+    content: "";
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: #fff;
+    top: 2px;
+    left: 2px;
+    box-shadow: 0 8px 20px rgba(15,23,42,0.16);
+    transition: transform 180ms ease;
+  }
+  .profile-switch:checked { background: var(--profile-accent); }
+  .profile-switch:checked::before { transform: translateX(26px); }
+  .order-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .order-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: var(--profile-radius-md);
+    border: 1px solid var(--profile-border);
+    padding: 18px 20px;
+    box-shadow: var(--profile-shadow-sm);
+    background: var(--profile-card);
+    transition: transform 180ms var(--profile-transition), box-shadow 180ms var(--profile-transition);
+  }
+  .order-card:active {
+    transform: scale(0.99);
+  }
+  .order-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .order-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 16px;
+    background: var(--profile-soft);
+    color: var(--profile-accent);
+    display: grid;
+    place-items: center;
+    font-size: 18px;
+  }
+  .order-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--profile-accent);
+  }
+  .order-status span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .order-status-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .order-status-label.status-delivered { color: #15803d; }
+  .order-status-label.status-active { color: #1d4ed8; }
+  .order-status-label.status-pending { color: #b45309; }
+  .order-status-label.status-cancelled { color: #b91c1c; }
+  .order-indicators {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .order-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .billing-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(22, 163, 74, 0.12);
+    color: #16a34a;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .order-arrow {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: var(--profile-soft);
+    color: var(--profile-accent);
+  }
+  .wishlist-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    margin-top: 16px;
+  }
+  .wishlist-card {
+    position: relative;
+    border: 1px solid var(--profile-border);
+    border-radius: var(--profile-radius-md);
+    overflow: hidden;
+    box-shadow: var(--profile-shadow-sm);
+    background: var(--profile-card);
+    cursor: pointer;
+  }
+  .wishlist-card figure {
+    position: relative;
+    padding-top: 70%;
+    background: rgba(15,23,42,0.05);
+    overflow: hidden;
+  }
+  .wishlist-card figure img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .wishlist-card .wishlist-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: rgba(15, 23, 42, 0.65);
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.35);
+    border: none;
+  }
+  .wishlist-card .wishlist-button .heart-icon,
+  .wishlist-card .wishlist-button .heart-outline-icon {
+    position: static;
+  }
+  .wishlist-card .body {
+    padding: 12px 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .payment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .payment-item {
+    padding: 16px 18px;
+    border-radius: var(--profile-radius-md);
+    border: 1px solid var(--profile-border);
+    background: var(--profile-soft);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .empty-state {
+    text-align: center;
+    padding: 34px 22px;
+    border-radius: var(--profile-radius-lg);
+    border: 1px dashed var(--profile-border);
+    color: var(--profile-muted);
+    margin-top: 16px;
+  }
+  .action-sheet,
+  .modal-sheet,
+  .profile-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: flex-end;
+    z-index: 60;
+  }
+  .action-sheet.active,
+  .modal-sheet.active,
+  .profile-modal.active { display: flex; }
+  .sheet-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15,23,42,0.45);
+    backdrop-filter: blur(3px);
+  }
+  .sheet-panel {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--profile-card);
+    border-radius: 24px 24px 0 0;
+    box-shadow: var(--profile-shadow-lg);
+    padding: 20px;
+    animation: sheet-pop 260ms var(--profile-transition) forwards;
+    max-height: calc(100vh - 56px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  @keyframes sheet-pop {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .sheet-option {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: var(--profile-radius-md);
+    border: 1px solid var(--profile-border);
+    background: rgba(15,23,42,0.04);
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .sheet-option.danger {
+    color: var(--profile-danger);
+    background: rgba(239,68,68,0.12);
+  }
+  .form-grid {
+    display: grid;
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .form-grid.two-col {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .form-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--profile-text);
+  }
+  .form-grid input,
+  .form-grid select {
+    border-radius: var(--profile-radius-md);
+    border: 1px solid var(--profile-border);
+    background: rgba(15,23,42,0.03);
+    padding: 12px 14px;
+    font-size: 15px;
+    color: var(--profile-text);
+  }
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+  .toast-banner {
+    position: fixed;
+    left: 50%;
+    bottom: 32px;
+    transform: translate(-50%, 120%);
+    background: rgba(15,23,42,0.92);
+    color: #fff;
+    padding: 12px 18px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: var(--profile-shadow-lg);
+    opacity: 0;
+    transition: transform 220ms var(--profile-transition), opacity 220ms ease;
+    z-index: 80;
+  }
+  .toast-banner.active {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+  .toast-banner.error {
+    background: rgba(185, 28, 28, 0.92);
+  }
+  .toast-icon {
+    display: grid;
+    place-items: center;
+  }
+  .hidden-input {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+</style>
+
+<div class="profile-app-shell">
+  <div class="profile-app">
+    <section class="profile-card profile-header-card">
+      <div class="profile-header-inner">
+        <button type="button" class="profile-avatar-touch" id="avatar-touch-area" aria-label="Change profile photo">
+          <img src="{{ current_user_avatar_url or url_for('static', filename='images/default-avatar.svg') }}" alt="Profile photo" id="profile-avatar">
+          <span><i class="fas fa-camera"></i></span>
+        </button>
+        <div class="profile-avatar-actions" id="avatar-upload-row">
+          <button type="button" class="profile-btn outline small avatar-upload-button" id="avatar-upload-trigger">
+            <i class="fas fa-circle-up"></i> Update photo
+          </button>
+          {% if current_user_avatar_url and not current_user_avatar_url.endswith('default-avatar.svg') %}
+          <button type="button" class="profile-btn outline small avatar-remove-button" id="avatar-remove-trigger">
+            <i class="fas fa-eraser"></i> Remove photo
+          </button>
+          {% endif %}
+        </div>
+        <div class="profile-header-info">
+          <h1 id="header-display-name">{{ current_user.display_name or current_user.username }}</h1>
+          <p id="header-handle">@{{ current_user.username }}</p>
+          <p id="header-email">{{ current_user.email }}</p>
+          <p>Joined {{ current_user.created_at.strftime('%b %d, %Y') }}</p>
+        </div>
+        <div class="profile-status-row">
+          <span class="status-pill {% if google_connected %}success{% endif %}" id="header-google-status">
+            <i class="fab fa-google"></i>
+            {% if google_connected %}Google connected{% else %}Google not linked{% endif %}
+          </span>
+          <span class="status-pill" id="header-password-status">
+            <i class="fas fa-shield-alt"></i>
+            {% if has_password %}Password protected{% else %}Add a password{% endif %}
+          </span>
+        </div>
+        <div class="profile-actions">
+          <button type="button" class="profile-btn primary" id="open-edit-profile">
+            <i class="fas fa-pen"></i> Edit profile
+          </button>
+          <button type="button" class="profile-btn outline" id="open-password-modal">
+            <i class="fas fa-lock"></i> Change password
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="profile-card">
+      <div class="profile-card__title">At a glance</div>
+      <div class="profile-card__subtitle">Swipe for quick stats</div>
+      <div class="stats-scroll">
+        <button type="button" class="stat-chip">
+          <span>📦</span>
+          <span>Total orders</span>
+          <span id="stat-total-orders">{{ total_orders }}</span>
+        </button>
+        <button type="button" class="stat-chip">
+          <span>✅</span>
+          <span>Delivered</span>
+          <span id="stat-delivered-orders">{{ delivered_orders }}</span>
+        </button>
+        <button type="button" class="stat-chip">
+          <span>🔄</span>
+          <span>Active orders</span>
+          <span id="stat-active-orders">{{ open_orders }}</span>
+        </button>
+        <button type="button" class="stat-chip">
+          <span>💳</span>
+          <span>Lifetime spend</span>
+          <span id="stat-lifetime-spend">D{{ '{:,.2f}'.format(lifetime_spend) }}</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="profile-card collapsible" data-card="personal">
+      <button type="button" class="collapsible-toggle" data-toggle-card="personal">
+        <div>
+          <div class="profile-card__title">Personal information</div>
+          <div class="profile-card__subtitle">Manage contact and address details</div>
+        </div>
+        <span class="chevron"><i class="fas fa-chevron-down"></i></span>
+      </button>
+      <div class="collapsible-body" id="card-content-personal">
+        <div class="info-list">
+          <div class="info-item"><span>First name</span><span data-field="first_name">{{ profile.first_name or 'Add first name' }}</span></div>
+          <div class="info-item"><span>Last name</span><span data-field="last_name">{{ profile.last_name or 'Add last name' }}</span></div>
+          <div class="info-item"><span>Email</span><span data-field="email">{{ current_user.email }}</span></div>
+          <div class="info-item"><span>Phone</span><span data-field="phone_number">{{ profile.phone_number or 'Add phone number' }}</span></div>
+          <div class="info-item"><span>Address</span><span data-field="address">{{ profile.address or 'Add street address' }}</span></div>
+          <div class="info-item"><span>City</span><span data-field="city">{{ profile.city or 'Add city' }}</span></div>
+          <div class="info-item"><span>State / Region</span><span data-field="state">{{ profile.state or 'Add region' }}</span></div>
+          <div class="info-item"><span>Postal code</span><span data-field="postal_code">{{ profile.postal_code or 'Add postal code' }}</span></div>
+          <div class="info-item"><span>Country</span><span data-field="country">{{ profile.country or 'Add country' }}</span></div>
+        </div>
+        <button type="button" class="profile-btn primary mt-4" id="edit-profile-inline">
+          <i class="fas fa-user-edit"></i> Edit information
+        </button>
+      </div>
+    </section>
+
+    <section class="profile-card" id="preferences-card">
+      <div class="profile-card__title">Notifications & preferences</div>
+      <div class="profile-card__subtitle">Stay in sync with order activity</div>
+      <div class="toggle-row">
+        <div>
+          <h4>Order updates</h4>
+          <p>Follow payments, packing, and delivery</p>
+        </div>
+        <input type="checkbox" class="profile-switch" data-preference="notify_email" {% if notification_settings.email %}checked{% endif %}>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <h4>SMS notifications</h4>
+          <p>Receive time-sensitive alerts by text</p>
+        </div>
+        <input type="checkbox" class="profile-switch" data-preference="notify_sms" {% if notification_settings.sms %}checked{% endif %}>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <h4>Push notifications</h4>
+          <p>Enable mobile-style toast alerts</p>
+        </div>
+        <input type="checkbox" class="profile-switch" data-preference="notify_push" {% if notification_settings.push %}checked{% endif %}>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <h4>Promotions & perks</h4>
+          <p>Get access to deals and loyalty rewards</p>
+        </div>
+        <input type="checkbox" class="profile-switch" data-preference="marketing_opt_in" {% if notification_settings.marketing %}checked{% endif %}>
+      </div>
+    </section>
+
+    <section class="profile-card" id="orders-section">
+      <div class="profile-card__title">Orders history</div>
+      <div class="profile-card__subtitle">Tap a card to open details</div>
+      {% if recent_orders %}
+      <div class="order-list">
+        {% for order in recent_orders %}
+          {% set status = order.status|lower %}
+          {% if status == 'delivered' %}
+            {% set status_class = 'status-delivered' %}
+          {% elif status in ['processing', 'shipped', 'in transit'] %}
+            {% set status_class = 'status-active' %}
+          {% elif status == 'cancelled' %}
+            {% set status_class = 'status-cancelled' %}
+          {% else %}
+            {% set status_class = 'status-pending' %}
+          {% endif %}
+          <a href="{{ url_for('order_confirmation', order_id=order.id) }}" class="order-card">
+            <div class="order-meta">
+              <span class="order-icon"><i class="fas fa-box"></i></span>
+              <div>
+                <div class="profile-card__title text-sm sm:text-base font-semibold">Order #{{ order.id }}</div>
+                <div class="profile-card__subtitle">{{ order.created_at.strftime('%b %d, %Y') }} • D{{ '{:,.2f}'.format(order.total) }}</div>
+                <div class="order-indicators">
+                  <span class="billing-badge"><i class="fas fa-circle-check"></i> Paid</span>
+                  <span class="order-status-label {{ status_class }}">{{ order.status|title }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="order-right">
+              <span class="order-status"><span>View details</span></span>
+              <span class="order-arrow"><i class="fas fa-chevron-right"></i></span>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        Your orders will appear here once you start shopping.
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="profile-card" id="wishlist-section">
+      <div class="profile-card__title">Saved items</div>
+      <div class="profile-card__subtitle">Quick access to favourites</div>
+      {% if wishlist_preview %}
+      <div class="wishlist-grid">
+        {% for item in wishlist_preview %}
+          {% set product = item.product %}
+          {% if product %}
+          <div class="wishlist-card product-card" data-wishlist-card data-product-id="{{ product.id }}" data-wishlist-remove-on-toggle="true">
+            <button type="button" class="wishlist-button" data-product-id="{{ product.id }}" aria-label="Toggle wishlist">
+              <i class="heart-icon fas fa-heart text-rose-500"></i>
+              <i class="heart-outline-icon fas fa-heart text-slate-400 dark:text-slate-500 hidden"></i>
+            </button>
+            <a href="{{ url_for('product', product_id=product.id) }}">
+              <figure>
+                {% if product.image %}
+                  {% if product.image.startswith('http') %}
+                    <img src="{{ product.image }}" alt="{{ product.name }}">
+                  {% else %}
+                    <img src="{{ product.image|product_image_url }}" alt="{{ product.name }}">
+                  {% endif %}
+                {% else %}
+                  <div class="wishlist-card__placeholder">
+                    <i class="fas fa-image"></i>
+                  </div>
+                {% endif %}
+              </figure>
+            </a>
+            <div class="body">
+              <strong>{{ product.name }}</strong>
+              <span>D{{ '{:,.2f}'.format(product.price) }}</span>
+            </div>
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        Save products you love and they will show up here.
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="profile-card" id="settings-section">
+      <div class="profile-card__title">Payment methods</div>
+      <div class="profile-card__subtitle">Add Wave, AfriMoney, cards, and more</div>
+      <div class="payment-list" id="payment-method-list">
+        {% if payment_methods %}
+          {% for method in payment_methods %}
+          <div class="payment-item" data-method-id="{{ method.id }}">
+            <div>
+              <strong>{{ method.label or method.provider }}</strong>
+              <div class="profile-card__subtitle mt-0.5">{{ method.provider }} • {{ method.masked_identifier() }}</div>
+            </div>
+            <div class="flex items-center gap-2.5">
+              {% if method.is_default %}<span class="status-pill success">Default</span>{% endif %}
+              <button type="button" class="profile-btn outline delete-payment-method px-3 py-1.5 text-xs sm:text-sm min-h-0" data-method-id="{{ method.id }}">Remove</button>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">Store a wallet to speed through checkout.</div>
+        {% endif %}
+      </div>
+      <button type="button" class="profile-btn primary mt-2" id="open-payment-modal">
+        <i class="fas fa-plus"></i> Add payment method
+      </button>
+    </section>
+  </div>
+</div>
+
+<input type="file" id="avatar-input" class="hidden-input" accept="image/png,image/jpeg,image/webp">
+
+<div class="modal-sheet" id="edit-profile-modal" aria-hidden="true">
+  <div class="sheet-backdrop" data-close-modal="edit-profile-modal"></div>
+  <div class="sheet-panel">
+    <div class="profile-card__title">Edit profile</div>
+    <div class="profile-card__subtitle">Update account details</div>
+    <form id="edit-profile-form" data-endpoint="{{ url_for('api_profile') }}" class="form-grid">
+      <div class="form-grid two-col">
+        <label>First name <input type="text" name="first_name" value="{{ profile.first_name or '' }}"></label>
+        <label>Last name <input type="text" name="last_name" value="{{ profile.last_name or '' }}"></label>
+      </div>
+      <label>Username <input type="text" name="username" value="{{ current_user.username }}" data-username-input></label>
+      <label>Email <input type="email" name="email" value="{{ current_user.email }}"></label>
+      <label>Phone number <input type="tel" name="phone_number" value="{{ profile.phone_number or '' }}"></label>
+      <label>Street address <input type="text" name="address" value="{{ profile.address or '' }}"></label>
+      <div class="form-grid two-col">
+        <label>City <input type="text" name="city" value="{{ profile.city or '' }}"></label>
+        <label>State / Region <input type="text" name="state" value="{{ profile.state or '' }}"></label>
+      </div>
+      <div class="form-grid two-col">
+        <label>Postal code <input type="text" name="postal_code" value="{{ profile.postal_code or '' }}"></label>
+        <label>Country <input type="text" name="country" value="{{ profile.country or '' }}"></label>
+      </div>
+      <div class="toggle-row p-0">
+        <div>
+          <h4>Email notifications</h4>
+          <p>Order confirmations, invoices, receipts</p>
+        </div>
+        <input type="checkbox" class="profile-switch" name="notify_email" {% if notification_settings.email %}checked{% endif %}>
+      </div>
+      <div class="toggle-row p-0">
+        <div>
+          <h4>SMS notifications</h4>
+          <p>Delivery attempts and pickups</p>
+        </div>
+        <input type="checkbox" class="profile-switch" name="notify_sms" {% if notification_settings.sms %}checked{% endif %}>
+      </div>
+      <div class="toggle-row p-0">
+        <div>
+          <h4>Push notifications</h4>
+          <p>Heads-up alerts while browsing</p>
+        </div>
+        <input type="checkbox" class="profile-switch" name="notify_push" {% if notification_settings.push %}checked{% endif %}>
+      </div>
+      <div class="toggle-row p-0">
+        <div>
+          <h4>Promotions</h4>
+          <p>Exclusive drops, bundles, loyalty bonuses</p>
+        </div>
+        <input type="checkbox" class="profile-switch" name="marketing_opt_in" {% if notification_settings.marketing %}checked{% endif %}>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="profile-btn outline" data-close-modal="edit-profile-modal">Cancel</button>
+        <button type="submit" class="profile-btn primary"><i class="fas fa-save"></i> Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-sheet" id="password-modal" aria-hidden="true">
+  <div class="sheet-backdrop" data-close-modal="password-modal"></div>
+  <div class="sheet-panel">
+    <div class="profile-card__title">Change password</div>
+    <div class="profile-card__subtitle">Strengthen your login</div>
+    <form id="password-form" data-endpoint="{{ url_for('api_update_password') }}" class="form-grid">
+      {% if has_password %}<label>Current password <input type="password" name="current_password"></label>{% endif %}
+      <label>New password <input type="password" name="new_password"></label>
+      <label>Confirm password <input type="password" name="confirm_password"></label>
+      <div class="modal-actions">
+        <button type="button" class="profile-btn outline" data-close-modal="password-modal">Cancel</button>
+        <button type="submit" class="profile-btn primary"><i class="fas fa-lock"></i> Update password</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-sheet" id="payment-method-modal" aria-hidden="true">
+  <div class="sheet-backdrop" data-close-modal="payment-method-modal"></div>
+  <div class="sheet-panel">
+    <div class="profile-card__title">Add payment method</div>
+    <div class="profile-card__subtitle">Wallet, mobile money, or card</div>
+    <form id="payment-method-form" data-endpoint="{{ url_for('api_payment_methods') }}" class="form-grid">
+      <label>Provider
+        <select name="provider">
+          {% for provider in ['Wave', 'AfriMoney', 'Orange Money', 'MoMo', 'Visa', 'Mastercard'] %}
+          <option value="{{ provider }}">{{ provider }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Account / number <input type="tel" name="account_identifier" placeholder="Enter mobile money or card number"></label>
+      <label>Label (optional) <input type="text" name="label" placeholder="Personal Wave account"></label>
+      <div class="toggle-row p-0">
+        <div>
+          <h4>Set as default</h4>
+          <p>Use this method first during checkout</p>
+        </div>
+        <input type="checkbox" class="profile-switch" name="is_default">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="profile-btn outline" data-close-modal="payment-method-modal">Cancel</button>
+        <button type="submit" class="profile-btn primary"><i class="fas fa-plus"></i> Save method</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast-banner" id="profile-toast">
+  <span class="toast-icon"><i class="fas fa-circle-check"></i></span>
+  <span id="profile-toast-message">Saved.</span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  window.profilePageConfig = {
+    endpoints: {
+      profile: "{{ url_for('api_profile') }}",
+      avatar: "{{ url_for('profile_upload') }}",
+      password: "{{ url_for('api_update_password') }}",
+      paymentMethods: "{{ url_for('api_payment_methods') }}"
+    },
+    csrfToken: "{{ csrf_token() }}",
+    user: {{ current_user.to_profile_dict()|tojson }},
+    notificationSettings: {{ notification_settings|tojson }},
+    paymentMethods: {{ payment_methods_payload|tojson }},
+    googleConnected: {{ 'true' if google_connected else 'false' }},
+    hasPassword: {{ 'true' if has_password else 'false' }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/profile.js') }}" defer></script>
+{% endblock %}

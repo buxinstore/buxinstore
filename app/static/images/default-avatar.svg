@@ -1,0 +1,14 @@
+<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Default Avatar</title>
+  <desc id="desc">Circular placeholder avatar with gradient background</desc>
+  <defs>
+    <linearGradient id="avatarGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="160" rx="80" fill="url(#avatarGradient)"/>
+  <circle cx="80" cy="58" r="28" fill="rgba(255,255,255,0.85)"/>
+  <path d="M40 136c0-24 18-44 40-44s40 20 40 44" fill="rgba(255,255,255,0.85)"/>
+</svg>
+

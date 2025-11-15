@@ -1,0 +1,200 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}{% if product %}Edit{% else %}Add New{% endif %} Product{% endblock %}
+
+{% block content %}
+<div class="py-6">
+    <div class="max-w-3xl mx-auto">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div class="px-6 py-5">
+                <form method="POST" enctype="multipart/form-data" class="space-y-6">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                        <!-- Product Name -->
+                        <div class="sm:col-span-2">
+                            {{ form.name.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                            {{ form.name(class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm") }}
+                            {% if form.name.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.name.errors[0] }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Category -->
+                        <div>
+                            {{ form.category_id.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                            {{ form.category_id(class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white") }}
+                            {% if form.category_id.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.category_id.errors[0] }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Price -->
+                        <div>
+                            {{ form.price.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                            <div class="mt-1 relative rounded-md shadow-sm">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span class="text-gray-500 sm:text-sm">D</span>
+                                </div>
+                                {{ form.price(class="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white", placeholder="0.00", step="0.01", id="product-price") }}
+                            </div>
+                            {% if form.price.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.price.errors[0] }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Delivery Price -->
+                        <div>
+                            {{ form.delivery_price.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                            <div class="mt-1 relative rounded-md shadow-sm">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span class="text-gray-500 sm:text-sm">D</span>
+                                </div>
+                                {{ form.delivery_price(class="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white", placeholder="0.00", step="0.01", id="delivery-price") }}
+                            </div>
+                            {% if form.delivery_price.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.delivery_price.errors[0] }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Auto-calculated based on price. You can manually override if needed.
+                            </p>
+                        </div>
+
+                        <!-- Location -->
+                        <div class="sm:col-span-2">
+                            {{ form.location.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                            {{ form.location(class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white") }}
+                            {% if form.location.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.location.errors[0] }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Stock -->
+                        <div>
+                            {{ form.stock.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                            {{ form.stock(class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm") }}
+                            {% if form.stock.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.stock.errors[0] }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Image Upload -->
+                        <div class="sm:col-span-2">
+                            {{ form.image.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                            <div class="mt-1 flex items-center">
+                                <span class="inline-block h-12 w-12 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                                    {% if product and product.image %}
+                                        <img src="{{ product.image|product_image_url }}" alt="{{ product.name }}" class="h-full w-full text-gray-300 object-cover">
+                                    {% else %}
+                                        <svg class="h-full w-full text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" />
+                                        </svg>
+                                    {% endif %}
+                                </span>
+                                <label for="{{ form.image.id }}" class="ml-5 rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm font-medium leading-4 text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer">
+                                    <span>Change</span>
+                                    {{ form.image(class="sr-only", accept="image/*") }}
+                                </label>
+                            </div>
+                            {% if form.image.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.image.errors[0] }}</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Description -->
+                        <div class="sm:col-span-2">
+                            {{ form.description.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                            <div class="mt-1">
+                                {{ form.description(rows=4, class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm") }}
+                            </div>
+                            {% if form.description.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.description.errors[0] }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Available in Gambia -->
+                        <div class="sm:col-span-2">
+                            <div class="flex items-center">
+                                {{ form.available_in_gambia(class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded") }}
+                                {{ form.available_in_gambia.label(class="ml-2 block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                            </div>
+                            {% if form.available_in_gambia.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.available_in_gambia.errors[0] }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                Check this to mark the product as available in Gambia. A flag icon will appear on the product listing.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-6">
+                        <a href="{{ url_for('admin_products') }}" class="rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 py-2 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                            Cancel
+                        </a>
+                        {{ form.submit(class="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('{{ form.image.id }}').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.querySelector('.inline-block.h-12.w-12.overflow-hidden.rounded-full img');
+                if (preview) {
+                    preview.src = e.target.result;
+                } else {
+                    const svg = document.querySelector('.inline-block.h-12.w-12.overflow-hidden.rounded-full svg');
+                    if (svg) {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = 'h-full w-full text-gray-300 object-cover';
+                        svg.parentNode.replaceChild(img, svg);
+                    }
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // Auto-calculate delivery price based on product price
+    const priceInput = document.getElementById('product-price');
+    const deliveryPriceInput = document.getElementById('delivery-price');
+    let manualDeliveryPrice = false;
+
+    // Track if user manually edited delivery price
+    deliveryPriceInput.addEventListener('input', function() {
+        manualDeliveryPrice = true;
+    });
+
+    // Auto-calculate when price changes (only if delivery price wasn't manually set)
+    priceInput.addEventListener('input', function() {
+        if (!manualDeliveryPrice) {
+            const price = parseFloat(priceInput.value) || 0;
+            let deliveryPrice = 300; // Default
+            
+            if (price < 1000) {
+                deliveryPrice = 300;
+            } else if (price < 2000) {
+                deliveryPrice = 800;
+            } else {
+                deliveryPrice = 1200;
+            }
+            
+            deliveryPriceInput.value = deliveryPrice.toFixed(2);
+        }
+    });
+
+    // Reset manual flag when form is submitted (so it can auto-calculate on next edit)
+    document.querySelector('form').addEventListener('submit', function() {
+        manualDeliveryPrice = false;
+    });
+</script>
+{% endblock %}

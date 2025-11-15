@@ -1,0 +1,88 @@
+{% extends "admin/admin/base.html" %}
+
+{% block header %}
+✏️ Edit Row in: {{ table_name }}
+{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+    <div class="mb-4">
+        <a href="{{ url_for('admin_database_table_view', table_name=table_name) }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400">
+            <i class="fas fa-arrow-left mr-2"></i> Back to Table
+        </a>
+    </div>
+
+    <form method="POST" action="{{ url_for('admin_database_edit_row', table_name=table_name, id=row_id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="space-y-4">
+            {% for col in columns %}
+                {% if col.name not in primary_keys and not col.get('autoincrement', False) %}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ col.name }}
+                        {% if not col.get('nullable', True) %}
+                            <span class="text-red-500">*</span>
+                        {% endif %}
+                        <span class="text-xs text-gray-500 dark:text-gray-400">({{ col.type }})</span>
+                    </label>
+                    {% set col_type = col.type|string|upper %}
+                    {% set current_value = row_data.get(col.name, '') %}
+                    {% if 'TEXT' in col_type or 'VARCHAR' in col_type or 'CHAR' in col_type %}
+                        {% if col_type|length > 100 %}
+                            <textarea name="{{ col.name }}" rows="4" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" {% if not col.get('nullable', True) %}required{% endif %}>{{ current_value }}</textarea>
+                        {% else %}
+                            <input type="text" name="{{ col.name }}" value="{{ current_value }}" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" {% if not col.get('nullable', True) %}required{% endif %}>
+                        {% endif %}
+                    {% elif 'INTEGER' in col_type or 'INT' in col_type %}
+                        <input type="number" name="{{ col.name }}" value="{{ current_value }}" step="1" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" {% if not col.get('nullable', True) %}required{% endif %}>
+                    {% elif 'REAL' in col_type or 'FLOAT' in col_type or 'DOUBLE' in col_type %}
+                        <input type="number" name="{{ col.name }}" value="{{ current_value }}" step="0.01" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" {% if not col.get('nullable', True) %}required{% endif %}>
+                    {% elif 'BOOLEAN' in col_type or 'BOOL' in col_type %}
+                        <select name="{{ col.name }}" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" {% if not col.get('nullable', True) %}required{% endif %}>
+                            <option value="">-- Select --</option>
+                            <option value="1" {% if current_value == 1 or current_value == '1' or current_value == True %}selected{% endif %}>True</option>
+                            <option value="0" {% if current_value == 0 or current_value == '0' or current_value == False %}selected{% endif %}>False</option>
+                        </select>
+                    {% elif 'DATE' in col_type or 'TIME' in col_type or 'DATETIME' in col_type %}
+                        {% if 'DATETIME' in col_type %}
+                            {% if current_value %}
+                                {% set dt_value = current_value[:16] if current_value|length > 16 else current_value %}
+                            {% else %}
+                                {% set dt_value = '' %}
+                            {% endif %}
+                            <input type="datetime-local" name="{{ col.name }}" value="{{ dt_value }}" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" {% if not col.get('nullable', True) %}required{% endif %}>
+                        {% elif 'DATE' in col_type %}
+                            <input type="date" name="{{ col.name }}" value="{{ current_value }}" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" {% if not col.get('nullable', True) %}required{% endif %}>
+                        {% else %}
+                            <input type="time" name="{{ col.name }}" value="{{ current_value }}" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" {% if not col.get('nullable', True) %}required{% endif %}>
+                        {% endif %}
+                    {% else %}
+                        <input type="text" name="{{ col.name }}" value="{{ current_value }}" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" {% if not col.get('nullable', True) %}required{% endif %}>
+                    {% endif %}
+                    {% if col.get('default') %}
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Default: {{ col.default }}</p>
+                    {% endif %}
+                </div>
+                {% elif col.name in primary_keys %}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ col.name }} <span class="text-xs text-gray-500 dark:text-gray-400">(Primary Key - Read Only)</span>
+                    </label>
+                    <input type="text" value="{{ row_data.get(col.name, '') }}" disabled class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400">
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="mt-6 flex gap-4">
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                <i class="fas fa-save mr-2"></i> Update Row
+            </button>
+            <a href="{{ url_for('admin_database_table_view', table_name=table_name) }}" class="px-6 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+

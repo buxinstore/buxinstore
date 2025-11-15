@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin - Buxin Electronics Store{% endblock %}</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script>
+        (function() {
+            const storageKey = 'theme';
+            const defaultTheme = 'dark';
+            const html = document.documentElement;
+
+            const resolveTheme = (theme) => (theme === 'light' ? 'light' : 'dark');
+
+            const setColorScheme = (scheme) => {
+                try {
+                    html.style.colorScheme = scheme;
+                } catch (err) {
+                    /* noop */
+                }
+            };
+
+            const dispatchThemeChange = (theme) => {
+                const resolvedTheme = resolveTheme(theme);
+                try {
+                    html.dispatchEvent(new CustomEvent('theme:change', {
+                        detail: { theme: resolvedTheme, resolvedTheme }
+                    }));
+                } catch (err) {
+                    /* noop */
+                }
+            };
+
+            const applyTheme = (theme, options = {}) => {
+                const { persist = true, silent = false } = options;
+                const resolvedTheme = resolveTheme(theme);
+                html.classList.toggle('dark', resolvedTheme === 'dark');
+                html.dataset.theme = resolvedTheme;
+                html.dataset.themeResolved = resolvedTheme;
+                setColorScheme(resolvedTheme);
+
+                if (persist) {
+                    try {
+                        localStorage.setItem(storageKey, resolvedTheme);
+                    } catch (err) {
+                        /* noop */
+                    }
+                }
+
+                if (!silent) {
+                    dispatchThemeChange(resolvedTheme);
+                }
+
+                return resolvedTheme;
+            };
+
+            const readStoredTheme = () => {
+                try {
+                    const stored = localStorage.getItem(storageKey);
+                    return stored === 'light' ? 'light' : stored === 'dark' ? 'dark' : null;
+                } catch (err) {
+                    return null;
+                }
+            };
+
+            const storedTheme = readStoredTheme();
+            applyTheme(defaultTheme, { persist: false, silent: true });
+
+            if (storedTheme === 'light') {
+                applyTheme('light', { persist: false, silent: true });
+            } else {
+                try {
+                    localStorage.setItem(storageKey, defaultTheme);
+                } catch (err) {
+                    /* noop */
+                }
+            }
+
+            html.classList.add('theme-initialized');
+
+            window.__themeController = {
+                storageKey,
+                resolveTheme,
+                get() {
+                    return html.dataset.theme || defaultTheme;
+                },
+                getResolved() {
+                    return html.dataset.themeResolved || defaultTheme;
+                },
+                apply(theme, options) {
+                    return applyTheme(theme, options);
+                }
+            };
+        })();
+    </script>
+    <style>
+        html {
+            color-scheme: dark;
+        }
+        html:not(.dark) {
+            color-scheme: light;
+        }
+        html:not(.theme-initialized) body {
+            visibility: hidden;
+        }
+        html.theme-initialized body {
+            visibility: visible;
+            transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+        }
+        .dark {
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+        .dark .bg-white {
+            background-color: #1f2937 !important;
+        }
+        .dark .bg-gray-50 {
+            background-color: #1f2937 !important;
+        }
+        .dark .text-gray-800 {
+            color: #e2e8f0 !important;
+        }
+        .dark .border-gray-200 {
+            border-color: #374151 !important;
+        }
+        .dark .bg-gray-100 {
+            background-color: #374151 !important;
+        }
+    </style>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <!-- Off-canvas menu for mobile -->
+    <div class="md:hidden">
+        <div class="fixed inset-0 flex z-40">
+            <div class="fixed inset-0">
+                <div class="absolute inset-0 bg-gray-600 opacity-75"></div>
+            </div>
+            <div class="relative flex-1 flex flex-col max-w-xs w-full bg-white dark:bg-gray-800">
+                <div class="absolute top-0 right-0 -mr-12 pt-2">
+                    <button class="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">
+                        <span class="sr-only">Close sidebar</span>
+                        <i class="fas fa-times h-6 w-6 text-white"></i>
+                    </button>
+                </div>
+                <div class="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
+                    <div class="flex-shrink-0 flex items-center px-4">
+                        <h1 class="text-xl font-bold text-gray-900 dark:text-white">Buxin Admin</h1>
+                    </div>
+                    <nav class="mt-5 px-2 space-y-1">
+                        <a href="{{ url_for('admin_dashboard') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white">
+                            <i class="fas fa-tachometer-alt mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Dashboard
+                        </a>
+                        <a href="{{ url_for('admin_products') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white">
+                            <i class="fas fa-boxes mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Products
+                        </a>
+                        <a href="{{ url_for('admin_orders') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white">
+                            <i class="fas fa-shopping-cart mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Orders
+                        </a>
+                        <a href="{{ url_for('admin_order_management') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white">
+                            <i class="fas fa-truck mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Order Management
+                        </a>
+                        <a href="{{ url_for('admin_manage_users') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white">
+                            <i class="fas fa-user-cog mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Manage Users
+                        </a>
+                        <a href="{{ url_for('admin_users') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint == 'admin_users' else '' }}">
+                            <i class="fas fa-users mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Customers
+                        </a>
+                        <a href="{{ url_for('admin_reports') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint == 'admin_reports' else '' }}">
+                            <i class="fas fa-chart-bar mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Reports
+                        </a>
+                        <a href="{{ url_for('admin_sales_dashboard') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint == 'admin_sales_dashboard' else '' }}">
+                            <i class="fas fa-chart-line mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Sales Dashboard
+                        </a>
+                        <a href="{{ url_for('admin_email_customers') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint == 'admin_email_customers' else '' }}">
+                            <i class="fas fa-envelope mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Email Customers
+                        </a>
+                        <a href="{{ url_for('test_email_config') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint == 'test_email_config' else '' }}">
+                            <i class="fas fa-vial mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Test Email Config
+                        </a>
+                        <a href="{{ url_for('admin_whatsapp') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint == 'admin_whatsapp' or request.endpoint == 'admin_whatsapp_send' else '' }}">
+                            <i class="fab fa-whatsapp mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            WhatsApp Messaging
+                        </a>
+                        <a href="{{ url_for('admin_site_settings') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint == 'admin_site_settings' else '' }}">
+                            <i class="fas fa-cog mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Site Settings
+                        </a>
+                        {% if current_user.is_admin or current_user.role == 'admin' %}
+                        <a href="{{ url_for('admin_database_manager') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint and request.endpoint.startswith('admin_database') and 'automation' not in request.endpoint else '' }}">
+                            <i class="fas fa-database mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            📁 Database Manager
+                        </a>
+                        <a href="{{ url_for('admin_database_automation') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint and 'admin_database_automation' in request.endpoint else '' }}">
+                            <i class="fas fa-robot mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            🔁 Backup Automation
+                        </a>
+                        <a href="{{ url_for('admin_settings') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint == 'admin_settings' else '' }}">
+                            <i class="fas fa-cogs mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            ⚙️ Settings
+                        </a>
+                        {% endif %}
+                    </nav>
+                </div>
+                <div class="flex-shrink-0 flex border-t border-gray-200 dark:border-gray-700 p-4">
+                    <div class="flex items-center">
+                        <div>
+                            <div class="text-base font-medium text-gray-800 dark:text-white">{{ current_user.username }}</div>
+                            <div class="text-sm font-medium text-gray-500 dark:text-gray-400">Admin</div>
+                        </div>
+                        <div class="ml-3">
+                            <a href="{{ url_for('logout') }}" class="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
+                                Sign out
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-shrink-0 w-14">
+                <!-- Force sidebar to shrink to fit close icon -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Static sidebar for desktop -->
+    <div class="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
+        <div class="flex-1 flex flex-col min-h-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div class="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
+                <div class="flex items-center flex-shrink-0 px-4">
+                    <h1 class="text-xl font-bold text-gray-900 dark:text-white">Buxin Admin</h1>
+                </div>
+                <nav class="mt-5 flex-1 px-2 space-y-1">
+                    <a href="{{ url_for('admin_dashboard') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white">
+                        <i class="fas fa-tachometer-alt mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Dashboard
+                    </a>
+                    <a href="{{ url_for('admin_products') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white">
+                        <i class="fas fa-boxes mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Products
+                    </a>
+                    <a href="{{ url_for('admin_categories') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_categories' or request.endpoint == 'admin_add_category' or request.endpoint == 'admin_edit_category' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-folder mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Categories
+                    </a>
+                    <a href="{{ url_for('admin_orders') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white">
+                        <i class="fas fa-shopping-cart mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Orders
+                    </a>
+                    <a href="{{ url_for('admin_order_management') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_order_management' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-truck mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Order Management
+                    </a>
+                    <a href="{{ url_for('admin_manage_users') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_manage_users' or request.endpoint == 'admin_add_user' or request.endpoint == 'admin_edit_user' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-user-cog mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Manage Users
+                    </a>
+                    <a href="{{ url_for('admin_users') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_users' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-users mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Customers
+                    </a>
+                    <a href="{{ url_for('admin_reports') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_reports' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-chart-bar mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Reports
+                    </a>
+                    <a href="{{ url_for('admin_sales_dashboard') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_sales_dashboard' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-chart-line mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Sales Dashboard
+                    </a>
+                    <a href="{{ url_for('admin_email_customers') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_email_customers' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-envelope mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Email Customers
+                    </a>
+                    <a href="{{ url_for('admin_whatsapp') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_whatsapp' or request.endpoint == 'admin_whatsapp_send' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fab fa-whatsapp mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        WhatsApp Messaging
+                    </a>
+                    <a href="{{ url_for('admin_site_settings') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_site_settings' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-cog mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Site Settings
+                    </a>
+                    {% if current_user.is_admin or current_user.role == 'admin' %}
+                    <a href="{{ url_for('admin_database_manager') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint and request.endpoint.startswith('admin_database') and 'automation' not in request.endpoint %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-database mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        📁 Database Manager
+                    </a>
+                    <a href="{{ url_for('admin_database_automation') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint and 'admin_database_automation' in request.endpoint %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-robot mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        🔁 Backup Automation
+                    </a>
+                    <a href="{{ url_for('admin_settings') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_settings' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-cogs mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        ⚙️ Settings
+                    </a>
+                    {% endif %}
+                </nav>
+            </div>
+            <div class="flex-shrink-0 flex border-t border-gray-200 dark:border-gray-700 p-4">
+                <div class="flex items-center">
+                    <div>
+                        <div class="text-sm font-medium text-gray-800 dark:text-white">{{ current_user.username }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">Admin</div>
+                    </div>
+                    <div class="ml-3">
+                        <a href="{{ url_for('logout') }}" class="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
+                            Sign out
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="md:pl-64 flex flex-col flex-1">
+        <div class="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white dark:bg-gray-800 shadow">
+            <button class="px-4 border-r border-gray-200 dark:border-gray-700 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 md:hidden">
+                <span class="sr-only">Open sidebar</span>
+                <i class="fas fa-bars h-6 w-6"></i>
+            </button>
+            <div class="flex-1 px-4 flex justify-between">
+                <div class="flex-1 flex">
+                    <div class="w-full flex md:ml-0">
+                        <div class="relative w-full text-gray-400 focus-within:text-gray-600">
+                            <div class="absolute inset-y-0 left-0 flex items-center pointer-events-none">
+                                <i class="fas fa-search h-5 w-5"></i>
+                            </div>
+                            <input id="search" name="search" class="block w-full h-full pl-8 pr-3 py-2 border-transparent text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-0 focus:border-transparent focus:placeholder-gray-400 sm:text-sm bg-white dark:bg-gray-800" placeholder="Search" type="search">
+                        </div>
+                    </div>
+                </div>
+                <div class="ml-4 flex items-center md:ml-6">
+                    <button type="button" class="p-1 rounded-full text-gray-400 hover:text-gray-500 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <span class="sr-only">View notifications</span>
+                        <i class="fas fa-bell h-6 w-6"></i>
+                    </button>
+                    <button id="theme-toggle" type="button" class="ml-3 p-1 rounded-full text-gray-400 hover:text-gray-500 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <i class="fas fa-moon dark:hidden"></i>
+                        <i class="fas fa-sun hidden dark:block"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <main class="flex-1">
+            <div class="py-6">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+                    <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{% block header %}{% endblock %}</h1>
+                </div>
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+                    <!-- Flash messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="mt-4 rounded-md bg-{{ 'red' if category == 'error' else 'green' }}-50 p-4">
+                                    <div class="flex">
+                                        <div class="flex-shrink-0">
+                                            <i class="h-5 w-5 text-{{ 'red' if category == 'error' else 'green' }}-400 fas {{ 'fa-exclamation-circle' if category == 'error' else 'fa-check-circle' }}"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <p class="text-sm font-medium text-{{ 'red' if category == 'error' else 'green' }}-800">
+                                                {{ message }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <!-- Page content -->
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Toggle mobile menu
+        const mobileMenuButton = document.querySelector('button[aria-controls="mobile-menu"]');
+        const mobileMenu = document.getElementById('mobile-menu');
+        
+        if (mobileMenuButton && mobileMenu) {
+            mobileMenuButton.addEventListener('click', () => {
+                const expanded = mobileMenuButton.getAttribute('aria-expanded') === 'true' || false;
+                mobileMenuButton.setAttribute('aria-expanded', !expanded);
+                mobileMenu.classList.toggle('hidden', expanded);
+            });
+        }
+
+
+        // Toggle dark/light theme
+        const themeToggle = document.getElementById('theme-toggle');
+        if (themeToggle) {
+            themeToggle.addEventListener('click', () => {
+                const html = document.documentElement;
+                const controller = window.__themeController || null;
+                const isDark = html.classList.contains('dark');
+                const nextTheme = isDark ? 'light' : 'dark';
+                if (controller && typeof controller.apply === 'function') {
+                    controller.apply(nextTheme);
+                } else {
+                    html.classList.toggle('dark', nextTheme === 'dark');
+                    try {
+                        localStorage.setItem('theme', nextTheme);
+                    } catch (err) {
+                        /* noop */
+                    }
+                }
+            });
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

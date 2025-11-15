@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Management - China Orders</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <div class="min-h-screen">
+        <!-- Page Header -->
+        <header class="bg-white dark:bg-gray-800 shadow">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">🇨🇳 China Order Page – Pending Orders Requiring Shipment Totals</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Welcome, {{ current_user.username }}</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="{{ url_for('logout') }}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                            <i class="fas fa-sign-out-alt mr-1"></i> 🔐 Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mb-4 rounded-md bg-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-50 dark:bg-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-900 p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="h-5 w-5 text-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-400 fas {{ 'fa-exclamation-circle' if category == 'error' else 'fa-check-circle' if category == 'success' else 'fa-exclamation-triangle' }}"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm font-medium text-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-800 dark:text-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-200">
+                                        {{ message }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Orders Section -->
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                    🧾 All Orders / 所有订单
+                </h2>
+                <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                    View and manage all orders. / 查看和管理所有订单。
+                </p>
+                <p class="text-gray-500 dark:text-gray-500 text-xs mb-4">
+                    <strong>📝 Note / 备注:</strong> Chinese partners will mark the products before sending them. After submission, all marked products will automatically disappear from the list. / 中国合作伙伴在发货前标记产品。提交后，已标记的产品将自动从列表中移除。
+                </p>
+            </div>
+
+            {% if orders.items %}
+                <div class="mb-8 overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm bg-white dark:bg-gray-800">
+                    <table class="w-full border-collapse text-sm">
+                        <thead class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            <tr>
+                                <th class="p-3 text-left font-semibold">
+                                    <input type="checkbox" id="selectAll" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                </th>
+                                <th class="p-3 text-left font-semibold">🖼️ Product Image / 产品图片</th>
+                                <th class="p-3 text-left font-semibold">🆔 Order ID / 订单编号</th>
+                                <th class="p-3 text-left font-semibold">🧾 Product Name / 产品名称</th>
+                                <th class="p-3 text-left font-semibold">🔢 Quantity / 数量</th>
+                                <th class="p-3 text-left font-semibold">🌍 Location / 位置</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders.items %}
+                                {% for item in order.items %}
+                                <tr id="order-row-{{ order.id }}-item-{{ item.id }}" 
+                                    data-order-id="{{ order.id }}"
+                                    class="order-row border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 {% if loop.index % 2 == 0 %}bg-gray-50/50 dark:bg-gray-800/50{% endif %}">
+                                    <td class="p-3">
+                                        {% if loop.first %}
+                                        <input type="checkbox" 
+                                               name="selected_orders"
+                                               class="order-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                                               value="{{ order.id }}">
+                                        {% else %}
+                                        <span class="text-gray-400">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-3">
+                                        {% if item.product.image %}
+                                            <img src="{{ url_for('static', filename=item.product.image) }}" 
+                                                 alt="{{ item.product.name }}" 
+                                                 class="w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-600 object-cover">
+                                        {% else %}
+                                            <div class="w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                                                <i class="fas fa-image text-gray-400"></i>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-3">
+                                        {% if loop.first %}
+                                            <span class="font-mono font-semibold text-gray-900 dark:text-white">#{{ order.id }}</span>
+                                        {% else %}
+                                            <span class="text-gray-400">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-3">
+                                        <span class="text-gray-900 dark:text-white font-medium">{{ item.product.name }}</span>
+                                    </td>
+                                    <td class="p-3">
+                                        <span class="text-gray-700 dark:text-gray-300">{{ item.quantity }}</span>
+                                    </td>
+                                    <td class="p-3">
+                                        {% if loop.first %}
+                                            {% if order.location == 'In The Gambia' %}
+                                                <span class="text-gray-700 dark:text-gray-300">🇬🇲 Available in Gambia / 在冈比亚</span>
+                                            {% else %}
+                                                <span class="text-gray-700 dark:text-gray-300">🇨🇳 Shipped from China / 中国发货</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-gray-400">—</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="mb-8 bg-white dark:bg-gray-800 shadow rounded-lg p-12 text-center border border-gray-200 dark:border-gray-700">
+                    <i class="fas fa-inbox text-gray-400 text-5xl mb-4"></i>
+                    <p class="text-gray-500 dark:text-gray-400 text-lg">No pending orders</p>
+                </div>
+            {% endif %}
+
+            <!-- Shipment Total Submission Form -->
+            <div class="mb-8 p-6 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    🧾 Submit Shipment Details / 提交运输信息
+                </h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Please fill in the shipment information below after marking all products for shipment. / 请在标记所有产品准备发货后填写以下运输信息。
+                </p>
+                <form method="POST" action="{{ url_for('china_submit_order_details_batch') }}" id="shipmentForm" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <div>
+                        <label for="weightInput" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            ⚖️ Total Product Weight (kg) / 产品总重量(公斤)
+                        </label>
+                        <input type="text" 
+                               name="total_weight" 
+                               id="weightInput"
+                               placeholder="e.g. 12.8" 
+                               required
+                               class="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    
+                    <div>
+                        <label for="shippingInput" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            💸 Total Shipping Price (GMD) / 运费(达拉西)
+                        </label>
+                        <input type="text" 
+                               name="shipping_price" 
+                               id="shippingInput"
+                               placeholder="e.g. 6400" 
+                               required
+                               class="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    
+                    <div>
+                        <label for="totalInput" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            💰 Total Product Cost (GMD) / 总费用(达拉西)
+                        </label>
+                        <input type="text" 
+                               name="total_cost" 
+                               id="totalInput"
+                               placeholder="e.g. 102000" 
+                               required
+                               class="w-full border border-gray-300 dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    
+                    <div class="flex items-end">
+                        <button type="button" 
+                                id="submitShipmentBtn"
+                                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold p-3 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                            <i class="fas fa-paper-plane mr-2"></i>
+                            🟢 Submit Shipment Details (提交运输信息)
+                        </button>
+                    </div>
+                </form>
+                <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                    📢 Once submitted, all marked products will be removed from the list. / 提交后，已标记的产品将从列表中移除。
+                </p>
+            </div>
+
+            <!-- Pagination Footer -->
+            {% if orders.pages > 1 %}
+            <div class="mt-6 flex justify-between items-center">
+                <div class="text-sm text-gray-500 dark:text-gray-400">
+                    Showing page {{ orders.page }} of {{ orders.pages }}
+                </div>
+                <div class="flex space-x-2">
+                    {% if orders.has_prev %}
+                    <a href="{{ url_for('china_orders', page=orders.prev_num, status='all') }}" 
+                       class="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        ⏮ Previous
+                    </a>
+                    {% endif %}
+                    {% if orders.has_next %}
+                    <a href="{{ url_for('china_orders', page=orders.next_num, status='all') }}" 
+                       class="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        Next ⏭
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+
+    <script>
+        // Select All functionality
+        const selectAll = document.getElementById('selectAll');
+        if (selectAll) {
+            selectAll.addEventListener('change', function() {
+                const checkboxes = document.querySelectorAll('.order-checkbox');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+            });
+        }
+
+        // AJAX form submission
+        document.querySelector("#submitShipmentBtn").addEventListener("click", async () => {
+            const checkedBoxes = document.querySelectorAll(".order-checkbox:checked");
+            
+            if (checkedBoxes.length === 0) {
+                alert("⚠️ Please select at least one order to mark for shipment / 请至少选择一个订单");
+                return;
+            }
+
+            const orderIds = Array.from(checkedBoxes).map(cb => cb.value);
+            const weight = document.querySelector("#weightInput").value;
+            const shipping = document.querySelector("#shippingInput").value;
+            const total = document.querySelector("#totalInput").value;
+
+            // Validate inputs
+            if (!weight || !shipping || !total) {
+                alert("⚠️ Please fill in all shipment details / 请填写所有运输信息");
+                return;
+            }
+
+            try {
+                const res = await fetch("/china/submit_shipment", {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": document.querySelector('input[name="csrf_token"]').value
+                    },
+                    body: JSON.stringify({ order_ids: orderIds, weight, shipping, total })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    alert(`✅ Shipment details submitted successfully for ${orderIds.length} order(s).\n信息提交成功，已更新 ${orderIds.length} 个订单。`);
+                    
+                    // Remove submitted order rows
+                    orderIds.forEach(orderId => {
+                        const rows = document.querySelectorAll(`tr[data-order-id="${orderId}"]`);
+                        rows.forEach(row => row.remove());
+                    });
+
+                    // Update select all checkbox if all orders are removed
+                    const remainingCheckboxes = document.querySelectorAll('.order-checkbox');
+                    if (remainingCheckboxes.length === 0) {
+                        if (selectAll) selectAll.checked = false;
+                        // Optionally hide the form or show a message
+                    } else {
+                        // Uncheck select all if not all are selected
+                        const checkedCount = document.querySelectorAll('.order-checkbox:checked').length;
+                        if (selectAll && checkedCount < remainingCheckboxes.length) {
+                            selectAll.checked = false;
+                        }
+                    }
+
+                    // Clear form inputs
+                    document.querySelector("#weightInput").value = "";
+                    document.querySelector("#shippingInput").value = "";
+                    document.querySelector("#totalInput").value = "";
+                } else {
+                    alert("❌ An error occurred / 发生错误: " + (data.message || "Unknown error"));
+                }
+            } catch (error) {
+                console.error("Error submitting shipment:", error);
+                alert("❌ An error occurred / 发生错误: " + error.message);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# git-filter-repo replacements
+# Use `git filter-repo --replace-text replacements.txt`
+# Patterns sanitize any leaked keys/tokens referenced historically.
+
+# Google OAuth
+regex:AIza[0-9A-Za-z\-_]{35}==>GOOGLE_API_KEY_REDACTED
+regex:GOCSPX[A-Za-z0-9_-]+==>GOOGLE_CLIENT_SECRET_REDACTED
+
+# ModemPay
+regex:pk_test_[A-Za-z0-9]+==>pk_test_[REDACTED]
+regex:sk_test_[A-Za-z0-9]+==>sk_test_[REDACTED]
+regex:whcf[0-9a-f]+==>MODEMPAY_WEBHOOK_SECRET_REDACTED
+
+# Highnote / Generic secrets
+regex:hn_[A-Za-z0-9]+==>HIGHNOTE_API_KEY_REDACTED
+regex:Bearer\s+[A-Za-z0-9\._\-]+==>Bearer [REDACTED_TOKEN]
+regex:API_KEY\s*=\s*['"]?[A-Za-z0-9_\-]+==>API_KEY=[REDACTED]
+

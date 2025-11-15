@@ -1,0 +1,119 @@
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--app-bg);
+  color: var(--app-text);
+  transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out;
+}
+
+html:not(.theme-initialized) body {
+  visibility: hidden;
+}
+
+html.theme-initialized body {
+  visibility: visible;
+}
+
+/* Surface backgrounds */
+.bg-white,
+.bg-gray-50,
+.bg-gray-100,
+.bg-gray-200,
+.bg-gray-300,
+.bg-slate-50,
+.bg-slate-100,
+.bg-slate-200,
+.bg-slate-300,
+[class*="bg-white/"],
+[class*="bg-gray-50/"],
+[class*="bg-gray-100/"],
+[class*="bg-slate-50/"],
+[class*="bg-slate-100/"] {
+  background-color: var(--app-card) !important;
+}
+
+/* Muted surface hover states */
+.hover\:bg-slate-100:hover,
+.hover\:bg-slate-200:hover,
+.hover\:bg-gray-50:hover,
+.hover\:bg-gray-100:hover,
+.hover\:bg-white:hover,
+.hover\:bg-white\/90:hover,
+.hover\:bg-white\/80:hover {
+  background-color: var(--app-surface-hover) !important;
+}
+
+/* Text colors */
+.text-black,
+.text-slate-900,
+.text-slate-800,
+.text-gray-900,
+.text-gray-800 {
+  color: var(--app-text) !important;
+}
+
+.text-slate-700,
+.text-slate-600,
+.text-slate-500,
+.text-slate-400,
+.text-gray-700,
+.text-gray-600,
+.text-gray-500,
+.text-gray-400 {
+  color: var(--app-muted) !important;
+}
+
+/* Border utilities */
+.border-gray-100,
+.border-gray-200,
+.border-gray-300,
+.border-slate-100,
+.border-slate-200,
+.border-slate-300,
+.divide-gray-100,
+.divide-gray-200,
+.divide-gray-300,
+.divide-slate-100,
+.divide-slate-200,
+.divide-slate-300 {
+  border-color: var(--app-border) !important;
+}
+
+/* Ring offsets */
+.ring-offset-white,
+.ring-offset-slate-50 {
+  --tw-ring-offset-color: var(--app-card) !important;
+}
+
+/* Inputs */
+input,
+textarea,
+select {
+  background-color: var(--app-card);
+  color: var(--app-text);
+  border-color: var(--app-border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--app-muted);
+}
+
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: var(--app-card);
+  color: var(--app-text);
+  border-color: var(--app-border);
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: var(--app-muted);
+}

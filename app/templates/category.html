@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}{{ category.name }} - Buxin Electronics Store{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-16 px-4 sm:py-24 sm:px-6 lg:px-8">
+        <!-- Category header -->
+        <div class="text-center mb-12">
+            <h1 class="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl">
+                <span class="block">{{ category.name }}</span>
+            </h1>
+            <p class="mt-3 max-w-md mx-auto text-base text-slate-500 dark:text-slate-300 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+                Browse our selection of {{ category.name|lower }} products.
+            </p>
+        </div>
+
+        <!-- Filters -->
+        <div class="relative z-10 flex items-baseline justify-between pt-6 pb-6 border-b border-slate-200 dark:border-slate-700">
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Products</h2>
+
+            <div class="flex items-center">
+                <div class="relative inline-block text-left">
+                    <div>
+                        <button type="button" class="group inline-flex justify-center text-sm font-medium text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white" id="menu-button" aria-expanded="false" aria-haspopup="true">
+                            Sort
+                            <i class="fas fa-chevron-down -mr-1 ml-1 h-5 w-5 flex-shrink-0 text-slate-400 group-hover:text-slate-500 dark:text-slate-500 dark:group-hover:text-slate-300"></i>
+                        </button>
+                    </div>
+                    <!-- Dropdown menu -->
+                    <div class="origin-top-right absolute right-0 mt-2 w-40 rounded-xl shadow-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 focus:outline-none hidden backdrop-blur" role="menu" aria-orientation="vertical" aria-labelledby="menu-button" tabindex="-1">
+                        <div class="py-1" role="none">
+                            <a href="#" class="font-medium text-slate-900 dark:text-white block px-4 py-2 text-sm" role="menuitem" tabindex="-1" id="menu-item-0">Most Popular</a>
+                            <a href="#" class="text-slate-500 dark:text-slate-300 block px-4 py-2 text-sm" role="menuitem" tabindex="-1" id="menu-item-1">Best Rating</a>
+                            <a href="#" class="text-slate-500 dark:text-slate-300 block px-4 py-2 text-sm" role="menuitem" tabindex="-1" id="menu-item-2">Newest</a>
+                            <a href="#" class="text-slate-500 dark:text-slate-300 block px-4 py-2 text-sm" role="menuitem" tabindex="-1" id="menu-item-3">Price: Low to High</a>
+                            <a href="#" class="text-slate-500 dark:text-slate-300 block px-4 py-2 text-sm" role="menuitem" tabindex="-1" id="menu-item-4">Price: High to Low</a>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="p-2 -m-2 ml-5 sm:ml-7 text-slate-400 hover:text-slate-500 dark:text-slate-400 dark:hover:text-white transition-colors">
+                    <span class="sr-only">View grid</span>
+                    <i class="fas fa-th h-5 w-5" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="p-2 -m-2 ml-4 sm:ml-6 text-slate-400 hover:text-slate-500 dark:text-slate-400 dark:hover:text-white transition-colors lg:hidden">
+                    <span class="sr-only">Filters</span>
+                    <i class="fas fa-filter h-5 w-5" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+
+        <section aria-labelledby="products-heading" class="pt-6 pb-24">
+            <h2 id="products-heading" class="sr-only">Products</h2>
+
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-x-8 gap-y-10">
+                <!-- Filters -->
+                <form class="hidden lg:block">
+                    <h3 class="sr-only">Categories</h3>
+                    <ul role="list" class="text-sm font-medium text-slate-900 dark:text-slate-100 space-y-4 pb-6 border-b border-slate-200 dark:border-slate-700">
+                        <li>
+                            <a href="#" class="text-blue-600 dark:text-blue-400">All Products</a>
+                        </li>
+                        <li>
+                            <a href="#" class="text-slate-500 dark:text-slate-400">New Arrivals</a>
+                        </li>
+                        <li>
+                            <a href="#" class="text-slate-500 dark:text-slate-400">On Sale</a>
+                        </li>
+                        <li>
+                            <a href="#" class="text-slate-500 dark:text-slate-400">In Stock</a>
+                        </li>
+                    </ul>
+
+                    <div class="border-b border-slate-200 dark:border-slate-700 py-6">
+                        <h3 class="-my-3 flow-root">
+                            <button type="button" class="py-3 bg-white dark:bg-slate-900/70 w-full flex items-center justify-between text-sm text-slate-400 hover:text-slate-500 dark:text-slate-300 dark:hover:text-slate-200 rounded-lg transition-colors" aria-controls="filter-section-0" aria-expanded="false">
+                                <span class="font-medium text-slate-900 dark:text-white">Price</span>
+                                <span class="ml-6 flex items-center">
+                                    <i class="fas fa-plus"></i>
+                                </span>
+                            </button>
+                        </h3>
+                        <div class="pt-6 hidden" id="filter-section-0">
+                            <div class="space-y-4">
+                                <div class="flex items-center">
+                                    <input id="price-0" name="price" value="0" type="radio" class="h-4 w-4 border-slate-300 rounded text-cyan-500 focus:ring-cyan-400">
+                                    <label for="price-0" class="ml-3 text-sm text-slate-600 dark:text-slate-300">Under D100</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="price-1" name="price" value="100" type="radio" class="h-4 w-4 border-slate-300 rounded text-cyan-500 focus:ring-cyan-400">
+                                    <label for="price-1" class="ml-3 text-sm text-slate-600 dark:text-slate-300">D100 to D500</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="price-2" name="price" value="500" type="radio" class="h-4 w-4 border-slate-300 rounded text-cyan-500 focus:ring-cyan-400">
+                                    <label for="price-2" class="ml-3 text-sm text-slate-600 dark:text-slate-300">D500 to D1000</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="price-3" name="price" value="1000" type="radio" class="h-4 w-4 border-slate-300 rounded text-cyan-500 focus:ring-cyan-400">
+                                    <label for="price-3" class="ml-3 text-sm text-slate-600 dark:text-slate-300">Over D1000</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-b border-slate-200 dark:border-slate-700 py-6">
+                        <h3 class="-my-3 flow-root">
+                            <button type="button" class="py-3 bg-white dark:bg-slate-900/70 w-full flex items-center justify-between text-sm text-slate-400 hover:text-slate-500 dark:text-slate-300 dark:hover:text-slate-200 rounded-lg transition-colors" aria-controls="filter-section-1" aria-expanded="false">
+                                <span class="font-medium text-slate-900 dark:text-white">Availability</span>
+                                <span class="ml-6 flex items-center">
+                                    <i class="fas fa-plus"></i>
+                                </span>
+                            </button>
+                        </h3>
+                        <div class="pt-6 hidden" id="filter-section-1">
+                            <div class="space-y-4">
+                                <div class="flex items-center">
+                                    <input id="in-stock" name="in-stock" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400">
+                                    <label for="in-stock" class="ml-3 text-sm text-slate-600 dark:text-slate-300">In Stock</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="out-of-stock" name="out-of-stock" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-400">
+                                    <label for="out-of-stock" class="ml-3 text-sm text-slate-600 dark:text-slate-300">Out of Stock</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="button" class="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">Clear all filters</button>
+                    </div>
+                </form>
+
+                <!-- Product grid -->
+                <div class="lg:col-span-3">
+                    {% if products %}
+                        <div id="products-container" class="grid grid-cols-2 gap-3">
+                            {% for product in products %}
+                            <div class="product-card cursor-pointer bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-hidden hover:border-cyan-500/50 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/10"
+                                 data-wishlist-card
+                                 data-product-id="{{ product.id }}">
+                                <div class="relative">
+                                    <a href="{{ url_for('product', product_id=product.id) }}" class="block h-40 overflow-hidden">
+                                        {% if product.image %}
+                                        <img src="{{ product.image|product_image_url }}" alt="{{ product.name }}" 
+                                            class="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                                            onerror="this.src='https://placehold.co/400x400/34d399/ffffff?text=No+Image'; this.onerror=null;">
+                                        {% else %}
+                                        <div class="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
+                                            <i data-lucide="image" class="w-10 h-10 text-slate-400"></i>
+                                        </div>
+                                        {% endif %}
+                                    </a>
+                                    <button type="button"
+                                            class="wishlist-button absolute top-2 right-2 p-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-full shadow-md hover:bg-white/90 dark:hover:bg-slate-800 transition-all group"
+                                            data-product-id="{{ product.id }}"
+                                            aria-label="Toggle wishlist">
+                                        <i class="heart-icon fas fa-heart text-red-500 absolute inset-0 m-auto hidden"></i>
+                                        <i class="heart-outline-icon fas fa-heart text-slate-400 dark:text-slate-500"></i>
+                                    </button>
+                                    
+                                    {% if product.available_in_gambia %}
+                                    <div class="absolute top-2 left-2 w-8 h-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center z-10" title="Available in Gambia">
+                                        <span class="text-xl">🇬🇲</span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if product.stock == 0 %}
+                                    <div class="absolute {% if product.available_in_gambia %}top-12{% else %}top-2{% endif %} left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-lg font-medium z-10">
+                                        Out of Stock
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="p-3">
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ product.category.name if product.category else 'Electronics' }}</p>
+                                    <h4 class="font-semibold text-sm mb-2 line-clamp-2">{{ product.name }}</h4>
+                                    
+                                    <div class="mt-1 mb-2">
+                                        <span class="text-sm font-semibold text-green-600 dark:text-green-400">
+                                            D{{ product.price }}
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="flex items-center justify-end">
+                                        <form class="add-to-cart-form inline-block" action="{{ url_for('add_to_cart', product_id=product.id) }}" method="POST" data-wishlist-ignore>
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <input type="hidden" name="quantity" value="1">
+                                            <button type="submit" class="add-to-cart-btn bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:shadow-lg hover:shadow-cyan-500/30 transition-all {% if product.stock == 0 %}opacity-50 cursor-not-allowed{% endif %}"
+                                                    {% if product.stock == 0 %}disabled{% endif %}>
+                                                <span class="add-to-cart-text">
+                                                    {% if product.stock > 0 %}
+                                                        Add to Cart
+                                                    {% else %}
+                                                        Out of Stock
+                                                    {% endif %}
+                                                </span>
+                                                <span class="add-to-cart-loader hidden ml-1">
+                                                    <i class="fas fa-spinner fa-spin"></i>
+                                                </span>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-12">
+                            <i class="fas fa-box-open text-4xl text-slate-400 mb-4"></i>
+                            <h3 class="text-lg font-medium text-slate-900 dark:text-white">No products found</h3>
+                            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">There are no products available in this category at the moment.</p>
+                            <div class="mt-6">
+                                <a href="{{ url_for('home') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    Continue Shopping
+                                </a>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <!-- Pagination -->
+                    {% if products %}
+                    <nav class="mt-12 flex items-center justify-between border-t border-slate-200 dark:border-slate-800 px-4 sm:px-0">
+                        <div class="-mt-px w-0 flex-1 flex">
+                            <a href="#" class="border-t-2 border-transparent pt-4 pr-1 inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+                                <i class="fas fa-arrow-left mr-3 h-5 w-5"></i>
+                                Previous
+                            </a>
+                        </div>
+                        <div class="hidden md:-mt-px md:flex">
+                            <a href="#" class="border-blue-500 text-blue-600 dark:text-blue-400 border-t-2 pt-4 px-4 inline-flex items-center text-sm font-medium" aria-current="page">1</a>
+                            <a href="#" class="border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 border-t-2 pt-4 px-4 inline-flex items-center text-sm font-medium">2</a>
+                            <a href="#" class="border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 border-t-2 pt-4 px-4 inline-flex items-center text-sm font-medium">3</a>
+                            <span class="border-transparent text-slate-500 border-t-2 pt-4 px-4 inline-flex items-center text-sm font-medium">...</span>
+                            <a href="#" class="border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 border-t-2 pt-4 px-4 inline-flex items-center text-sm font-medium">8</a>
+                        </div>
+                        <div class="-mt-px w-0 flex-1 flex justify-end">
+                            <a href="#" class="border-t-2 border-transparent pt-4 pl-1 inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+                                Next
+                                <i class="fas fa-arrow-right ml-3 h-5 w-5"></i>
+                            </a>
+                        </div>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    // Function to show flash message
+    function showFlashMessage(message, type = 'success') {
+        // Remove any existing flash messages
+        const existingFlash = document.querySelector('.flash-message');
+        if (existingFlash) {
+            existingFlash.remove();
+        }
+        
+        // Create message element
+        const flashMessage = document.createElement('div');
+        flashMessage.className = `flash-message fixed top-4 right-4 z-50 px-6 py-3 rounded-md shadow-lg text-white ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+        
+        // Add message content
+        const messageContent = document.createElement('div');
+        messageContent.className = 'flex items-center';
+        messageContent.innerHTML = `
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>
+            <span>${message}</span>
+        `;
+        
+        flashMessage.appendChild(messageContent);
+        
+        // Add to body
+        document.body.appendChild(flashMessage);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            flashMessage.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+            setTimeout(() => flashMessage.remove(), 300);
+        }, 3000);
+    }
+
+    // Function to update cart count in navbar
+    function updateCartCount(count) {
+        const cartCount = document.querySelector('#cart-count');
+        if (cartCount) {
+            cartCount.textContent = count > 0 ? count : '';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle sort dropdown
+        const sortButton = document.querySelector('#menu-button');
+        if (sortButton) {
+            const sortMenu = sortButton.nextElementSibling;
+            
+            sortButton.addEventListener('click', function() {
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                this.setAttribute('aria-expanded', !isExpanded);
+                sortMenu.classList.toggle('hidden');
+            });
+
+            // Close sort dropdown when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!sortButton.contains(event.target) && !sortMenu.contains(event.target)) {
+                    sortButton.setAttribute('aria-expanded', 'false');
+                    sortMenu.classList.add('hidden');
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

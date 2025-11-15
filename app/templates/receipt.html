@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Receipt{% endblock %}
+
+{% block content %}
+	<style>
+		body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans', sans-serif; background:#f7f7f8; color:#111827; }
+		.container { max-width: 900px; margin: 24px auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; }
+		.header { padding: 16px 20px; border-bottom: 1px solid #e5e7eb; display:flex; justify-content: space-between; align-items: center; }
+		h1 { font-size: 18px; margin: 0; }
+		h2 { font-size: 16px; margin: 0 0 8px 0; color:#111827; }
+		.status { font-size: 12px; padding: 4px 8px; border-radius: 999px; }
+		.status-success { background: #ecfdf5; color: #065f46; border: 1px solid #34d399; }
+		.status-pending { background: #fffbeb; color: #92400e; border: 1px solid #fbbf24; }
+		.status-failed { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
+		.content { padding: 20px; }
+		.section { margin-bottom: 20px; }
+		.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+		.label { color: #6b7280; font-size: 12px; }
+		.value { font-weight: 600; font-size: 14px; }
+		table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+		th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }
+		th { background: #f9fafb; font-size: 12px; color:#374151; }
+		.item-img { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; border:1px solid #e5e7eb; background:#fff; }
+		footer { padding: 16px 20px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+		.btn { background: #111827; color: #fff; border: 0; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+		.note { color: #6b7280; font-size: 12px; }
+		.center { text-align: center; padding: 24px; color:#6b7280; }
+		@media print {
+			body { background: #fff; }
+			.container { margin: 0; border: 0; }
+			.btn { display: none; }
+			/* Print only the receipt container (hide nav/footer/other layout from base.html) */
+			body * { visibility: hidden !important; }
+			.container, .container * { visibility: visible !important; }
+			.container { position: absolute; inset: 0; width: 100%; }
+		}
+	</style>
+	<div class="container">
+		<div class="header">
+			<h1>Payment Receipt</h1>
+			{% set s = (payment.status if payment else 'pending')|lower %}
+			{% if s == 'completed' or s == 'paid' or s == 'success' %}
+				<span class="status status-success">Completed</span>
+			{% elif s == 'failed' %}
+				<span class="status status-failed">Failed</span>
+			{% else %}
+				<span class="status status-pending">Pending</span>
+			{% endif %}
+		</div>
+		<div class="content">
+			{% if not payment %}
+				<div class="center">
+					<p><strong>We're finalizing your payment...</strong></p>
+					<p>This page will reflect your receipt shortly. You can refresh in a few seconds.</p>
+					<p class="note">Ref: {{ reference or '-' }} | Txn: {{ transaction_id or '-' }}</p>
+					<p class="note">Tip: If you just completed payment, allow a moment for the webhook to update.</p>
+				</div>
+			{% else %}
+				<div class="section" style="display:flex; justify-content: space-between; gap:16px; flex-wrap: wrap;">
+					<div style="min-width:260px; flex:1;">
+						<h2>Merchant</h2>
+						<div class="label">Store</div>
+						<div class="value">Your Store</div>
+						<div class="label" style="margin-top:6px;">Website</div>
+						<div class="value">{{ request.host or request.host_url }}</div>
+					</div>
+					<div style="min-width:260px; flex:1;">
+						<h2>Customer</h2>
+						<div class="label">Name</div>
+						<div class="value">
+							{% if order and order.customer %}{{ order.customer.username }}{% else %}-{% endif %}
+						</div>
+						<div class="label" style="margin-top:6px;">Email</div>
+						<div class="value">
+							{% if order and order.customer %}{{ order.customer.email }}{% else %}-{% endif %}
+						</div>
+						<div class="label" style="margin-top:6px;">Delivery Address</div>
+						<div class="value">{{ order.delivery_address if order else '-' }}</div>
+					</div>
+					<div style="min-width:260px; flex:1;">
+						<h2>Payment</h2>
+						<div class="label">Method</div>
+						<div class="value">{{ payment.method|capitalize }}</div>
+						<div class="label" style="margin-top:6px;">Status</div>
+						<div class="value">{{ payment.status|capitalize }}</div>
+						<div class="label" style="margin-top:6px;">Paid At</div>
+						<div class="value">{{ payment.paid_at or '-' }}</div>
+					</div>
+				</div>
+
+				<div class="section grid">
+					<div>
+						<div class="label">Reference</div>
+						<div class="value">{{ payment.reference or '-' }}</div>
+					</div>
+					<div>
+						<div class="label">Transaction ID</div>
+						<div class="value">{{ payment.transaction_id or '-' }}</div>
+					</div>
+					<div>
+						<div class="label">Amount</div>
+						<div class="value">GMD {{ '%.2f' % payment.amount }}</div>
+					</div>
+				</div>
+				{% if order %}
+					<div class="section">
+						<h2>Order #{{ order.id }}</h2>
+						<table>
+							<thead>
+								<tr>
+									<th>Image</th>
+									<th>Product</th>
+									<th>Qty</th>
+									<th>Price (GMD)</th>
+									<th>Total (GMD)</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for item in order_items %}
+									<tr>
+										<td>
+											{% set img_path = (item.product.image if (item.product and item.product.image) else None) %}
+											{% if img_path %}
+												<img class="item-img" src="{{ url_for('static', filename=img_path) }}" alt="{{ item.product.name if item.product else 'Product' }}">
+											{% else %}
+												<img class="item-img" src="{{ url_for('static', filename='images/placeholder.png') }}" alt="No image">
+											{% endif %}
+										</td>
+										<td>{{ item.product.name if item.product else ('Product #' ~ item.product_id) }}</td>
+										<td>{{ item.quantity }}</td>
+										<td>{{ '%.2f' % item.price }}</td>
+										<td>{{ '%.2f' % (item.price * item.quantity) }}</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+							<tfoot>
+								<tr>
+									<th colspan="3" style="text-align:right;">Order Total</th>
+									<th>{{ '%.2f' % order.total }}</th>
+								</tr>
+								<tr>
+									<th colspan="3" style="text-align:right;">Paid</th>
+									<th>{{ '%.2f' % payment.amount }}</th>
+								</tr>
+								<tr>
+									<th colspan="3" style="text-align:right;">Balance</th>
+									{% set balance = (order.total - payment.amount) if order and payment and order.total and payment.amount else 0 %}
+									<th>{{ '%.2f' % balance }}</th>
+								</tr>
+							</tfoot>
+						</table>
+						{% if order and order.customer %}
+							<div style="margin-top:10px;" class="note">
+								Customer ID: {{ order.customer.id }} • Order Date: {{ order.created_at }}
+							</div>
+						{% endif %}
+					</div>
+				{% endif %}
+			{% endif %}
+		</div>
+		<footer>
+			<span class="note">Keep this receipt for your records.</span>
+			<button class="btn" onclick="window.print()">Print Receipt</button>
+		</footer>
+	</div>
+{% endblock %}
+

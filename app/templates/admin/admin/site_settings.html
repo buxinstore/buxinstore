@@ -1,0 +1,98 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block title %}Site Settings{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div>
+    <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Site Settings</h1>
+    <p class="text-slate-500 dark:text-slate-400">Update branding and hero section content.</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="space-y-2">
+        {% for category, message in messages %}
+          <div class="px-4 py-3 rounded-lg text-sm {% if category == 'success' %}bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-700/40{% else %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <form method="post" enctype="multipart/form-data" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-sm p-6 space-y-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="grid md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Website Logo</label>
+        <div class="flex items-center gap-4">
+          <div class="w-20 h-20 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-800">
+            <img src="{{ logo_preview }}" alt="Current logo" class="w-full h-full object-cover">
+          </div>
+          <label class="cursor-pointer inline-flex items-center px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <i data-lucide="upload" class="w-4 h-4 mr-2"></i>
+            Upload New Logo
+            <input type="file" name="logo" accept="image/*" class="hidden">
+          </label>
+        </div>
+        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">PNG, JPG, or SVG. Recommended size 200x200px.</p>
+      </div>
+    </div>
+
+    <div class="border-t border-slate-200 dark:border-slate-700 pt-6">
+      <h2 class="text-lg font-semibold text-slate-800 dark:text-white mb-4">Hero Section</h2>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Hero Title</label>
+            <input type="text" name="hero_title" value="{{ settings.hero_title }}" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-4 py-2 focus:ring-2 focus:ring-cyan-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Hero Subtitle</label>
+            <textarea name="hero_subtitle" rows="3" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-4 py-2 focus:ring-2 focus:ring-cyan-500">{{ settings.hero_subtitle }}</textarea>
+          </div>
+        </div>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Button Text</label>
+            <input type="text" name="hero_button_text" value="{{ settings.hero_button_text }}" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-4 py-2 focus:ring-2 focus:ring-cyan-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Button Link</label>
+            <input type="text" name="hero_button_link" value="{{ settings.hero_button_link }}" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-4 py-2 focus:ring-2 focus:ring-cyan-500">
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Use full URL (https://...) or section anchor like #featured.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Hero Image</label>
+            <div class="flex items-center gap-4">
+          <div class="w-20 h-20 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-800">
+            {% if hero_preview %}
+              <img src="{{ hero_preview }}" alt="Hero image" class="w-full h-full object-cover">
+                {% else %}
+                  <div class="w-full h-full flex items-center justify-center text-xs text-slate-400">No image</div>
+                {% endif %}
+              </div>
+              <label class="cursor-pointer inline-flex items-center px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <i data-lucide="upload" class="w-4 h-4 mr-2"></i>
+                Upload Hero Image
+                <input type="file" name="hero_image" accept="image/*" class="hidden">
+              </label>
+            </div>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Recommended size 300x300px minimum.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <button type="submit" class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-medium hover:shadow-lg hover:shadow-cyan-500/30 transition-all">
+        <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+        Save Settings
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+

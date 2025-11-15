@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com;">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('favicon') }}">
+  <title>{% block title %}Buxin Electronics Store{% endblock %}</title>
+  <script>
+    (function() {
+      const storageKey = 'theme';
+      const defaultTheme = 'dark';
+      const html = document.documentElement;
+
+      const resolveTheme = (theme) => (theme === 'light' ? 'light' : 'dark');
+
+      const setColorScheme = (scheme) => {
+        try {
+          html.style.colorScheme = scheme;
+        } catch (err) {
+          /* noop */
+        }
+      };
+
+      const dispatchThemeChange = (theme) => {
+        const resolvedTheme = resolveTheme(theme);
+        try {
+          html.dispatchEvent(new CustomEvent('theme:change', {
+            detail: { theme: resolvedTheme, resolvedTheme }
+          }));
+        } catch (err) {
+          /* noop */
+        }
+      };
+
+      const applyTheme = (theme, options = {}) => {
+        const { persist = true, silent = false } = options;
+        const resolvedTheme = resolveTheme(theme);
+        html.classList.toggle('dark', resolvedTheme === 'dark');
+        html.dataset.theme = resolvedTheme;
+        html.dataset.themeResolved = resolvedTheme;
+        setColorScheme(resolvedTheme);
+
+        if (persist) {
+          try {
+            localStorage.setItem(storageKey, resolvedTheme);
+          } catch (err) {
+            /* noop */
+          }
+        }
+
+        if (!silent) {
+          dispatchThemeChange(resolvedTheme);
+        }
+
+        return resolvedTheme;
+      };
+
+      const readStoredTheme = () => {
+        try {
+          const stored = localStorage.getItem(storageKey);
+          return stored === 'light' ? 'light' : stored === 'dark' ? 'dark' : null;
+        } catch (err) {
+          return null;
+        }
+      };
+
+      const storedTheme = readStoredTheme();
+      applyTheme(defaultTheme, { persist: false, silent: true });
+
+      if (storedTheme === 'light') {
+        applyTheme('light', { persist: false, silent: true });
+      } else {
+        try {
+          localStorage.setItem(storageKey, defaultTheme);
+        } catch (err) {
+          /* noop */
+        }
+      }
+
+      html.classList.add('theme-initialized');
+
+      window.__themeController = {
+        storageKey,
+        resolveTheme,
+        get() {
+          return html.dataset.theme || defaultTheme;
+        },
+        getResolved() {
+          return html.dataset.themeResolved || defaultTheme;
+        },
+        apply(theme, options) {
+          return applyTheme(theme, options);
+        }
+      };
+    })();
+  </script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    };
+  </script>
+  <!-- 1. Include Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 2. Include Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- 3. Include Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  
+  <!-- 3. Custom CSS for animations and scrollbar (from tailwindcss-animate and scrollbar-hide) -->
+  <style>
+    :root {
+      --app-bg: #ffffff;
+      --app-card: #ffffff;
+      --app-text: #0f172a;
+      --app-muted: #64748b;
+      --app-border: rgba(0,0,0,0.1);
+      --app-surface-hover: rgba(15, 23, 42, 0.05);
+      --app-input: #f1f5f9;
+    }
+
+    html.dark {
+      --app-bg: #0f172a;
+      --app-card: #0b1324;
+      --app-text: #f1f5f9;
+      --app-muted: #94a3b8;
+      --app-border: rgba(255,255,255,0.15);
+      --app-surface-hover: rgba(148, 163, 184, 0.12);
+      --app-input: rgba(15, 23, 42, 0.75);
+    }
+
+    body {
+      background-color: var(--app-bg);
+      color: var(--app-text);
+    }
+
+    /* Custom animation to replace tailwindcss-animate */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideInFromTop {
+      from { transform: translateY(-0.5rem); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-in-custom {
+      animation: fadeIn 200ms ease-out, slideInFromTop 200ms ease-out;
+    }
+    
+    /* Polyfill for scrollbar-hide */
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-hide {
+      -ms-overflow-style: none; /* IE and Edge */
+      scrollbar-width: none; /* Firefox */
+    }
+    
+    /* Flash messages */
+    .flash-message {
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .product-card {
+      position: relative;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+
+    .product-card:focus-visible {
+      outline: 3px solid rgba(244, 63, 94, 0.35);
+      outline-offset: 3px;
+    }
+
+    .product-card.wishlist-active {
+      box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.3);
+    }
+
+    @keyframes wishlist-pulse-add {
+      0% {
+        box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.45);
+        transform: translateZ(0) scale(1);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(244, 63, 94, 0.05);
+        transform: translateZ(0) scale(1.015);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(244, 63, 94, 0);
+        transform: translateZ(0) scale(1);
+      }
+    }
+
+    @keyframes wishlist-pulse-remove {
+      0% {
+        box-shadow: 0 0 0 0 rgba(226, 232, 240, 0.6);
+        transform: translateZ(0) scale(1);
+      }
+      50% {
+        box-shadow: 0 0 0 10px rgba(226, 232, 240, 0.05);
+        transform: translateZ(0) scale(0.99);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(226, 232, 240, 0);
+        transform: translateZ(0) scale(1);
+      }
+    }
+
+    .product-card.wishlist-pulse-add {
+      animation: wishlist-pulse-add 360ms ease-out;
+    }
+
+    .product-card.wishlist-pulse-remove {
+      animation: wishlist-pulse-remove 320ms ease-in;
+    }
+
+    .wishlist-button {
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+    }
+
+    .wishlist-button i {
+      pointer-events: none;
+    }
+
+    .wishlist-heart-animate {
+      animation: wishlist-heart-pop 320ms ease-out;
+    }
+
+    @keyframes wishlist-heart-pop {
+      0% { transform: scale(0.75); opacity: 0.2; }
+      60% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .wishlist-count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.75rem;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(244, 63, 94, 0.08);
+      color: rgba(244, 63, 94, 0.92);
+    }
+
+    html.dark .wishlist-count-badge {
+      background: rgba(244, 63, 94, 0.12);
+      color: rgba(252, 231, 243, 0.95);
+    }
+
+    .floating-contact {
+      position: fixed;
+      right: 1.25rem;
+      bottom: clamp(6rem, 12vh, 8.5rem);
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 0.75rem 0.65rem;
+      background: var(--app-card);
+      border-radius: 9999px;
+      box-shadow: 0 18px 35px rgba(15, 23, 42, 0.18);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      backdrop-filter: blur(12px);
+    }
+
+    html.dark .floating-contact {
+      box-shadow: 0 18px 40px rgba(8, 14, 28, 0.55);
+      border-color: rgba(71, 85, 105, 0.35);
+    }
+
+    .floating-contact:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 22px 42px rgba(15, 23, 42, 0.22);
+    }
+
+    .floating-contact__button {
+      width: 48px;
+      height: 48px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-size: 1.35rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+    }
+
+    .floating-contact__button:hover,
+    .floating-contact__button:focus-visible {
+      transform: scale(1.1);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22);
+      outline: none;
+    }
+
+    .floating-contact__button--whatsapp {
+      background: #25d366;
+    }
+
+    .floating-contact__button--email {
+      background: linear-gradient(135deg, #1d4ed8, #2563eb);
+    }
+
+    html.dark .floating-contact__button {
+      box-shadow: 0 12px 28px rgba(3, 7, 18, 0.6);
+    }
+
+    @media (min-width: 768px) {
+      .floating-contact {
+        top: 50%;
+        bottom: auto;
+        transform: translateY(-50%);
+        padding: 1rem 0.8rem;
+        gap: 1rem;
+      }
+
+      .floating-contact:hover {
+        transform: translateY(calc(-50% - 4px));
+      }
+    }
+
+    @media (max-width: 480px) {
+      .floating-contact {
+        right: 1rem;
+        bottom: clamp(5rem, 14vh, 7rem);
+      }
+
+      .floating-contact__button {
+        width: 44px;
+        height: 44px;
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+<body class="bg-[color:var(--app-bg)] text-[color:var(--app-text)] pb-20 transition-colors duration-300" 
+      data-authenticated="{{ 'true' if current_user.is_authenticated else 'false' }}" 
+      data-login-url="{{ url_for('login') }}"
+      data-cart-currency="{{ cart_currency }}"
+      data-wishlist-ids="{{ wishlist_product_ids|join(',') }}">
+  <div class="min-h-screen bg-[color:var(--app-bg)]">
+    <!-- Header -->
+    <div class="sticky top-0 z-50 bg-[color:var(--app-card)] backdrop-blur-xl border-b border-[color:var(--app-border)] dark:bg-slate-900/80 dark:border-slate-700/50">
+      <div class="px-4 py-4">
+        <div class="flex items-center justify-between mb-4">
+          <!-- Logo (moved to left) -->
+          <a href="{{ url_for('home') }}" class="flex items-center">
+            <img src="{{ site_logo_url }}" alt="Buxin Electronics" class="h-12 w-auto">
+          </a>
+          
+          <div class="flex items-center gap-2">
+            <!-- Theme Toggle -->
+            <div class="relative flex items-center" id="theme-control">
+              <button type="button"
+                      id="theme-toggle"
+                      class="relative p-2 hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 dark:hover:bg-slate-800"
+                      aria-label="Toggle dark mode"
+                      aria-pressed="false">
+                <span class="sr-only">Toggle dark mode</span>
+                <i data-lucide="sun" class="w-5 h-5 hidden" data-theme-icon="light"></i>
+                <i data-lucide="moon" class="w-5 h-5 hidden" data-theme-icon="dark"></i>
+              </button>
+            </div>
+            
+            <!-- Cart Button -->
+            <a href="{{ url_for('cart') }}" class="p-2 hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-xl transition-colors relative">
+              <i data-lucide="shopping-cart" class="w-6 h-6"></i>
+              <span id="cart-count-badge" class="absolute -top-1 -right-1 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold hidden">
+                <span class="cart-count">0</span>
+              </span>
+            </a>
+            
+            <!-- Profile Button -->
+            <div class="relative" id="navbar-profile">
+              <button onclick="toggleProfile()" class="flex items-center gap-2 p-1 pl-2 pr-3 hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500" aria-haspopup="true" aria-expanded="false">
+                <span class="hidden sm:flex flex-col text-right leading-tight text-[color:var(--app-text)]">
+                  {% if current_user.is_authenticated %}
+                    <span class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">Welcome back</span>
+                    <span class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white truncate max-w-[110px]" id="navbar-display-name">{{ current_user_display_name or current_user.username }}</span>
+                  {% else %}
+                    <span class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">Account</span>
+                    <span class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white">Sign in</span>
+                  {% endif %}
+                </span>
+                <span class="relative">
+                  <img src="{{ current_user_avatar_url or url_for('static', filename='images/default-avatar.svg') }}"
+                       alt="Profile"
+                       class="h-10 w-10 rounded-full border-2 border-white/70 dark:border-slate-800 object-cover shadow-sm"
+                       id="navbar-avatar">
+                  {% if current_user_google_connected %}
+                    <span class="absolute -bottom-1 -right-0.5 h-4 w-4 rounded-full bg-[color:var(--app-card)] dark:bg-slate-900 flex items-center justify-center shadow ring-1 ring-[color:var(--app-border)] dark:ring-slate-700">
+                      <i class="fab fa-google text-[0.65rem] text-orange-500"></i>
+                    </span>
+                  {% endif %}
+                </span>
+              </button>
+              
+              <!-- Profile Menu -->
+              <div id="profile-menu" class="absolute right-0 mt-3 w-64 bg-[color:var(--app-card)] backdrop-blur-xl border border-[color:var(--app-border)] dark:bg-slate-900/95 dark:border-slate-700/60 rounded-2xl p-3 space-y-1 shadow-2xl animate-in-custom hidden z-50">
+                {% if current_user.is_authenticated %}
+                  <div class="flex items-center gap-3 p-3 rounded-xl bg-[color:var(--app-surface-hover)] dark:bg-slate-800/60 mb-1">
+                    <img src="{{ current_user_avatar_url or url_for('static', filename='images/default-avatar.svg') }}" alt="Profile" class="h-12 w-12 rounded-full object-cover border border-white/70 dark:border-slate-700 shadow" id="profile-menu-avatar">
+                    <div>
+                      <p class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" id="profile-menu-name">{{ current_user_display_name or current_user.username }}</p>
+                      <p class="text-xs text-[color:var(--app-muted)] dark:text-slate-400 truncate max-w-[160px]" id="profile-menu-email">{{ current_user.email }}</p>
+                    </div>
+                  </div>
+                  <a href="{{ url_for('profile') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="user" class="w-5 h-5 text-cyan-500"></i>
+                    <span class="text-sm font-medium">My Profile</span>
+                  </a>
+                  <a href="{{ url_for('orders') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="package" class="w-5 h-5 text-purple-500"></i>
+                    <span class="text-sm font-medium">My Orders</span>
+                  </a>
+                  <a href="{{ url_for('wishlist') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="heart" class="w-5 h-5 text-pink-500"></i>
+                    <span class="text-sm font-medium flex items-center gap-2" id="wishlist-count" data-wishlist-count>
+                      <span data-wishlist-label>My Wishlist</span>
+                      <span class="wishlist-count-badge{% if wishlist_count == 0 %} hidden{% endif %}" data-wishlist-count-badge>{{ wishlist_count }}</span>
+                    </span>
+                  </a>
+                  <!--
+                  <a href="{{ url_for('profile') }}#preferences-card" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="settings" class="w-5 h-5 text-amber-500"></i>
+                    <span class="text-sm font-medium">Settings</span>
+                  </a>
+                -->
+                  <div class="border-t border-[color:var(--app-border)] dark:border-slate-700/60 pt-2 mt-2">
+                    <a href="{{ url_for('logout') }}" class="w-full flex items-center gap-3 p-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
+                      <i data-lucide="log-out" class="w-5 h-5"></i>
+                      <span class="text-sm font-medium">Sign Out</span>
+                    </a>
+                  </div>
+                {% else %}
+                  <a href="{{ url_for('login') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="log-in" class="w-5 h-5 text-cyan-400"></i>
+                    <span class="text-sm font-medium">Sign In</span>
+                  </a>
+                  <a href="{{ url_for('register') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="user-plus" class="w-5 h-5 text-green-400"></i>
+                    <span class="text-sm font-medium">Create Account</span>
+                  </a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Search Bar -->
+        <div class="relative">
+          <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[color:var(--app-muted)] dark:text-slate-400"></i>
+          <form action="{{ url_for('home') }}" method="GET" class="w-full">
+            <input type="text" name="q" placeholder="Search products..." class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] dark:bg-slate-800/50 dark:border-slate-700 rounded-xl py-3 pl-11 pr-4 text-sm text-[color:var(--app-text)] placeholder:text-[color:var(--app-muted)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all">
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="px-4 py-6 bg-[color:var(--app-bg)]">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-md {% if category == 'success' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400{% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400{% endif %} flash-message">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
+      {% block content %}{% endblock %}
+    </div>
+    
+    <!-- Footer 
+    <footer class="bg-[color:var(--app-card)] backdrop-blur-xl border-t border-[color:var(--app-border)] dark:bg-slate-900/80 dark:border-slate-700/50 mt-12 py-8 text-[color:var(--app-text)]">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-[color:var(--app-text)]">
+          <div>
+            <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white tracking-wider uppercase">Shop</h3>
+            <ul class="mt-4 space-y-2">
+              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">All Products</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white tracking-wider uppercase">Support</h3>
+            <ul class="mt-4 space-y-2">
+              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">Contact Us</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white tracking-wider uppercase">Company</h3>
+            <ul class="mt-4 space-y-2">
+              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">About Us</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white tracking-wider uppercase">Legal</h3>
+            <ul class="mt-4 space-y-2">
+              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">Privacy Policy</a></li>
+            </ul>
+          </div>
+        </div>
+      -->
+        <div class="mt-12 border-t border-[color:var(--app-border)] dark:border-slate-700/50 pt-8 flex flex-col md:flex-row justify-between items-center">
+          <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-400">&copy; {{ now.year }} Buxin Electronics. All rights reserved.</p>
+          <div class="mt-4 md:mt-0 flex space-x-6">
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">
+              <span class="sr-only">Facebook</span>
+              <i data-lucide="facebook" class="w-5 h-5"></i>
+            </a>
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">
+              <span class="sr-only">Twitter</span>
+              <i data-lucide="twitter" class="w-5 h-5"></i>
+            </a>
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">
+              <span class="sr-only">Instagram</span>
+              <i data-lucide="instagram" class="w-5 h-5"></i>
+            </a>
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">
+              <span class="sr-only">YouTube</span>
+              <i data-lucide="youtube" class="w-5 h-5"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <div class="floating-contact" role="complementary" aria-label="Contact options">
+    <a href="https://wa.me/2207741187"
+       class="floating-contact__button floating-contact__button--whatsapp"
+       target="_blank"
+       rel="noopener"
+       aria-label="Chat on WhatsApp">
+      <i class="fab fa-whatsapp"></i>
+    </a>
+    <a href="mailto:buxinstore9@gmail.com?subject=Support%20Request&body=Hello,%20I%20need%20help%20with%20..."
+       class="floating-contact__button floating-contact__button--email"
+       aria-label="Send support email">
+      <i class="fas fa-envelope"></i>
+    </a>
+  </div>
+
+  <!-- WhatsApp Number Popup Modal -->
+  <div id="whatsapp-popup-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm" style="display: none;">
+    <div class="bg-[color:var(--app-card)] rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 border border-[color:var(--app-border)] animate-in-custom">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-[color:var(--app-text)] flex items-center gap-2">
+          <i class="fab fa-whatsapp text-green-500"></i>
+          Add Your WhatsApp Number
+        </h3>
+        <button type="button" id="whatsapp-popup-close" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] transition-colors">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+      <p class="text-sm text-[color:var(--app-muted)] mb-4">
+        📱 Add your WhatsApp number to receive robotics updates and new BuXin products.
+      </p>
+      <form id="whatsapp-popup-form">
+        <div id="whatsapp-email-field" class="mb-4 hidden">
+          <label for="whatsapp-email" class="block text-sm font-medium text-[color:var(--app-text)] mb-2">Email</label>
+          <input type="email" id="whatsapp-email" name="email" required
+                 class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-lg px-4 py-2 text-[color:var(--app-text)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                 placeholder="your@email.com">
+        </div>
+        <div class="mb-4">
+          <label for="whatsapp-number" class="block text-sm font-medium text-[color:var(--app-text)] mb-2">WhatsApp Number</label>
+          <input type="tel" id="whatsapp-number" name="whatsapp_number" required
+                 class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-lg px-4 py-2 text-[color:var(--app-text)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                 placeholder="+220XXXXXXXXX or 220XXXXXXXXX">
+          <p class="text-xs text-[color:var(--app-muted)] mt-1">Include country code (e.g., +220 for Gambia)</p>
+        </div>
+        <div id="whatsapp-popup-alert" class="mb-4 hidden"></div>
+        <div class="flex gap-3">
+          <button type="submit" id="whatsapp-popup-submit"
+                  class="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+            <span id="whatsapp-submit-text">Submit</span>
+            <span id="whatsapp-submit-loading" class="hidden">
+              <i class="fas fa-spinner fa-spin mr-2"></i> Sending...
+            </span>
+          </button>
+          <button type="button" id="whatsapp-popup-dismiss"
+                  class="px-4 py-2 border border-[color:var(--app-border)] rounded-lg text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] transition-colors">
+            Maybe Later
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main JavaScript -->
+  <script src="{{ url_for('static', filename='js/wishlist.js') }}" defer></script>
+  <script>
+    function initializeThemeToggle() {
+      const html = document.documentElement;
+      const controller = window.__themeController || null;
+      const themeControl = document.getElementById('theme-control');
+      const toggleButton = document.getElementById('theme-toggle');
+      if (!themeControl || !toggleButton) {
+        return;
+      }
+
+      const icons = {
+        light: themeControl.querySelector('[data-theme-icon="light"]'),
+        dark: themeControl.querySelector('[data-theme-icon="dark"]')
+      };
+
+      const resolveTheme = (theme) => {
+        if (controller && typeof controller.resolveTheme === 'function') {
+          return controller.resolveTheme(theme);
+        }
+        return theme === 'light' ? 'light' : 'dark';
+      };
+
+      const getTheme = () => {
+        if (controller && typeof controller.get === 'function') {
+          return controller.get();
+        }
+        return html.dataset.theme || 'dark';
+      };
+
+      const updateButtonState = (theme) => {
+        const resolvedTheme = resolveTheme(theme);
+        if (icons.light) {
+          icons.light.classList.toggle('hidden', resolvedTheme !== 'light');
+        }
+        if (icons.dark) {
+          icons.dark.classList.toggle('hidden', resolvedTheme !== 'dark');
+        }
+        toggleButton.setAttribute('aria-pressed', resolvedTheme === 'dark' ? 'true' : 'false');
+        toggleButton.setAttribute('data-theme-active', resolvedTheme);
+        toggleButton.classList.toggle('text-yellow-400', resolvedTheme === 'light');
+        toggleButton.classList.toggle('text-cyan-400', resolvedTheme === 'dark');
+        toggleButton.title = `${resolvedTheme.charAt(0).toUpperCase()}${resolvedTheme.slice(1)} mode`;
+      };
+
+      const applyTheme = (theme) => {
+        const targetTheme = resolveTheme(theme);
+        if (controller && typeof controller.apply === 'function') {
+          controller.apply(targetTheme);
+        } else {
+          html.classList.toggle('dark', targetTheme === 'dark');
+          html.dataset.theme = targetTheme;
+          html.dataset.themeResolved = targetTheme;
+          try {
+            localStorage.setItem(controller?.storageKey || 'theme', targetTheme);
+          } catch (err) {
+            /* noop */
+          }
+          try {
+            html.dispatchEvent(new CustomEvent('theme:change', {
+              detail: { theme: targetTheme, resolvedTheme: targetTheme }
+            }));
+          } catch (err) {
+            /* noop */
+          }
+        }
+        updateButtonState(targetTheme);
+      };
+
+      const toggleTheme = () => {
+        const current = resolveTheme(getTheme());
+        const next = current === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+      };
+
+      toggleButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        toggleTheme();
+      });
+
+      html.addEventListener('theme:change', (event) => {
+        const theme = event.detail?.theme ?? getTheme();
+        updateButtonState(theme);
+      });
+
+      updateButtonState(resolveTheme(getTheme()));
+    }
+
+    // Toggle profile menu
+    function toggleProfile() {
+      const profileMenu = document.getElementById('profile-menu');
+      const profileButton = document.querySelector('#navbar-profile > button');
+      if (!profileMenu || !profileButton) return;
+      const isHidden = profileMenu.classList.contains('hidden');
+      profileMenu.classList.toggle('hidden');
+      profileButton.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+    }
+    
+    // Close profile menu when clicking outside
+    document.addEventListener('click', function(event) {
+      const profileButton = document.querySelector('#navbar-profile > button');
+      const profileMenu = document.getElementById('profile-menu');
+      if (!profileButton || !profileMenu) return;
+
+      if (!profileMenu.classList.contains('hidden') && 
+          !profileButton.contains(event.target) && 
+          !profileMenu.contains(event.target)) {
+        profileMenu.classList.add('hidden');
+        profileButton.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    function updateNavbarProfile({ avatarUrl, displayName, email, googleConnected }) {
+      const avatar = document.getElementById('navbar-avatar');
+      const menuAvatar = document.getElementById('profile-menu-avatar');
+      const nameEl = document.getElementById('navbar-display-name');
+      const menuName = document.getElementById('profile-menu-name');
+      const menuEmail = document.getElementById('profile-menu-email');
+      const googleBadge = document.querySelector('#navbar-profile span.absolute');
+
+      if (avatar && avatarUrl) {
+        avatar.src = avatarUrl;
+      }
+      if (menuAvatar && avatarUrl) {
+        menuAvatar.src = avatarUrl;
+      }
+      if (nameEl && displayName) {
+        nameEl.textContent = displayName;
+      }
+      if (menuName && displayName) {
+        menuName.textContent = displayName;
+      }
+      if (menuEmail && email) {
+        menuEmail.textContent = email;
+      }
+      if (googleBadge) {
+        googleBadge.classList.toggle('hidden', !googleConnected);
+      } else if (googleConnected) {
+        const avatarWrapper = document.querySelector('#navbar-profile span.relative');
+        if (avatarWrapper) {
+          const badge = document.createElement('span');
+          badge.className = 'absolute -bottom-1 -right-0.5 h-4 w-4 rounded-full bg-[color:var(--app-card)] dark:bg-slate-900 flex items-center justify-center shadow ring-1 ring-[color:var(--app-border)] dark:ring-slate-700';
+          badge.innerHTML = '<i class="fab fa-google text-[0.65rem] text-orange-500"></i>';
+          avatarWrapper.appendChild(badge);
+        }
+      }
+    }
+
+    window.updateNavbarProfile = updateNavbarProfile;
+    
+    function updateCartBadgeCount(count) {
+      const cartBadge = document.getElementById('cart-count-badge');
+      const cartCountElements = document.querySelectorAll('.cart-count');
+
+      cartCountElements.forEach(el => {
+        el.textContent = count && count > 0 ? count : '0';
+      });
+
+      if (cartBadge) {
+        cartBadge.classList.toggle('hidden', !(count && count > 0));
+      }
+    }
+
+    window.updateCartBadgeCount = updateCartBadgeCount;
+
+    function updateCartCount() {
+      fetch('{{ url_for("api_get_cart_count") }}', {
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            const summary = data.cart || {};
+            const count = data.count ?? data.cart_count ?? summary.count ?? summary.cart_count ?? 0;
+            updateCartBadgeCount(count);
+          }
+        })
+        .catch(error => console.error('Error updating cart count:', error));
+    }
+    
+    // Initialize cart count on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+      initializeThemeToggle();
+      updateCartCount();
+    });
+
+    window.addEventListener('cart:updated', function(event) {
+      const payload = event.detail || {};
+      const summary = payload.cart || payload;
+      const count = payload.count ?? payload.cart_count ?? summary.count ?? summary.cart_count ?? 0;
+      updateCartBadgeCount(count);
+    });
+
+    // WhatsApp Popup Modal
+    (function() {
+      const modal = document.getElementById('whatsapp-popup-modal');
+      const form = document.getElementById('whatsapp-popup-form');
+      const closeBtn = document.getElementById('whatsapp-popup-close');
+      const dismissBtn = document.getElementById('whatsapp-popup-dismiss');
+      const emailField = document.getElementById('whatsapp-email-field');
+      const emailInput = document.getElementById('whatsapp-email');
+      const numberInput = document.getElementById('whatsapp-number');
+      const alertDiv = document.getElementById('whatsapp-popup-alert');
+      const submitBtn = document.getElementById('whatsapp-popup-submit');
+      const submitText = document.getElementById('whatsapp-submit-text');
+      const submitLoading = document.getElementById('whatsapp-submit-loading');
+      
+      if (!modal || !form) return;
+
+      // Check if user already dismissed or has WhatsApp number
+      const dismissedKey = 'whatsapp_popup_dismissed';
+      const checkInterval = 3000; // 3 seconds
+
+      function showAlert(message, type = 'error') {
+        alertDiv.className = `mb-4 p-3 rounded-lg text-sm ${
+          type === 'success' 
+            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
+            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+        }`;
+        alertDiv.textContent = message;
+        alertDiv.classList.remove('hidden');
+      }
+
+      function hideAlert() {
+        alertDiv.classList.add('hidden');
+      }
+
+      function showModal() {
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+        // Check if user is logged in
+        fetch('{{ url_for("api_whatsapp_check") }}')
+          .then(response => response.json())
+          .then(data => {
+            if (data.authenticated && data.has_whatsapp) {
+              // User already has WhatsApp number, don't show popup
+              hideModal();
+              return;
+            }
+            // Show email field for non-logged-in users
+            if (!data.authenticated) {
+              emailField.classList.remove('hidden');
+              emailInput.required = true;
+            } else {
+              emailField.classList.add('hidden');
+              emailInput.required = false;
+            }
+          })
+          .catch(err => console.error('Error checking WhatsApp status:', err));
+      }
+
+      function hideModal() {
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+      }
+
+      function dismissPopup() {
+        localStorage.setItem(dismissedKey, 'true');
+        hideModal();
+      }
+
+      // Show popup after 3 seconds if not dismissed
+      setTimeout(() => {
+        if (!localStorage.getItem(dismissedKey)) {
+          showModal();
+        }
+      }, checkInterval);
+
+      // Close button handlers
+      if (closeBtn) {
+        closeBtn.addEventListener('click', dismissPopup);
+      }
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', dismissPopup);
+      }
+
+      // Close on backdrop click
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+          dismissPopup();
+        }
+      });
+
+      // Form submission
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        hideAlert();
+
+        const whatsappNumber = numberInput.value.trim();
+        const email = emailInput.value.trim();
+
+        if (!whatsappNumber) {
+          showAlert('WhatsApp number is required');
+          return;
+        }
+
+        // Disable submit button
+        submitBtn.disabled = true;
+        submitText.classList.add('hidden');
+        submitLoading.classList.remove('hidden');
+
+        // Prepare data
+        const data = { whatsapp_number: whatsappNumber };
+        if (email) {
+          data.email = email;
+        }
+
+        // Send AJAX request
+        fetch('{{ url_for("api_whatsapp_submit") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+          },
+          body: JSON.stringify(data)
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              showAlert(data.message, 'success');
+              // Hide modal after 2 seconds
+              setTimeout(() => {
+                dismissPopup();
+                // Reload page to update user state
+                window.location.reload();
+              }, 2000);
+            } else {
+              showAlert(data.message || 'An error occurred. Please try again.');
+              submitBtn.disabled = false;
+              submitText.classList.remove('hidden');
+              submitLoading.classList.add('hidden');
+            }
+          })
+          .catch(error => {
+            console.error('Error submitting WhatsApp number:', error);
+            showAlert('An error occurred. Please try again.');
+            submitBtn.disabled = false;
+            submitText.classList.remove('hidden');
+            submitLoading.classList.add('hidden');
+          });
+      });
+    })();
+  </script>
+  
+  {% block scripts %}{% endblock %}
+  
+  <!-- Cart functionality -->
+  <script src="{{ url_for('static', filename='js/cart.js') }}"></script>
+</body>
+</html>

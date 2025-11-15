@@ -1,0 +1,238 @@
+{% extends 'admin/admin/base.html' %}
+{% block title %}Database Automation{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">Database Automation</h1>
+  <p class="text-gray-600 dark:text-gray-400">Control automated backups, run tests on demand, and audit the backup history.</p>
+</div>
+
+<div class="grid md:grid-cols-3 gap-4 mb-6">
+  <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+    <div class="text-sm text-gray-500 dark:text-gray-400">Last Backup</div>
+    <div class="text-xl font-semibold text-gray-900 dark:text-white mt-1">
+      {% if settings.backup_last_run %}
+        {{ settings.backup_last_run.strftime('%Y-%m-%d %H:%M:%S') }}
+      {% else %}
+        Never
+      {% endif %}
+    </div>
+    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+      Status: 
+      {% if settings.backup_last_status == 'success' %}
+        <span class="text-green-600 dark:text-green-400 font-semibold">Success</span>
+      {% elif settings.backup_last_status == 'fail' %}
+        <span class="text-red-600 dark:text-red-400 font-semibold">Failed</span>
+      {% else %}
+        <span class="text-gray-500">Unknown</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+    <div class="text-sm text-gray-500 dark:text-gray-400">Next Scheduled Run</div>
+    <div class="text-xl font-semibold text-gray-900 dark:text-white mt-1">
+      {% if next_run %}
+        {{ next_run.strftime('%Y-%m-%d %H:%M:%S') }}
+      {% elif settings.backup_enabled %}
+        Calculating…
+      {% else %}
+        Disabled
+      {% endif %}
+    </div>
+    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+      Daily at {{ settings.backup_time or '02:00' }}
+    </div>
+  </div>
+  <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
+    <div class="text-sm text-gray-500 dark:text-gray-400">Destination Email</div>
+    <div class="text-xl font-semibold text-gray-900 dark:text-white mt-1 truncate">
+      {{ settings.backup_email or (settings.smtp_username or 'Not configured') }}
+    </div>
+    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+      Retention: {{ settings.backup_retention_days or 30 }} days
+    </div>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+      <i class="fas fa-cog mr-2 text-blue-500"></i>
+      Automation Settings
+    </h2>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="space-y-4">
+        <label class="flex items-center">
+          <input type="checkbox" name="backup_enabled" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                 {% if settings.backup_enabled %}checked{% endif %}>
+          <span class="ml-2 text-gray-700 dark:text-gray-300">Enable daily backup</span>
+        </label>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Time of backup</label>
+          <input type="time" name="backup_time" value="{{ settings.backup_time or '02:00' }}"
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Backup email destination</label>
+          <input type="email" name="backup_email" value="{{ settings.backup_email or settings.smtp_username or '' }}"
+                 placeholder="buxinstore9@gmail.com"
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Retention (days)</label>
+          <input type="number" min="1" max="365" name="backup_retention_days" value="{{ settings.backup_retention_days or 30 }}"
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Backups older than this will be removed automatically.</p>
+        </div>
+      </div>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500">
+          <i class="fas fa-save mr-2"></i>Save Settings
+        </button>
+        <button type="button" id="sendBackupNowBtn"
+                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500">
+          <i class="fas fa-paper-plane mr-2"></i>Send backup now
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+        <i class="fas fa-stream mr-2 text-indigo-500"></i>
+        Automation Logs
+      </h2>
+      <div class="flex gap-2">
+        <button id="refreshLogsBtn" class="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600">
+          <i class="fas fa-sync mr-1"></i>Refresh
+        </button>
+      </div>
+    </div>
+    <div class="overflow-hidden border border-gray-200 dark:border-gray-700 rounded-lg">
+      <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700" id="backupLogsTable">
+        <thead class="bg-gray-50 dark:bg-gray-700">
+          <tr>
+            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Timestamp</th>
+            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Trigger</th>
+            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Files</th>
+            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Error</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          {% for log in logs %}
+            <tr>
+              <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+              <td class="px-4 py-2">
+                {% if log.status == 'success' %}
+                  <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Success</span>
+                {% elif log.status == 'fail' %}
+                  <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">Failed</span>
+                {% else %}
+                  <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">{{ log.status }}</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 capitalize">{{ log.trigger or 'auto' }}</td>
+              <td class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 break-all">{{ log.file_paths or '—' }}</td>
+              <td class="px-4 py-2 text-sm text-red-600 dark:text-red-400">{{ log.error_message or '—' }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5" class="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">No logs yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="automationToastContainer" class="fixed top-4 right-4 space-y-3 z-40"></div>
+
+<script>
+function getAutomationCSRF() {
+  const metaToken = document.querySelector('meta[name="csrf-token"]');
+  if (metaToken) return metaToken.getAttribute('content');
+  const formToken = document.querySelector('[name="csrf_token"]');
+  if (formToken) return formToken.value;
+  return '';
+}
+
+function showAutomationToast(message, type = 'success') {
+  const container = document.getElementById('automationToastContainer');
+  const toast = document.createElement('div');
+  toast.className = `px-4 py-3 rounded-lg shadow-lg text-white flex items-center justify-between min-w-[280px] ${
+    type === 'success' ? 'bg-green-500' : 'bg-red-500'
+  }`;
+  toast.innerHTML = `<span>${message}</span><button class="ml-3 text-white" onclick="this.parentElement.remove()">&times;</button>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+async function triggerBackupNow() {
+  const btn = document.getElementById('sendBackupNowBtn');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Working...';
+  try {
+    const response = await fetch('/admin/database/automation/run-now', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getAutomationCSRF()
+      },
+      body: JSON.stringify({})
+    });
+    const data = await response.json();
+    showAutomationToast(data.message || (data.success ? 'Backup completed.' : 'Backup failed.'), data.success ? 'success' : 'error');
+    await refreshBackupLogs();
+  } catch (error) {
+    console.error(error);
+    showAutomationToast('Failed to trigger backup: ' + error.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
+
+async function refreshBackupLogs() {
+  try {
+    const response = await fetch('/admin/database/automation/logs.json', { headers: { 'X-CSRFToken': getAutomationCSRF() } });
+    const data = await response.json();
+    const tbody = document.querySelector('#backupLogsTable tbody');
+    tbody.innerHTML = '';
+    if (!data.logs || data.logs.length === 0) {
+      const row = document.createElement('tr');
+      row.innerHTML = '<td colspan="5" class="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">No logs yet.</td>';
+      tbody.appendChild(row);
+      return;
+    }
+    data.logs.forEach(log => {
+      const row = document.createElement('tr');
+      const statusBadge = log.status === 'success'
+        ? '<span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Success</span>'
+        : log.status === 'fail'
+          ? '<span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">Failed</span>'
+          : `<span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">${log.status || 'unknown'}</span>`;
+      row.innerHTML = `
+        <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">${new Date(log.created_at).toLocaleString()}</td>
+        <td class="px-4 py-2">${statusBadge}</td>
+        <td class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300">${(log.trigger || 'auto')}</td>
+        <td class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 break-all">${log.file_paths || '—'}</td>
+        <td class="px-4 py-2 text-sm text-red-600 dark:text-red-400">${log.error_message || '—'}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  } catch (error) {
+    console.error(error);
+    showAutomationToast('Failed to refresh logs: ' + error.message, 'error');
+  }
+}
+
+document.getElementById('sendBackupNowBtn').addEventListener('click', triggerBackupNow);
+document.getElementById('refreshLogsBtn').addEventListener('click', refreshBackupLogs);
+</script>
+{% endblock %}
+

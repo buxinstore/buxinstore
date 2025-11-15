@@ -1,0 +1,76 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}Edit Order Details{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <div class="max-w-2xl">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Edit Order #{{ order.id }} Details</h2>
+            
+            <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Order Information</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400"><strong>Customer:</strong> {{ order.customer_name or order.customer.username }}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400"><strong>Status:</strong> {{ order.shipping_status|title }}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400"><strong>Created:</strong> {{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+            </div>
+            
+            <form method="POST" action="{{ url_for('admin_edit_order_details', order_id=order.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="space-y-4">
+                    <div>
+                        <label for="product_weight_kg" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Product Weight (kg) / 产品重量(公斤)
+                        </label>
+                        <input type="number" 
+                               step="0.01" 
+                               min="0"
+                               name="product_weight_kg" 
+                               id="product_weight_kg"
+                               value="{{ order.product_weight_kg or '' }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm">
+                    </div>
+                    
+                    <div>
+                        <label for="shipping_price_gmd" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Shipping Price (GMD) / 运费(达拉西)
+                        </label>
+                        <input type="number" 
+                               step="0.01" 
+                               min="0"
+                               name="shipping_price_gmd" 
+                               id="shipping_price_gmd"
+                               value="{{ order.shipping_price_gmd or '' }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm">
+                    </div>
+                    
+                    <div>
+                        <label for="total_cost_gmd" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Total Cost (GMD) / 总费用(达拉西)
+                        </label>
+                        <input type="number" 
+                               step="0.01" 
+                               min="0"
+                               name="total_cost_gmd" 
+                               id="total_cost_gmd"
+                               value="{{ order.total_cost_gmd or '' }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm">
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3">
+                        <a href="{{ url_for('admin_order_management', status=request.args.get('status', 'all'), sort=request.args.get('sort', 'newest'), location=request.args.get('location', 'all'), customer=request.args.get('customer', 'all'), search=request.args.get('search', '')) }}" 
+                           class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:bg-gray-600">
+                            Cancel
+                        </a>
+                        <button type="submit" 
+                                class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Update Order
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

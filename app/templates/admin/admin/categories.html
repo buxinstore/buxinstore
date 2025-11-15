@@ -1,0 +1,168 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}Categories{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Categories</h2>
+        <a href="{{ url_for('admin_add_category') }}" 
+           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            <i class="fas fa-plus mr-2"></i> Add Category
+        </a>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
+        <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for item in categories_with_counts %}
+            {% set category = item.category %}
+            {% set product_count = item.product_count %}
+            <li data-category-id="{{ category.id }}">
+                <div class="px-4 py-4 sm:px-6 flex items-center justify-between">
+                    <div class="flex items-center">
+                        {% if category.image %}
+                        <img src="{{ url_for('static', filename=category.image) }}" 
+                             alt="{{ category.name }}" 
+                             class="h-12 w-12 rounded-lg object-cover mr-4">
+                        {% else %}
+                        <div class="h-12 w-12 rounded-lg bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center mr-4">
+                            <i class="fas fa-folder text-white text-xl"></i>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                                {{ category.name }}
+                            </h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ product_count }} {{ 'product' if product_count == 1 else 'products' }}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <a href="{{ url_for('admin_edit_category', category_id=category.id) }}" 
+                           class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600">
+                            <i class="fas fa-edit mr-2"></i> Edit
+                        </a>
+                        <button type="button" 
+                                class="delete-category-btn inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                data-category-id="{{ category.id }}"
+                                data-category-name="{{ category.name }}"
+                                data-product-count="{{ product_count }}">
+                            <i class="fas fa-trash mr-2"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    {% if categories_with_counts|length == 0 %}
+    <div class="text-center py-12">
+        <i class="fas fa-folder-open text-gray-400 text-6xl mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No categories</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Get started by creating a new category.</p>
+        <a href="{{ url_for('admin_add_category') }}" 
+           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">
+            <i class="fas fa-plus mr-2"></i> Add Category
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const deleteButtons = document.querySelectorAll('.delete-category-btn');
+    
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const categoryId = this.getAttribute('data-category-id');
+            const categoryName = this.getAttribute('data-category-name');
+            const productCount = parseInt(this.getAttribute('data-product-count')) || 0;
+            
+            let confirmMessage = 'Are you sure you want to delete "' + categoryName + '"?\n\n';
+            if (productCount > 0) {
+                confirmMessage += 'This will also delete ' + productCount + ' product(s) in this category.\n\n';
+            }
+            confirmMessage += 'This action cannot be undone.';
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            // Disable button during request
+            const originalText = this.innerHTML;
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Deleting...';
+            
+            // Get CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+                             '{{ csrf_token() }}';
+            
+            // Create form data
+            const formData = new FormData();
+            formData.append('csrf_token', csrfToken);
+            
+            // Send AJAX request
+            fetch('{{ url_for("admin_delete_category", category_id=0) }}'.replace('0', categoryId), {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.message || 'Failed to delete category');
+                    }).catch(() => {
+                        throw new Error('Failed to delete category');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Remove the category row with fade out animation
+                    const categoryRow = document.querySelector(`li[data-category-id="${categoryId}"]`);
+                    if (categoryRow) {
+                        categoryRow.style.transition = 'opacity 0.3s ease-out';
+                        categoryRow.style.opacity = '0';
+                        setTimeout(() => {
+                            categoryRow.remove();
+                            
+                            // Check if list is empty and show empty state
+                            const categoryList = document.querySelector('.divide-y');
+                            if (categoryList && categoryList.children.length === 0) {
+                                location.reload(); // Reload to show empty state
+                            }
+                        }, 300);
+                    }
+                    
+                    // Show success message (if you have a flash message system)
+                    if (typeof showFlashMessage === 'function') {
+                        showFlashMessage(data.message, 'success');
+                    } else {
+                        alert(data.message);
+                    }
+                } else {
+                    // Re-enable button on error
+                    this.disabled = false;
+                    this.innerHTML = originalText;
+                    alert('Error: ' + (data.message || 'Unknown error occurred'));
+                }
+            })
+            .catch(error => {
+                // Re-enable button on error
+                this.disabled = false;
+                this.innerHTML = originalText;
+                console.error('Error:', error);
+                alert('An error occurred while deleting the category. Please try again.');
+            });
+        });
+    });
+});
+</script>
+{% endblock %}
