@@ -7982,94 +7982,108 @@ def process_payment():
 # The main checkout route is defined above with all the functionality
 # This duplicate definition has been removed to fix the duplicate endpoint error
 
-# Set up model relationships after all models are defined
-with app.app_context():
-    # Get model classes that are defined in this file
-    User = globals().get('User')
-    Product = globals().get('Product')
-    Order = globals().get('Order')
-    
-    # Create admin user if it doesn't exist
-    # Wrap in try-except to handle case where new columns don't exist yet (migrations run in run.py)
-    try:
-        admin_user = User.query.filter_by(username='buxin').first()
-        if not admin_user:
-            admin_user = User(
-                username='buxin',
-                email='buxin@buxin.com',
-                is_admin=True,
-                role='admin',
-                active=True
+# Set up model relationships and perform one-time bootstrap tasks.
+# IMPORTANT: This must not run at import time (e.g., on Render) to avoid
+# triggering app.app_context() before SERVER_NAME is safely configured.
+def bootstrap_app_context() -> None:
+    with app.app_context():
+        # Get model classes that are defined in this file
+        User = globals().get('User')
+        Product = globals().get('Product')
+        Order = globals().get('Order')
+
+        # Create admin user if it doesn't exist
+        # Wrap in try-except to handle case where new columns don't exist yet (migrations run in run.py)
+        try:
+            admin_user = User.query.filter_by(username='buxin').first()
+            if not admin_user:
+                admin_user = User(
+                    username='buxin',
+                    email='buxin@buxin.com',
+                    is_admin=True,
+                    role='admin',
+                    active=True
+                )
+                admin_user.set_password('buxin')
+                db.session.add(admin_user)
+                db.session.commit()
+                print("Admin user 'buxin' created successfully!")
+            else:
+                # Update existing user to admin if not already admin
+                if not admin_user.is_admin:
+                    admin_user.is_admin = True
+                # Update role if it's not set or is 'customer' (use getattr to safely access)
+                try:
+                    current_role = getattr(admin_user, 'role', None)
+                    if current_role in [None, 'customer']:
+                        admin_user.role = 'admin'
+                except (AttributeError, Exception):
+                    # Column might not exist yet, migrations will handle it
+                    pass
+                # Update active status
+                try:
+                    current_active = getattr(admin_user, 'active', None)
+                    if current_active is None:
+                        admin_user.active = True
+                except (AttributeError, Exception):
+                    # Column might not exist yet, migrations will handle it
+                    pass
+                db.session.commit()
+        except Exception as e:
+            # If columns don't exist yet, migrations in run.py will handle it
+            db.session.rollback()
+            current_app.logger.warning(
+                f"Could not create/update admin user (migrations may not have run yet): {str(e)}"
             )
-            admin_user.set_password('buxin')
-            db.session.add(admin_user)
-            db.session.commit()
-            print("Admin user 'buxin' created successfully!")
-        else:
-            # Update existing user to admin if not already admin
-            if not admin_user.is_admin:
-                admin_user.is_admin = True
-            # Update role if it's not set or is 'customer' (use getattr to safely access)
-            try:
-                current_role = getattr(admin_user, 'role', None)
-                if current_role in [None, 'customer']:
-                    admin_user.role = 'admin'
-            except (AttributeError, Exception):
-                pass  # Column might not exist yet, migrations will handle it
-            # Update active status
-            try:
-                current_active = getattr(admin_user, 'active', None)
-                if current_active is None:
-                    admin_user.active = True
-            except (AttributeError, Exception):
-                pass  # Column might not exist yet, migrations will handle it
-            db.session.commit()
-    except Exception as e:
-        # If columns don't exist yet, migrations in run.py will handle it
-        db.session.rollback()
-        current_app.logger.warning(f"Could not create/update admin user (migrations may not have run yet): {str(e)}")
-    
-    # Initialize automated backup scheduler
-    try:
-        initialize_backup_scheduler()
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"Failed to initialize backup scheduler: {str(e)}")
-    
-    # Create necessary directories
-    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'feedback'), exist_ok=True)
-    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'branding'), exist_ok=True)
 
-    # Ensure site settings exist
-    try:
-        if not SiteSettings.query.first():
-            default_settings = SiteSettings()
-            db.session.add(default_settings)
-            db.session.commit()
-    except (ProgrammingError, OperationalError) as exc:
-        db.session.rollback()
-        current_app.logger.warning(f"Skipping site settings bootstrap; tables not ready: {exc}")
+        # Initialize automated backup scheduler
+        try:
+            initialize_backup_scheduler()
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Failed to initialize backup scheduler: {str(e)}")
 
-    # Ensure supporting upload directories exist
-    try:
-        os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'profile_pictures'), exist_ok=True)
-    except Exception as e:
-        current_app.logger.error(f"Error ensuring profile picture directory: {str(e)}")
+        # Create necessary directories
+        os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'feedback'), exist_ok=True)
+        os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'branding'), exist_ok=True)
 
-    # Ensure every user has an associated profile
-    try:
-        users_without_profiles = []
-        for user in User.query.all():
-            if not getattr(user, 'profile', None):
-                ensure_user_profile(user)
-                users_without_profiles.append(user.id)
-        if users_without_profiles:
-            db.session.commit()
-            current_app.logger.info(f"Created profiles for users: {users_without_profiles}")
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"Error ensuring user profiles: {str(e)}")
+        # Ensure site settings exist
+        try:
+            if not SiteSettings.query.first():
+                default_settings = SiteSettings()
+                db.session.add(default_settings)
+                db.session.commit()
+        except (ProgrammingError, OperationalError) as exc:
+            db.session.rollback()
+            current_app.logger.warning(
+                f"Skipping site settings bootstrap; tables not ready: {exc}"
+            )
+
+        # Ensure supporting upload directories exist
+        try:
+            os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'profile_pictures'), exist_ok=True)
+        except Exception as e:
+            current_app.logger.error(f"Error ensuring profile picture directory: {str(e)}")
+
+        # Ensure every user has an associated profile
+        try:
+            users_without_profiles = []
+            for user in User.query.all():
+                if not getattr(user, 'profile', None):
+                    ensure_user_profile(user)
+                    users_without_profiles.append(user.id)
+            if users_without_profiles:
+                db.session.commit()
+                current_app.logger.info(
+                    f"Created profiles for users: {users_without_profiles}"
+                )
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error ensuring user profiles: {str(e)}")
+
 
 if __name__ == '__main__':
-    # Run on all network interfaces (0.0.0.0) and port 5000
+    # For local development, perform bootstrap tasks explicitly,
+    # then run on all network interfaces (0.0.0.0) and port 5000.
+    bootstrap_app_context()
     app.run(host='0.0.0.0', port=5000, debug=True)
