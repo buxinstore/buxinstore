@@ -111,6 +111,15 @@ from .utils.db_backup import (
     dump_database_to_memory,
 )
 
+
+def get_base_url() -> str:
+    """
+    Helper to get the current base URL without any trailing slash.
+    Uses request.host_url so it respects proxy headers when running on Render.
+    """
+    return request.host_url.rstrip('/')
+
+
 def create_app(config_class: type[Config] | None = None):
     app = Flask(__name__, static_folder='static', static_url_path='/static')
 
@@ -121,6 +130,10 @@ def create_app(config_class: type[Config] | None = None):
         app.logger.info("Render deployment detected – enabling secure cookies.")
         app.config.setdefault('SESSION_COOKIE_SECURE', True)
         app.config.setdefault('REMEMBER_COOKIE_SECURE', True)
+        # Ensure HTTPS URLs are generated correctly behind Render's proxy
+        app.config.setdefault('PREFERRED_URL_SCHEME', 'https')
+        # Never hard-code SERVER_NAME when running on Render; rely on host headers
+        app.config.pop('SERVER_NAME', None)
 
     # Google OAuth configuration
     # These must be configured via environment variables in production, e.g.:
@@ -177,7 +190,10 @@ def create_app(config_class: type[Config] | None = None):
                 client_kwargs={'scope': 'openid email profile'},
                 server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
                 authorize_params={'prompt': 'select_account'},
-                redirect_uri=app.config['GOOGLE_REDIRECT_URI']
+                # In production on Render, this must be set via the
+                # GOOGLE_REDIRECT_URI env var to:
+                #   https://store.techbuxin.com/auth/google/callback
+                redirect_uri=app.config.get('GOOGLE_REDIRECT_URI')
             )
         except Exception as e:
             app.logger.error(f"Error registering Google OAuth: {e}")
@@ -1347,12 +1363,29 @@ def google_login():
         next_url = request.args.get('next') or request.referrer or url_for('home')
         session['next_url'] = next_url
 
-        # Use configured redirect URI when available; otherwise safely fall back
-        # to the current request's root URL + the callback route. This avoids
-        # leaking localhost URLs in production while still working in dev.
-        redirect_uri = app.config.get('GOOGLE_REDIRECT_URI') or url_for(
-            'google_callback', _external=True
-        )
+        # Determine redirect URI for Google OAuth.
+        # In production (Render), we NEVER fall back to localhost or any
+        # hard-coded domain – GOOGLE_REDIRECT_URI must be configured to:
+        #   https://store.techbuxin.com/auth/google/callback
+        if current_app.config.get('IS_RENDER'):
+            redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI')
+            if not redirect_uri:
+                current_app.logger.error(
+                    "GOOGLE_REDIRECT_URI is not configured on Render; "
+                    "cannot start Google OAuth flow."
+                )
+                flash(
+                    'Google login is temporarily unavailable because the callback URL '
+                    'is not configured. Please contact support.',
+                    'error'
+                )
+                return redirect(url_for('login'))
+        else:
+            # In development, allow using either the env var or an automatically
+            # generated callback URL based on the current host (e.g. localhost).
+            redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI') or url_for(
+                'google_callback', _external=True
+            )
         nonce = secrets.token_urlsafe(16)
         session['google_oauth_nonce'] = nonce
         
