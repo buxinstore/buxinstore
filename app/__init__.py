@@ -115,25 +115,15 @@ from .utils.db_backup import (
 def get_base_url() -> str:
     """
     Helper to get the canonical base URL for the app without any trailing slash.
-    Prefers PUBLIC_URL from configuration, otherwise falls back to request.url_root.
+    Always prefers the PUBLIC_URL configuration and never inspects request.url_root.
     """
-    base = None
-    # Prefer explicitly configured PUBLIC_URL if available
     try:
-        from flask import current_app  # local import to avoid circular issues at import time
-        base = getattr(current_app, "config", {}).get("PUBLIC_URL")
-    except Exception:
-        base = None
-
-    if base:
-        return str(base).rstrip('/')
-
-    # Fallback: derive from the current request context if available
-    try:
-        return (request.url_root or "").rstrip('/')
+        base = (current_app.config.get("PUBLIC_URL") or "").rstrip("/")
     except RuntimeError:
-        # Outside a request context; no safe base URL available
-        return ""
+        # Outside an app context – fall back to configuration on the Flask app
+        # Note: this assumes create_app has already configured PUBLIC_URL.
+        base = (getattr(current_app, "config", {}).get("PUBLIC_URL") or "").rstrip("/")
+    return base
 
 
 def create_app(config_class: type[Config] | None = None):
@@ -143,16 +133,20 @@ def create_app(config_class: type[Config] | None = None):
     app.config.from_object(config_obj)
 
     # Canonical URL and Flask server/url configuration
-    app.config.setdefault('SERVER_NAME', None)
-    app.config.setdefault('PREFERRED_URL_SCHEME', 'https')
-    app.config.setdefault('PUBLIC_URL', os.environ.get('PUBLIC_URL', None))
+    app.config.setdefault("SERVER_NAME", None)
+    app.config.setdefault("PREFERRED_URL_SCHEME", "https")
+    # Default PUBLIC_URL to the production storefront domain if not provided
+    app.config.setdefault(
+        "PUBLIC_URL",
+        os.environ.get("PUBLIC_URL", "https://store.techbuxin.com"),
+    )
 
-    if app.config.get('IS_RENDER'):
+    if app.config.get("IS_RENDER"):
         app.logger.info("Render deployment detected – enabling secure cookies.")
-        app.config.setdefault('SESSION_COOKIE_SECURE', True)
-        app.config.setdefault('REMEMBER_COOKIE_SECURE', True)
+        app.config.setdefault("SESSION_COOKIE_SECURE", True)
+        app.config.setdefault("REMEMBER_COOKIE_SECURE", True)
         # Ensure HTTPS URLs are generated correctly behind Render's proxy
-        app.config.setdefault('PREFERRED_URL_SCHEME', 'https')
+        app.config.setdefault("PREFERRED_URL_SCHEME", "https")
 
     # Google OAuth configuration
     # These must be configured via environment variables in production, e.g.:
@@ -229,12 +223,14 @@ def create_app(config_class: type[Config] | None = None):
     from app.payments import init_payment_system
     init_payment_system(app)
 
-    # Attach base URL helper and expose PUBLIC_URL to templates
+    # Attach base URL helper and expose PUBLIC_URL-derived base_url to templates
+    # This allows `current_app.get_base_url()` in request handlers.
     app.get_base_url = get_base_url
 
     @app.context_processor
     def inject_base_url():
-        return {"base_url": app.config.get("PUBLIC_URL")}
+        # Always derive from the helper so changes to PUBLIC_URL are reflected everywhere
+        return {"base_url": app.get_base_url()}
 
     return app
 
@@ -2838,7 +2834,9 @@ def admin_settings():
     if not settings.business_name:
         settings.business_name = os.getenv('BUSINESS_NAME', '')
     if not settings.website_url:
-        settings.website_url = os.getenv('WEBSITE_URL', request.url_root.rstrip('/'))
+        # Prefer explicit WEBSITE_URL, otherwise fall back to the unified base URL helper.
+        explicit_website_url = os.getenv("WEBSITE_URL")
+        settings.website_url = (explicit_website_url or current_app.get_base_url() or "").rstrip("/")
     if not settings.support_email:
         settings.support_email = os.getenv('SUPPORT_EMAIL', os.getenv('MAIL_DEFAULT_SENDER', ''))
     if not settings.contact_whatsapp:
@@ -3193,13 +3191,42 @@ def admin_settings_clear_cache():
 @login_required
 @admin_required
 def admin_email_customers():
-    """Compose and send an email to all customer emails (non-admin users)."""
+    """Compose and send an email to all customer emails (non-admin users).
+
+    This endpoint is designed to always return JSON responses so that
+    frontend clients never receive HTML (which would cause JSON parse errors).
+    """
+    log = current_app.logger
+    log.error("EMAIL CUSTOMER ROUTE STARTED")
+    try:
+        log.error(f"BASE URL = {current_app.get_base_url()}")
+    except Exception as exc:
+        log.error(f"BASE URL resolution failed: {exc}")
+
     from .extensions import mail as _mail
-    # Require mail configuration
-    if not (app.config.get('MAIL_SERVER') and app.config.get('MAIL_USERNAME') and app.config.get('MAIL_PASSWORD')):
-        return render_template('admin/admin/email_customers.html',
-                               error="Mail is not configured. Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in environment.",
-                               sent_count=0), 200
+
+    # For simple health checks on this route, allow a fast GET that never times out.
+    if request.method == "GET":
+        return jsonify({"status": "ok"}), 200
+
+    # For POST, require mail configuration but still respond with JSON
+    if not (
+        app.config.get("MAIL_SERVER")
+        and app.config.get("MAIL_USERNAME")
+        and app.config.get("MAIL_PASSWORD")
+    ):
+        log.error(
+            "EMAIL CUSTOMER ROUTE: Mail is not configured. "
+            "Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in environment."
+        )
+        return jsonify(
+            {
+                "success": False,
+                "status": "error",
+                "message": "Mail is not configured. Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in environment.",
+                "sent_count": 0,
+            }
+        ), 500
     
     if request.method == 'POST':
         subject = request.form.get('subject', '').strip()
@@ -3343,9 +3370,9 @@ def admin_email_customers():
                 }), 500
         except Exception as e:
             error_msg = f"Error sending customer emails: {str(e)}"
-            app.logger.error(f"❌ {error_msg}")
+            log.error(f"❌ {error_msg}")
             import traceback
-            app.logger.error(traceback.format_exc())
+            log.error(traceback.format_exc())
             return jsonify({
                 "success": False,
                 "status": "error",
@@ -3354,8 +3381,6 @@ def admin_email_customers():
                 "failed_count": 0,
                 "failed_emails": [],
             }), 500
-    
-    return render_template('admin/admin/email_customers.html'), 200
 
 @app.route('/admin/test-email-config', methods=['GET', 'POST'])
 @login_required
@@ -3437,17 +3462,19 @@ Time sent: {time}
                 )
             )
             
-            with app.app_context():
-                _mail.send(msg)
+            # We are already in an application/request context; send directly
+            _mail.send(msg)
 
             app.logger.info(f"✅ Test email sent successfully to {test_email} (SMTP accepted)")
 
             # JSON/API response – NEVER return HTML here
-            return jsonify({
-                "status": "success",
-                "success": True,
-                "message": f"Test email sent successfully to {test_email}!",
-            }), 200
+            return jsonify(
+                {
+                    "status": "success",
+                    "success": True,
+                    "message": "Email sent successfully",
+                }
+            ), 200
         except Exception as e:
             error_msg = f"Failed to send test email: {str(e)}"
             app.logger.error(f"❌ {error_msg}")
