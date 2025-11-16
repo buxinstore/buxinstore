@@ -18,4 +18,6 @@ services:
         sync: false
       - key: GOOGLE_REDIRECT_URI
         value: https://store.techbuxin.com/auth/google/callback
+      - key: PUBLIC_URL
+        value: https://store.techbuxin.com
 

@@ -3196,6 +3196,94 @@ def admin_email_customers():
     This endpoint is designed to always return JSON responses so that
     frontend clients never receive HTML (which would cause JSON parse errors).
     """
+    # ------------------------------------------------------------------
+    # EMAIL CUSTOMER ROUTE MAINTENANCE NOTES
+    #
+    # Main goal:
+    # Fix and prevent 502 errors at:
+    #   https://store.techbuxin.com/admin/email/customers
+    #
+    # Key invariants:
+    # - This route must never:
+    #     * timeout
+    #     * return HTML instead of JSON
+    #     * return None
+    #     * raise unhandled exceptions
+    # - Do NOT use request.url_root anywhere in this route (or globally).
+    # - Do NOT hardcode buxinstore.onrender.com or Render subdomains.
+    #
+    # Base URL system (STEP 2):
+    # - Inside create_app(), we configure:
+    #       app.config.setdefault("SERVER_NAME", None)
+    #       app.config.setdefault("PREFERRED_URL_SCHEME", "https")
+    #       app.config.setdefault(
+    #           "PUBLIC_URL",
+    #           os.environ.get("PUBLIC_URL", "https://store.techbuxin.com"),
+    #       )
+    #
+    # - Base URL helper:
+    #       def get_base_url():
+    #           try:
+    #               return (current_app.config.get("PUBLIC_URL") or "").rstrip("/")
+    #           except RuntimeError:
+    #               return current_app.config.get("PUBLIC_URL")
+    #
+    #   and we attach:
+    #       current_app.get_base_url = get_base_url
+    #
+    # - Never use request.url_root or SERVER_NAME for URL building.
+    #
+    # Email route requirements (STEP 3):
+    # - For GET:
+    #       return jsonify({"status": "ok"})
+    # - For POST:
+    #     * perform work quickly
+    #     * always respond with JSON (never HTML)
+    # - When building URLs, always use:
+    #       base = current_app.get_base_url()
+    #       full_url = f"{base}{url_for('admin.some_route', _external=False)}"
+    #
+    # Test email endpoint (STEP 4):
+    # - Must return:
+    #       return jsonify({"message": "Email sent successfully"})
+    #   (or a superset that never includes HTML).
+    #
+    # Templates (STEP 5):
+    # - Use context processor:
+    #       @app.context_processor
+    #       def inject_base_url():
+    #           return {"base_url": current_app.get_base_url()}
+    # - Replace hardcoded domain links with {{ base_url }} where appropriate.
+    #
+    # Debug logging (STEP 6):
+    # - Log the start of the route and base URL:
+    #       log.error("EMAIL CUSTOMER ROUTE STARTED")
+    #       log.error(f"BASE URL = {current_app.get_base_url()}")
+    # - Log any significant branch or error in this route.
+    #
+    # Environment configuration (STEP 7):
+    # - Ensure these are used:
+    #       PUBLIC_URL = https://store.techbuxin.com
+    #       GOOGLE_REDIRECT_URI = https://store.techbuxin.com/auth/google/callback
+    # - Remove any usage of:
+    #       buxinstore.onrender.com
+    #       render subdomain logic for URL building
+    #
+    # Local/Render simulation (STEP 8):
+    # - Use a test client-based script to call GET /admin/email/customers
+    #   and verify:
+    #       * no timeout
+    #       * no HTML in response
+    #       * no None or exception is returned
+    #
+    # Git/Deploy (FINAL TASK):
+    # - After changes:
+    #       git add ...
+    #       git commit -m "fix: eliminate all hardcoded domains, repair email route, prevent 502, unify PUBLIC_URL system"
+    #       git push
+    #   then trigger/allow Render to redeploy.
+    # ------------------------------------------------------------------
+
     log = current_app.logger
     log.error("EMAIL CUSTOMER ROUTE STARTED")
     try:
