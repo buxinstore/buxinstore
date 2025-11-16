@@ -3193,8 +3193,10 @@ def admin_settings_clear_cache():
 def admin_email_customers():
     """Compose and send an email to all customer emails (non-admin users).
 
-    This endpoint is designed to always return JSON responses so that
-    frontend clients never receive HTML (which would cause JSON parse errors).
+    - Browser (HTML) usage: visiting /admin/email/customers in a normal browser
+      should render the email form page.
+    - API/AJAX usage: XHR/fetch or JSON clients should receive JSON responses
+      (never HTML), to avoid "Unexpected token '<'" parse errors.
     """
     # ------------------------------------------------------------------
     # EMAIL CUSTOMER ROUTE MAINTENANCE NOTES
@@ -3293,9 +3295,19 @@ def admin_email_customers():
 
     from .extensions import mail as _mail
 
-    # For simple health checks on this route, allow a fast GET that never times out.
+    # For GET requests:
+    # - If the client clearly wants JSON (AJAX/fetch/API), return a small JSON
+    #   health payload so JS never sees HTML.
+    # - Otherwise (regular browser visit), render the HTML email form.
     if request.method == "GET":
-        return jsonify({"status": "ok"}), 200
+        wants_json = (
+            request.is_json
+            or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+            or "application/json" in (request.headers.get("Accept") or "")
+        )
+        if wants_json:
+            return jsonify({"status": "ok"}), 200
+        return render_template("admin/admin/email_customers.html"), 200
 
     # For POST, require mail configuration but still respond with JSON
     if not (
