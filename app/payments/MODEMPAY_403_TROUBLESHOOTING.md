@@ -77,7 +77,7 @@ Check if the request payload format is correct:
   "order_id": "123",
   "phone": "+2201234567",
   "provider": "wave",
-  "callback_url": "http://localhost:5000/payments/modempay/webhook",
+  "callback_url": "https://store.techbuxin.com/payments/modempay/webhook",
   "return_url": "/payments/success",
   "cancel_url": "/payments/failure"
 }
@@ -118,7 +118,7 @@ Then restart your Flask application.
 
 You can also use the test endpoint to try different methods:
 ```bash
-POST http://localhost:5000/payments/modempay/test-auth
+POST https://store.techbuxin.com/payments/modempay/test-auth
 ```
 
 This will test all authentication methods and return which one works.

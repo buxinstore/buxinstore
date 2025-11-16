@@ -125,7 +125,7 @@ The request body should match ModemPay's expected format. Current format:
   "order_id": "123",
   "phone": "+2201234567",
   "provider": "wave",
-  "callback_url": "http://localhost:5000/payments/modempay/webhook",
+  "callback_url": "https://store.techbuxin.com/payments/modempay/webhook",
   "return_url": "/payments/success",
   "cancel_url": "/payments/failure"
 }

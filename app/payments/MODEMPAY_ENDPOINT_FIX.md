@@ -111,7 +111,7 @@ python run.py
 ```
 
 ### 2. Test Payment Initiation
-1. Go to checkout page: `http://localhost:5000/checkout`
+1. Go to checkout page: `https://store.techbuxin.com/checkout`
 2. Fill in payment details
 3. Select ModemPay provider (wave, qmoney, etc.)
 4. Click "Pay Now"

@@ -190,7 +190,7 @@ document.getElementById('modempay-form').addEventListener('submit', async functi
 - ✅ `MODEMPAY_API_URL=https://api.modempay.com/v1`
 - ✅ `MODEMPAY_PUBLIC_KEY=pk_test_...`
 - ✅ `MODEMPAY_SECRET_KEY=sk_test_...`
-- ✅ `MODEMPAY_CALLBACK_URL=http://localhost:5000/payments/modempay/webhook`
+- ✅ `MODEMPAY_CALLBACK_URL=https://store.techbuxin.com/payments/modempay/webhook`
 
 ### Routes
 - ✅ `GET /checkout` - Renders checkout page
@@ -222,7 +222,7 @@ document.getElementById('modempay-form').addEventListener('submit', async functi
 
 2. **Visit Checkout**:
    ```
-   http://localhost:5000/checkout
+   https://store.techbuxin.com/checkout
    ```
 
 3. **Fill Payment Form**:

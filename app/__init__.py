@@ -122,11 +122,17 @@ def create_app(config_class: type[Config] | None = None):
         app.config.setdefault('SESSION_COOKIE_SECURE', True)
         app.config.setdefault('REMEMBER_COOKIE_SECURE', True)
 
-    default_google_redirect = "http://localhost:5000/auth/google/callback"
-
+    # Google OAuth configuration
+    # These must be configured via environment variables in production, e.g.:
+    #   GOOGLE_CLIENT_ID
+    #   GOOGLE_CLIENT_SECRET
+    #   GOOGLE_REDIRECT_URI=https://store.techbuxin.com/auth/google/callback
+    #
+    # We intentionally do NOT hard-code localhost defaults here so that
+    # Render / production always use the correct public callback URL.
     app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID')
     app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET')
-    app.config['GOOGLE_REDIRECT_URI'] = os.environ.get('GOOGLE_REDIRECT_URI', default_google_redirect)
+    app.config['GOOGLE_REDIRECT_URI'] = os.environ.get('GOOGLE_REDIRECT_URI')
     
     # Email configuration (from environment variables only)
     app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
@@ -1340,7 +1346,13 @@ def google_login():
         
         next_url = request.args.get('next') or request.referrer or url_for('home')
         session['next_url'] = next_url
-        redirect_uri = app.config['GOOGLE_REDIRECT_URI']
+
+        # Use configured redirect URI when available; otherwise safely fall back
+        # to the current request's root URL + the callback route. This avoids
+        # leaking localhost URLs in production while still working in dev.
+        redirect_uri = app.config.get('GOOGLE_REDIRECT_URI') or url_for(
+            'google_callback', _external=True
+        )
         nonce = secrets.token_urlsafe(16)
         session['google_oauth_nonce'] = nonce
         
@@ -2990,7 +3002,11 @@ def admin_settings_test_email():
     try:
         settings = AppSettings.query.first()
         if not settings:
-            return jsonify({'success': False, 'message': 'Settings not found'}), 400
+            return jsonify({
+                'success': False,
+                'status': 'error',
+                'message': 'Email failed: settings not found'
+            }), 400
         
         test_email = request.json.get('test_email', '').strip() if request.is_json else request.form.get('test_email', '').strip()
         if not test_email:
@@ -2998,12 +3014,18 @@ def admin_settings_test_email():
         
         smtp_server = settings.smtp_server or os.getenv('MAIL_SERVER', 'smtp.gmail.com')
         smtp_port = settings.smtp_port or int(os.getenv('MAIL_PORT', 587))
-        smtp_use_tls = settings.smtp_use_tls if settings.smtp_use_tls is not None else (os.getenv('MAIL_USE_TLS', 'True').lower() == 'true')
+        smtp_use_tls = settings.smtp_use_tls if settings.smtp_use_tls is not None else (
+            os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
+        )
         smtp_username = settings.smtp_username or os.getenv('MAIL_USERNAME')
         smtp_password = settings.smtp_password or os.getenv('MAIL_PASSWORD')
         
         if not all([smtp_server, smtp_username, smtp_password]):
-            return jsonify({'success': False, 'message': 'Email credentials not configured'}), 400
+            return jsonify({
+                'success': False,
+                'status': 'error',
+                'message': 'Email failed: email credentials not configured'
+            }), 400
         
         # Send test email
         from flask_mail import Message, Mail
@@ -3043,12 +3065,17 @@ def admin_settings_test_email():
         
         return jsonify({
             'success': True,
+            'status': 'success',
             'message': f'Test email sent successfully to {test_email}!'
-        })
+        }), 200
         
     except Exception as e:
         current_app.logger.error(f"Email test error: {str(e)}")
-        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+        return jsonify({
+            'success': False,
+            'status': 'error',
+            'message': f'Email failed: {str(e)}'
+        }), 500
 
 @app.route('/admin/settings/backup-database', methods=['POST'])
 @login_required
@@ -3230,7 +3257,12 @@ def admin_email_customers():
 @login_required
 @admin_required
 def test_email_config():
-    """Test email configuration and send a test email to buxinstore9@gmail.com"""
+    """Test email configuration.
+
+    - For normal browser form usage: returns an HTML page with status messages.
+    - For JSON/API requests: always returns a JSON payload (never HTML),
+      so frontend clients don't hit "Unexpected token '<'" parsing errors.
+    """
     from .extensions import mail as _mail
     from flask_mail import Message
     import smtplib
@@ -3269,7 +3301,18 @@ def test_email_config():
             app.logger.error(f"❌ SMTP connection test failed: {str(e)}")
     
     if request.method == 'POST':
-        test_email = request.form.get('test_email', 'buxinstore9@gmail.com')
+        # Detect whether this is an API/JSON request or a normal form POST
+        is_json_request = (
+            request.is_json
+            or (request.headers.get('Content-Type', '').startswith('application/json'))
+        )
+
+        if is_json_request:
+            data = request.get_json(silent=True) or {}
+            test_email = (data.get('test_email') or 'buxinstore9@gmail.com').strip()
+        else:
+            test_email = request.form.get('test_email', 'buxinstore9@gmail.com').strip()
+
         try:
             app.logger.info(f"📤 Sending test email to {test_email}...")
             app.logger.info(f"   Using sender: {app.config.get('MAIL_DEFAULT_SENDER')}")
@@ -3300,25 +3343,53 @@ Time sent: {time}
             
             with app.app_context():
                 _mail.send(msg)
-            
-            flash(f'✅ Test email sent successfully to {test_email}. Please check your inbox (and spam folder).', 'success')
+
             app.logger.info(f"✅ Test email sent successfully to {test_email} (SMTP accepted)")
+
+            # JSON/API response path – NEVER return HTML here
+            if is_json_request:
+                return jsonify({
+                    "status": "success",
+                    "success": True,
+                    "message": f"Test email sent successfully to {test_email}!"
+                }), 200
+
+            # Normal HTML form flow
+            flash(
+                f'✅ Test email sent successfully to {test_email}. Please check your inbox (and spam folder).',
+                'success'
+            )
         except Exception as e:
             error_msg = f"Failed to send test email: {str(e)}"
-            flash(f'❌ {error_msg}', 'error')
             app.logger.error(f"❌ {error_msg}")
             import traceback
             app.logger.error(traceback.format_exc())
-            return render_template('admin/admin/test_email.html', 
-                                 env_config=env_config, 
-                                 app_config=app_config, 
-                                 error=error_msg,
-                                 smtp_test=smtp_test_result)
+
+            # JSON/API error response – no HTML, structured error payload
+            if is_json_request:
+                return jsonify({
+                    "status": "error",
+                    "success": False,
+                    "message": f"Email failed: {str(e)}"
+                }), 500
+
+            # Browser form: return HTML template
+            flash(f'❌ {error_msg}', 'error')
+            return render_template(
+                'admin/admin/test_email.html',
+                env_config=env_config,
+                app_config=app_config,
+                error=error_msg,
+                smtp_test=smtp_test_result
+            )
     
-    return render_template('admin/admin/test_email.html', 
-                         env_config=env_config, 
-                         app_config=app_config,
-                         smtp_test=smtp_test_result)
+    # GET request or POST that fell through in HTML mode
+    return render_template(
+        'admin/admin/test_email.html',
+        env_config=env_config,
+        app_config=app_config,
+        smtp_test=smtp_test_result
+    )
 
 @app.route('/admin/whatsapp', methods=['GET', 'POST'])
 @login_required

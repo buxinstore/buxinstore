@@ -161,7 +161,7 @@ fetch('/payments/modempay/pay', {
 MODEMPAY_API_URL=https://api.modempay.com/v1
 MODEMPAY_PUBLIC_KEY=[REDACTED]
 MODEMPAY_SECRET_KEY=[REDACTED]
-MODEMPAY_CALLBACK_URL=http://localhost:5000/payments/modempay/webhook
+MODEMPAY_CALLBACK_URL=https://store.techbuxin.com/payments/modempay/webhook
 ```
 
 ✅ **Webhook Endpoint**: `POST /payments/modempay/webhook`
@@ -178,7 +178,7 @@ MODEMPAY_CALLBACK_URL=http://localhost:5000/payments/modempay/webhook
 
 2. **Visit checkout page**:
    ```
-   http://localhost:5000/checkout
+   https://store.techbuxin.com/checkout
    ```
 
 3. **Fill payment form**:

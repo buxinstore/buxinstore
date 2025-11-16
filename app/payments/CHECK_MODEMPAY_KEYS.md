@@ -74,7 +74,7 @@ if not verify_webhook_signature(payload_str, signature, webhook_secret):
 | `MODEMPAY_WEBHOOK_SECRET` | ✅ Set | `[REDACTED]` | Webhook Verification |
 | `MODEMPAY_PUBLIC_KEY` | ✅ Set | `[REDACTED]` | Client-side requests |
 | `MODEMPAY_API_URL` | ✅ Set | `https://api.modempay.com/v1` | API endpoint |
-| `MODEMPAY_CALLBACK_URL` | ✅ Set | `http://localhost:5000/payments/modempay/webhook` | Webhook URL |
+| `MODEMPAY_CALLBACK_URL` | ✅ Set | `https://store.techbuxin.com/payments/modempay/webhook` | Webhook URL |
 
 ## Conclusion
 

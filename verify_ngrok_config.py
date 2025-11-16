@@ -68,7 +68,7 @@ if ngrok_url:
     print()
     print("Next steps:")
     print("1. Make sure your Flask app is running")
-    print("2. Ensure Ngrok is running and forwarding to localhost:5000")
+    print("2. Ensure Ngrok is running and forwarding to https://store.techbuxin.com")
     print("3. Test a live payment - callbacks will use the Ngrok URL above")
 else:
     print("[WARNING] Please set NGROK_URL in your .env file to enable Ngrok callbacks")

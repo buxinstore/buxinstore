@@ -192,7 +192,7 @@ result = PaymentService.start_modempay_payment(
 
 ```bash
 # Initiate ModemPay payment
-curl -X POST http://localhost:5000/payments/modempay/pay \
+curl -X POST https://store.techbuxin.com/payments/modempay/pay \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{
@@ -206,7 +206,7 @@ curl -X POST http://localhost:5000/payments/modempay/pay \
 ### ModemPay Webhook Configuration
 
 1. Set `MODEMPAY_WEBHOOK_SECRET` in your environment variables
-2. Configure webhook URL in ModemPay dashboard: `https://yourdomain.com/payments/modempay/webhook`
+2. Configure webhook URL in ModemPay dashboard: `https://store.techbuxin.com/payments/modempay/webhook`
 3. Webhook signature is automatically verified for security
 
 ## Testing
@@ -215,7 +215,7 @@ Test payment endpoints using curl or Postman:
 
 ```bash
 # Initiate payment (traditional gateway)
-curl -X POST http://localhost:5000/payments/initiate \
+curl -X POST https://store.techbuxin.com/payments/initiate \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{
@@ -229,7 +229,7 @@ curl -X POST http://localhost:5000/payments/initiate \
   }'
 
 # Initiate ModemPay payment
-curl -X POST http://localhost:5000/payments/modempay/pay \
+curl -X POST https://store.techbuxin.com/payments/modempay/pay \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{

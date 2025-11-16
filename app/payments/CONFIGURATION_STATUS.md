@@ -11,7 +11,7 @@ MODEMPAY_API_URL=https://api.modempay.com/v1
 MODEMPAY_PUBLIC_KEY=[REDACTED]
 MODEMPAY_SECRET_KEY=[REDACTED]
 MODEMPAY_WEBHOOK_SECRET=
-MODEMPAY_CALLBACK_URL=http://localhost:5000/payments/modempay/webhook
+MODEMPAY_CALLBACK_URL=https://store.techbuxin.com/payments/modempay/webhook
 ```
 
 ## Configuration Notes
@@ -26,8 +26,7 @@ MODEMPAY_CALLBACK_URL=http://localhost:5000/payments/modempay/webhook
 - Webhook signature verification will be disabled until this is set
 
 ### ✅ Callback URL
-- Set to `http://localhost:5000/payments/modempay/webhook` for local development
-- **For Production**: Update to `https://yourdomain.com/payments/modempay/webhook`
+- Set to `https://store.techbuxin.com/payments/modempay/webhook` for both development and production
 
 ## Next Steps
 
@@ -38,8 +37,7 @@ MODEMPAY_CALLBACK_URL=http://localhost:5000/payments/modempay/webhook
    - Add to `.env`: `MODEMPAY_WEBHOOK_SECRET=your_secret_here`
 
 2. **Configure Webhook in ModemPay Dashboard**:
-   - URL: `http://localhost:5000/payments/modempay/webhook` (for testing)
-   - Or: `https://yourdomain.com/payments/modempay/webhook` (for production)
+   - URL: `https://store.techbuxin.com/payments/modempay/webhook`
 
 3. **Test the Integration**:
    ```bash
@@ -47,7 +45,7 @@ MODEMPAY_CALLBACK_URL=http://localhost:5000/payments/modempay/webhook
    python run.py
    
    # Test payment initiation
-   curl -X POST http://localhost:5000/payments/modempay/pay \
+   curl -X POST https://store.techbuxin.com/payments/modempay/pay \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer YOUR_TOKEN" \
      -d '{
