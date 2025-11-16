@@ -3212,7 +3212,7 @@ def admin_email_customers():
     #     * return None
     #     * raise unhandled exceptions
     # - Do NOT use request.url_root anywhere in this route (or globally).
-    # - Do NOT hardcode buxinstore.onrender.com or Render subdomains.
+    # - Do NOT hardcode store.techbuxin.com or Render subdomains.
     #
     # Base URL system (STEP 2):
     # - Inside create_app(), we configure:
@@ -3268,7 +3268,7 @@ def admin_email_customers():
     #       PUBLIC_URL = https://store.techbuxin.com
     #       GOOGLE_REDIRECT_URI = https://store.techbuxin.com/auth/google/callback
     # - Remove any usage of:
-    #       buxinstore.onrender.com
+    #       store.techbuxin.com
     #       render subdomain logic for URL building
     #
     # Local/Render simulation (STEP 8):
