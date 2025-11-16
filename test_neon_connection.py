@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-import psycopg2
+from sqlalchemy import create_engine, text
 
 
 def main():
@@ -10,11 +10,10 @@ def main():
     if not database_uri:
         raise RuntimeError("DATABASE_URL is not set. Update your .env before testing.")
 
-    with psycopg2.connect(database_uri) as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1")
-            cur.fetchone()
-    print("Connected to Neon PostgreSQL successfully!")
+    engine = create_engine(database_uri)
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    print("Connected to Neon PostgreSQL successfully via SQLAlchemy!")
 
 
 if __name__ == "__main__":
