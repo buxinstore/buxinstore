@@ -6979,7 +6979,7 @@ def get_table_info(table_name):
     
     # Get row count
     with db.engine.connect() as conn:
-        result = conn.execute(text(f"SELECT COUNT(*) FROM `{table_name}`"))
+        result = conn.execute(text(f'SELECT COUNT(*) FROM "{table_name}"'))
         row_count = result.scalar()
     
     return {
@@ -7056,7 +7056,7 @@ def admin_database_table_view(table_name):
             search_conditions = []
             for i, col in enumerate(columns):
                 param_name = f'search_{i}'
-                search_conditions.append(f"CAST(`{col}` AS TEXT) LIKE :{param_name}")
+                search_conditions.append(f'CAST("{col}" AS TEXT) LIKE :{param_name}')
                 params[param_name] = f'%{search}%'
             if search_conditions:
                 conditions.append(f"({' OR '.join(search_conditions)})")
@@ -7065,12 +7065,12 @@ def admin_database_table_view(table_name):
             query += " WHERE " + " AND ".join(conditions)
         
         if sort_column and sort_column in columns:
-            query += f" ORDER BY `{sort_column}` {sort_order.upper()}"
+            query += f' ORDER BY "{sort_column}" {sort_order.upper()}'
         elif primary_keys:
-            query += f" ORDER BY `{primary_keys[0]}` ASC"
+            query += f' ORDER BY "{primary_keys[0]}" ASC'
         
         # Get total count
-        count_query = f"SELECT COUNT(*) FROM `{table_name}`"
+        count_query = f'SELECT COUNT(*) FROM "{table_name}"'
         if conditions:
             count_query += " WHERE " + " AND ".join(conditions)
         
@@ -7146,7 +7146,7 @@ def admin_database_add_row(table_name):
                     
                     value = request.form.get(col_name)
                     if value is not None and value != '':
-                        column_names.append(f"`{col_name}`")
+                        column_names.append(f'"{col_name}"')
                         values.append(f":{col_name}")
                         # Convert value based on type
                         col_type = str(col['type']).upper()
@@ -7172,7 +7172,7 @@ def admin_database_add_row(table_name):
                                          table_name=table_name,
                                          columns=columns)
                 
-                query = f"INSERT INTO `{table_name}` ({', '.join(column_names)}) VALUES ({', '.join(values)})"
+                query = f'INSERT INTO "{table_name}" ({", ".join(column_names)}) VALUES ({", ".join(values)})'
                 
                 with db.engine.connect() as conn:
                     result = conn.execute(text(query), params)
@@ -7226,7 +7226,7 @@ def admin_database_edit_row(table_name):
         
         # Build WHERE clause
         pk_col = primary_keys[0]
-        where_clause = f"`{pk_col}` = :pk_value"
+        where_clause = f'"{pk_col}" = :pk_value'
         params = {'pk_value': row_id}
         
         if request.method == 'POST':
@@ -7242,7 +7242,7 @@ def admin_database_edit_row(table_name):
                         continue
                     
                     value = request.form.get(col_name)
-                    updates.append(f"`{col_name}` = :{col_name}")
+                    updates.append(f'"{col_name}" = :{col_name}')
                     # Convert value based on type
                     col_type = str(col['type']).upper()
                     if value == '':
@@ -7252,7 +7252,7 @@ def admin_database_edit_row(table_name):
                             flash(f'Field {col_name} cannot be null', 'error')
                             # Re-fetch row data
                             with db.engine.connect() as conn:
-                                result = conn.execute(text(f"SELECT * FROM `{table_name}` WHERE {where_clause}"), params)
+                                result = conn.execute(text(f'SELECT * FROM "{table_name}" WHERE {where_clause}'), params)
                                 row = result.fetchone()
                                 if row:
                                     row_data = {}
@@ -7274,7 +7274,7 @@ def admin_database_edit_row(table_name):
                     else:
                         update_params[col_name] = value
                 
-                query = f"UPDATE `{table_name}` SET {', '.join(updates)} WHERE {where_clause}"
+                query = f'UPDATE "{table_name}" SET {", ".join(updates)} WHERE {where_clause}'
                 
                 with db.engine.connect() as conn:
                     conn.execute(text(query), update_params)
@@ -7291,7 +7291,7 @@ def admin_database_edit_row(table_name):
         
         # GET request - fetch row data
         with db.engine.connect() as conn:
-            result = conn.execute(text(f"SELECT * FROM `{table_name}` WHERE {where_clause}"), params)
+            result = conn.execute(text(f'SELECT * FROM "{table_name}" WHERE {where_clause}'), params)
             row = result.fetchone()
             if not row:
                 flash('Row not found', 'error')
@@ -7339,7 +7339,7 @@ def admin_database_delete_row(table_name):
             return jsonify({'success': False, 'message': 'Row ID required'}), 400
         
         pk_col = primary_keys[0]
-        query = f"DELETE FROM `{table_name}` WHERE `{pk_col}` = :pk_value"
+        query = f'DELETE FROM "{table_name}" WHERE "{pk_col}" = :pk_value'
         params = {'pk_value': row_id}
         
         with db.engine.connect() as conn:
@@ -7376,7 +7376,7 @@ def admin_database_delete_multiple(table_name):
         
         pk_col = primary_keys[0]
         placeholders = ', '.join([f':id_{i}' for i in range(len(row_ids))])
-        query = f"DELETE FROM `{table_name}` WHERE `{pk_col}` IN ({placeholders})"
+        query = f'DELETE FROM "{table_name}" WHERE "{pk_col}" IN ({placeholders})'
         params = {f'id_{i}': row_id for i, row_id in enumerate(row_ids)}
         
         with db.engine.connect() as conn:
@@ -7433,10 +7433,10 @@ def admin_database_clear_table(table_name):
             # Delete all non-admin users
             # Preserve users where is_admin = 1 OR role = 'admin'
             # Using COALESCE to handle NULL values safely
-            query = "DELETE FROM `user` WHERE (COALESCE(is_admin, 0) != 1) AND (COALESCE(role, '') != 'admin')"
+            query = 'DELETE FROM "user" WHERE (COALESCE(is_admin, 0) != 1) AND (COALESCE(role, \'\') != \'admin\')'
         else:
             # For all other allowed tables, delete all rows
-            query = f"DELETE FROM `{table_name}`"
+            query = f'DELETE FROM "{table_name}"'
         
         with db.engine.connect() as conn:
             result = conn.execute(text(query))
@@ -7509,7 +7509,7 @@ def admin_database_export_csv(table_name):
         table_info = get_table_info(table_name)
         columns = [col['name'] for col in table_info['columns']]
         
-        query = f"SELECT * FROM `{table_name}`"
+        query = f'SELECT * FROM "{table_name}"'
         
         output = StringIO()
         writer = csv.writer(output)
