@@ -482,31 +482,24 @@ class PaymentService:
             db.session.add(transaction)
             db.session.commit()
             
-            # Send receipt email on completed payments (best-effort, non-blocking error handling)
+            # Send receipt email on completed payments (best-effort, via email queue)
             try:
                 if webhook_status == 'completed' and payment and payment.order and payment.order.user_id:
-                    from threading import Thread
+                    from app.utils.email_queue import queue_single_email
+                    from app.payments.models import Payment as PaymentModel
 
-                    def _send_webhook_receipt_email_bg(payment_id):
-                        try:
-                            from app.payments.models import Payment as PaymentModel
-                            from app.extensions import mail
-                            from flask_mail import Message
-
-                            with current_app.app_context():
-                                current_app.logger.info("Webhook email[BG]: job started")
-                                payment_obj = PaymentModel.query.get(payment_id)
-                                if not payment_obj or not payment_obj.order:
-                                    current_app.logger.info("Webhook email[BG]: payment/order not found, aborting")
-                                    return
-
-                                customer = payment_obj.order.customer if hasattr(payment_obj.order, 'customer') else None
-                                recipient_email = getattr(customer, 'email', None)
-                                recipient_name = getattr(customer, 'username', 'Customer')
-                                if not recipient_email:
-                                    current_app.logger.info("Webhook email[BG]: no recipient email, aborting")
-                                    return
-
+                    with current_app.app_context():
+                        current_app.logger.info("Webhook email[BG]: preparing receipt email")
+                        payment_obj = PaymentModel.query.get(payment.id)
+                        if not payment_obj or not payment_obj.order:
+                            current_app.logger.info("Webhook email[BG]: payment/order not found, aborting")
+                        else:
+                            customer = payment_obj.order.customer if hasattr(payment_obj.order, 'customer') else None
+                            recipient_email = getattr(customer, 'email', None)
+                            recipient_name = getattr(customer, 'username', 'Customer')
+                            if not recipient_email:
+                                current_app.logger.info("Webhook email[BG]: no recipient email, aborting")
+                            else:
                                 subject = f"Payment Receipt - Order #{payment_obj.order.id}"
                                 html_body = render_template(
                                     'emails/receipt_email.html',
@@ -515,20 +508,20 @@ class PaymentService:
                                     order_items=getattr(payment_obj.order, 'items', []),
                                     customer_name=recipient_name
                                 )
-                                msg = Message(
-                                    subject=subject,
-                                    recipients=[recipient_email],
-                                    sender=current_app.config.get('MAIL_DEFAULT_SENDER', current_app.config.get('MAIL_USERNAME'))
-                                )
-                                msg.html = html_body
-                                mail.send(msg)
-                                current_app.logger.info(f"✅ Receipt email sent to {recipient_email} (webhook background)")
-                        except Exception as email_err_inner:
-                            current_app.logger.error(
-                                f"Webhook email[BG]: failed to send receipt email: {str(email_err_inner)}"
-                            )
 
-                    Thread(target=_send_webhook_receipt_email_bg, args=(payment.id,), daemon=True).start()
+                                smtp_config = {
+                                    "server": current_app.config.get("MAIL_SERVER"),
+                                    "port": current_app.config.get("MAIL_PORT") or 587,
+                                    "use_tls": current_app.config.get("MAIL_USE_TLS", True),
+                                    "username": (current_app.config.get("MAIL_USERNAME") or "").strip(),
+                                    "password": (current_app.config.get("MAIL_PASSWORD") or "").strip(),
+                                }
+
+                                app_obj = current_app._get_current_object()
+                                queue_single_email(app_obj, recipient_email, subject, html_body, smtp_config)
+                                current_app.logger.info(
+                                    f"✅ Receipt email queued to {recipient_email} (webhook background via email_queue)"
+                                )
             except Exception as email_err:
                 current_app.logger.error(f"Failed to queue webhook receipt email: {str(email_err)}")
             

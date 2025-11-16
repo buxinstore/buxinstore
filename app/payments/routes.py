@@ -280,24 +280,18 @@ def payment_success():
                 if payment.order:
                     payment.order.status = 'paid'
                 db.session.commit()
-                # Send receipt email (best effort, non-blocking)
+                # Send receipt email (best effort, via shared email queue)
                 try:
-                    from threading import Thread
+                    from app.utils.email_queue import queue_single_email
+                    from app.payments.models import Payment as PaymentModel
 
-                    def _send_receipt_email_bg(payment_id):
-                        try:
-                            from app.payments.models import Payment as PaymentModel
-
-                            with current_app.app_context():
-                                payment_obj = PaymentModel.query.get(payment_id)
-                                if not payment_obj or not payment_obj.order:
-                                    return
-                                customer = payment_obj.order.customer
-                                recipient_email = getattr(customer, 'email', None)
-                                recipient_name = getattr(customer, 'username', 'Customer')
-                                if not recipient_email:
-                                    return
-
+                    with current_app.app_context():
+                        payment_obj = PaymentModel.query.get(payment.id)
+                        if payment_obj and payment_obj.order and payment_obj.order.customer:
+                            customer = payment_obj.order.customer
+                            recipient_email = getattr(customer, 'email', None)
+                            recipient_name = getattr(customer, 'username', 'Customer')
+                            if recipient_email:
                                 subject = f"Payment Receipt - Order #{payment_obj.order.id}"
                                 html_body = render_template(
                                     'emails/receipt_email.html',
@@ -306,20 +300,20 @@ def payment_success():
                                     order_items=getattr(payment_obj.order, 'items', []),
                                     customer_name=recipient_name
                                 )
-                                msg = Message(
-                                    subject=subject,
-                                    recipients=[recipient_email],
-                                    sender=current_app.config.get('MAIL_DEFAULT_SENDER', current_app.config.get('MAIL_USERNAME'))
-                                )
-                                msg.html = html_body
-                                mail.send(msg)
-                                current_app.logger.info(f"✅ Receipt email sent to {recipient_email} (background)")
-                        except Exception as email_err_inner:
-                            current_app.logger.error(
-                                f"Failed to send receipt email on success redirect (background): {str(email_err_inner)}"
-                            )
 
-                    Thread(target=_send_receipt_email_bg, args=(payment.id,), daemon=True).start()
+                                smtp_config = {
+                                    "server": current_app.config.get("MAIL_SERVER"),
+                                    "port": current_app.config.get("MAIL_PORT") or 587,
+                                    "use_tls": current_app.config.get("MAIL_USE_TLS", True),
+                                    "username": (current_app.config.get("MAIL_USERNAME") or "").strip(),
+                                    "password": (current_app.config.get("MAIL_PASSWORD") or "").strip(),
+                                }
+
+                                app_obj = current_app._get_current_object()
+                                queue_single_email(app_obj, recipient_email, subject, html_body, smtp_config)
+                                current_app.logger.info(
+                                    f"✅ Receipt email queued to {recipient_email} (background via email_queue)"
+                                )
                 except Exception as email_err:
                     current_app.logger.error(f"Failed to queue receipt email on success redirect: {str(email_err)}")
                 
