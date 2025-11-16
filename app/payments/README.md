@@ -248,3 +248,25 @@ curl -X POST https://store.techbuxin.com/payments/modempay/pay \
 - Payment status is automatically synced with order status
 - ModemPay provides a unified interface for multiple payment providers
 
+## Email Batching & Background Workers
+
+The application sends customer and receipt emails using background worker threads to avoid blocking web requests and to keep memory usage low.
+
+Environment variables:
+
+```env
+# Email batching
+EMAIL_BATCH_SIZE=50             # Number of emails to send per batch
+EMAIL_BATCH_DELAY_SECONDS=1     # Delay in seconds between batches
+MAX_EMAILS_PER_REQUEST=2000     # Maximum recipients allowed per single request
+```
+
+When adjusting these values in production, prefer smaller batch sizes and a modest delay to reduce the risk of worker timeouts and memory pressure on Render.
+
+For monitoring, after each deploy you can tail application logs with the Render CLI:
+
+```bash
+render logs -s <service-name> --tail
+```
+
+or use the **Logs** tab in the Render web UI to watch background email batches start and complete.
