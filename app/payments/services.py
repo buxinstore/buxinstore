@@ -482,7 +482,7 @@ class PaymentService:
             db.session.add(transaction)
             db.session.commit()
             
-            # Send receipt email on completed payments (best-effort, via email queue)
+            # Send receipt email on completed payments (best-effort, via Resend email queue)
             try:
                 if webhook_status == 'completed' and payment and payment.order and payment.order.user_id:
                     from app.utils.email_queue import queue_single_email
@@ -509,18 +509,10 @@ class PaymentService:
                                     customer_name=recipient_name
                                 )
 
-                                smtp_config = {
-                                    "server": current_app.config.get("MAIL_SERVER"),
-                                    "port": current_app.config.get("MAIL_PORT") or 587,
-                                    "use_tls": current_app.config.get("MAIL_USE_TLS", True),
-                                    "username": (current_app.config.get("MAIL_USERNAME") or "").strip(),
-                                    "password": (current_app.config.get("MAIL_PASSWORD") or "").strip(),
-                                }
-
                                 app_obj = current_app._get_current_object()
-                                queue_single_email(app_obj, recipient_email, subject, html_body, smtp_config)
+                                queue_single_email(app_obj, recipient_email, subject, html_body)
                                 current_app.logger.info(
-                                    f"✅ Receipt email queued to {recipient_email} (webhook background via email_queue)"
+                                    f"✅ Receipt email queued to {recipient_email} (webhook background via email_queue/Resend)"
                                 )
             except Exception as email_err:
                 current_app.logger.error(f"Failed to queue webhook receipt email: {str(email_err)}")

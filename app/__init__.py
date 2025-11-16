@@ -99,7 +99,6 @@ def get_google_openid_config():
         raise
 
 # Import extensions and models
-from flask_mail import Message
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -128,6 +127,10 @@ def get_base_url() -> str:
 
 def create_app(config_class: type[Config] | None = None):
     app = Flask(__name__, static_folder='static', static_url_path='/static')
+
+    import logging
+    app.logger.setLevel(logging.DEBUG)
+    logging.getLogger("werkzeug").setLevel(logging.DEBUG)
 
     config_obj = config_class or Config
     app.config.from_object(config_obj)
@@ -1263,18 +1266,10 @@ def forgot_password():
                 base = app.get_base_url()
                 reset_url = f"{base}{url_for('reset_password', token=token, _external=False)}"
                 
-                # Send email
-                from flask_mail import Message
-                from .extensions import mail
-                
                 # Get user's display name
                 user_name = user.display_name
                 
-                msg = Message(
-                    subject='Reset Your Password - BuXin Store',
-                    recipients=[user.email],
-                    sender=current_app.config.get('MAIL_DEFAULT_SENDER', current_app.config.get('MAIL_USERNAME')),
-                    html=f'''
+                html_body = f'''
                     <html>
                     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -1292,38 +1287,15 @@ def forgot_password():
                         </div>
                     </body>
                     </html>
-                    ''',
-                    body=f'''
-BuXin Store
-
-Hi {user_name},
-
-Click the link below to reset your password. This link will expire in 30 minutes.
-
-{reset_url}
-
-If you didn't request a password reset, please ignore this email.
                     '''
-                )
-                
-                from threading import Thread
-
-                smtp_config = {
-                    "server": current_app.config.get("MAIL_SERVER"),
-                    "port": current_app.config.get("MAIL_PORT") or 587,
-                    "use_tls": current_app.config.get("MAIL_USE_TLS", True),
-                    "username": (current_app.config.get("MAIL_USERNAME") or "").strip(),
-                    "password": (current_app.config.get("MAIL_PASSWORD") or "").strip(),
-                }
 
                 from app.utils.email_queue import queue_single_email
                 app_obj = current_app._get_current_object()
-                body_text = msg.body or ""
                 current_app.logger.info(
                     "forgot_password[BG]: queueing password reset email",
                     extra={"recipient": user.email},
                 )
-                queue_single_email(app_obj, user.email, msg.subject, body_text, smtp_config)
+                queue_single_email(app_obj, user.email, 'Reset Your Password - BuXin Store', html_body)
 
                 current_app.logger.info(f"✅ Password reset email queued for {user.email}")
                 # Don't reveal if email exists or not for security
@@ -3086,7 +3058,7 @@ def admin_settings_test_whatsapp():
 @login_required
 @admin_required
 def admin_settings_test_email():
-    """Test email configuration"""
+    """Test email configuration using Resend synchronously."""
     try:
         current_app.logger.info("admin_settings_test_email: route start")
         settings = AppSettings.query.first()
@@ -3102,67 +3074,51 @@ def admin_settings_test_email():
         if not test_email:
             test_email = settings.support_email or current_user.email
         current_app.logger.info(f"admin_settings_test_email: using recipient={test_email}")
-        
-        smtp_server = settings.smtp_server or os.getenv('MAIL_SERVER', 'smtp.gmail.com')
-        smtp_port = settings.smtp_port or int(os.getenv('MAIL_PORT', 587))
-        smtp_use_tls = settings.smtp_use_tls if settings.smtp_use_tls is not None else (
-            os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
-        )
-        smtp_username = (settings.smtp_username or os.getenv('MAIL_USERNAME') or '').strip()
-        smtp_password = (settings.smtp_password or os.getenv('MAIL_PASSWORD') or '').strip()
 
-        current_app.logger.info(
-            "admin_settings_test_email: resolved SMTP configuration",
-            extra={
-                "smtp_server": smtp_server,
-                "smtp_port": smtp_port,
-                "smtp_use_tls": smtp_use_tls,
-                "smtp_username_present": bool(smtp_username),
-            },
-        )
-        
-        if not smtp_username:
-            current_app.logger.warning("admin_settings_test_email: smtp_username is missing or blank")
+        import resend
+        api_key = os.getenv("RESEND_API_KEY")
+        if not api_key:
+            current_app.logger.warning("admin_settings_test_email: RESEND_API_KEY is not configured")
             return jsonify({
                 'success': False,
                 'status': 'error',
-                'message': 'Email failed: SMTP username is not configured'
+                'message': 'Email failed: RESEND_API_KEY is not configured'
             }), 400
 
-        if not smtp_password:
-            current_app.logger.warning("admin_settings_test_email: smtp_password is missing or blank")
-            return jsonify({
-                'success': False,
-                'status': 'error',
-                'message': 'Email failed: SMTP password is not configured'
-            }), 400
+        resend.api_key = api_key
+        from_email = os.getenv("RESEND_FROM_EMAIL", "buxinstore9@gmail.com")
 
-        smtp_config = {
-            "server": smtp_server,
-            "port": smtp_port,
-            "use_tls": smtp_use_tls,
-            "username": smtp_username,
-            "password": smtp_password,
-        }
-
-        from app.utils.email_background import queue_test_email
-        app_obj = current_app._get_current_object()
+        subject = "Test Email from BuXin Admin (Resend)"
+        html_body = f"""
+            <html>
+            <body>
+                <p>This is a test email from your BuXin Admin settings page via Resend.</p>
+                <p>Recipient: {test_email}</p>
+            </body>
+            </html>
+        """
 
         current_app.logger.info(
-            "admin_settings_test_email: queueing background test email send",
-            extra={"recipient": test_email, "smtp_server": smtp_server, "smtp_port": smtp_port},
+            "admin_settings_test_email: sending test email via Resend",
+            extra={"recipient": test_email, "from": from_email},
         )
-        queue_test_email(app_obj, test_email, smtp_config)
 
-        current_app.logger.info("admin_settings_test_email: returning queued response to client")
+        resend.Emails.send({
+            "from": from_email,
+            "to": test_email,
+            "subject": subject,
+            "html": html_body,
+        })
+
+        current_app.logger.info("admin_settings_test_email: test email sent successfully via Resend")
         return jsonify({
             'success': True,
-            'status': 'queued',
-            'message': f'Test email queued to {test_email}!'
-        }), 202
+            'status': 'success',
+            'message': f'Test email sent to {test_email} via Resend.'
+        }), 200
         
     except Exception as e:
-        current_app.logger.error(f"Email test error: {str(e)}")
+        current_app.logger.error(f"Email test error (Resend): {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'status': 'error',
@@ -3296,30 +3252,16 @@ def admin_email_customers():
                 }
             ), 400
 
-        log.info("admin_email_customers[POST]: email configuration snapshot")
-        log.info(f"   MAIL_SERVER={app.config.get('MAIL_SERVER')}")
-        log.info(f"   MAIL_PORT={app.config.get('MAIL_PORT')}")
-        log.info(f"   MAIL_USE_TLS={app.config.get('MAIL_USE_TLS')}")
-        log.info(f"   MAIL_USERNAME={app.config.get('MAIL_USERNAME')}")
-        log.info(f"   MAIL_PASSWORD={'***' if app.config.get('MAIL_PASSWORD') else 'NOT SET'}")
-        log.info(f"   MAIL_DEFAULT_SENDER={app.config.get('MAIL_DEFAULT_SENDER')}")
-
+        log.info("admin_email_customers[POST]: email configuration snapshot (Resend)")
         from app.utils.email_queue import queue_single_email, queue_bulk_email
         app_obj = app
 
-        smtp_config = {
-            "server": app.config.get("MAIL_SERVER"),
-            "port": app.config.get("MAIL_PORT") or 587,
-            "use_tls": app.config.get("MAIL_USE_TLS", True),
-            "username": (app.config.get("MAIL_USERNAME") or "").strip(),
-            "password": (app.config.get("MAIL_PASSWORD") or "").strip(),
-        }
-
         if test_only and test_email:
             log.info(
-                f"admin_email_customers[POST]: queueing single test email to {test_email} via email_queue"
+                f"admin_email_customers[POST]: queueing single test email to {test_email} via email_queue/Resend"
             )
-            queue_single_email(app_obj, test_email, subject, body, smtp_config)
+            html_body = render_template("emails/admin_broadcast_email.html", subject=subject, body_text=body)
+            queue_single_email(app_obj, test_email, subject, html_body)
 
             response_payload = {"success": True, "status": "queued", "recipients": 1}
             log.info(f"admin_email_customers[POST]: returning response {response_payload}")
@@ -3370,7 +3312,8 @@ def admin_email_customers():
             extra={"queued_for": estimated_total},
         )
 
-        job_id = queue_bulk_email(app_obj, base_query, subject, body, smtp_config)
+        html_body = render_template("emails/admin_broadcast_email.html", subject=subject, body_text=body)
+        job_id = queue_bulk_email(app_obj, base_query, subject, html_body)
 
         response_payload = {
             "success": True,
@@ -3417,125 +3360,25 @@ def admin_email_job_status(job_id):
         "total": status.get("total"),
     })
 
-@app.route('/admin/test-email-config', methods=['GET', 'POST'])
+@app.route('/admin/test-email-config', methods=['GET'])
 @login_required
 @admin_required
 def test_email_config():
-    """Test email configuration.
-
-    - For normal browser form usage: returns an HTML page with status messages.
-    - For JSON/API requests: always returns a JSON payload (never HTML),
-      so frontend clients don't hit "Unexpected token '<'" parsing errors.
-    """
-    from .extensions import mail as _mail
-    from flask_mail import Message
-    import smtplib
-    
-    # Get configuration from environment and app config
+    """Show email-related configuration values (Resend-based)."""
     env_config = {
-        'MAIL_SERVER': os.environ.get('MAIL_SERVER', 'Not set in env'),
-        'MAIL_PORT': os.environ.get('MAIL_PORT', 'Not set in env'),
-        'MAIL_USE_TLS': os.environ.get('MAIL_USE_TLS', 'Not set in env'),
-        'MAIL_USERNAME': os.environ.get('MAIL_USERNAME', 'Not set in env'),
-        'MAIL_PASSWORD': '***' if os.environ.get('MAIL_PASSWORD') else 'Not set in env',
+        'RESEND_API_KEY': '***' if os.environ.get('RESEND_API_KEY') else 'Not set in env',
+        'RESEND_FROM_EMAIL': os.environ.get('RESEND_FROM_EMAIL', 'Not set in env'),
     }
-    
+
     app_config = {
-        'MAIL_SERVER': app.config.get('MAIL_SERVER', 'Not set'),
-        'MAIL_PORT': app.config.get('MAIL_PORT', 'Not set'),
-        'MAIL_USE_TLS': app.config.get('MAIL_USE_TLS', 'Not set'),
-        'MAIL_USERNAME': app.config.get('MAIL_USERNAME', 'Not set'),
-        'MAIL_PASSWORD': '***' if app.config.get('MAIL_PASSWORD') else 'Not set',
-        'MAIL_DEFAULT_SENDER': app.config.get('MAIL_DEFAULT_SENDER', 'Not set'),
-        'Mail Initialized': 'Yes' if _mail else 'No'
+        'RESEND_FROM_EMAIL': os.environ.get('RESEND_FROM_EMAIL', 'Not set'),
     }
-    
-    # Test SMTP connection
-    smtp_test_result = None
-    if request.method == 'GET' and request.args.get('test_smtp') == 'true':
-        try:
-            server = smtplib.SMTP(app.config.get('MAIL_SERVER'), app.config.get('MAIL_PORT'), timeout=10)
-            server.starttls()
-            server.login(app.config.get('MAIL_USERNAME'), app.config.get('MAIL_PASSWORD'))
-            server.quit()
-            smtp_test_result = "✅ SMTP connection successful!"
-            app.logger.info("✅ SMTP connection test passed")
-        except Exception as e:
-            smtp_test_result = f"❌ SMTP connection failed: {str(e)}"
-            app.logger.error(f"❌ SMTP connection test failed: {str(e)}")
-    
-    if request.method == 'POST':
-        # Always treat as API/JSON-style endpoint
-        data = request.get_json(silent=True) or {}
-        test_email = (data.get('test_email') or 'buxinstore9@gmail.com').strip()
 
-        try:
-            app.logger.info(f"📤 Queueing test email to {test_email} in background...")
-            app.logger.info(f"   Using sender: {app.config.get('MAIL_DEFAULT_SENDER')}")
-
-            msg = Message(
-                subject='Test Email from BuXin Store - Email Configuration Test',
-                recipients=[test_email],
-                sender=app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME')),
-                body='''This is a test email from your BuXin Store application.
-
-If you receive this email, your email configuration is working correctly!
-
-Configuration Details:
-- Server: {server}
-- Port: {port}
-- TLS: {tls}
-- Sender: {sender}
-
-Time sent: {time}
-'''.format(
-                    server=app.config.get('MAIL_SERVER'),
-                    port=app.config.get('MAIL_PORT'),
-                    tls=app.config.get('MAIL_USE_TLS'),
-                    sender=app.config.get('MAIL_DEFAULT_SENDER'),
-                    time=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
-                )
-            )
-
-            from threading import Thread
-
-            def _send_test_config_email_bg(message, recipient):
-                try:
-                    with app.app_context():
-                        app.logger.info("test_email_config[BG]: sending test email")
-                        _mail.send(message)
-                        app.logger.info(f"✅ test_email_config[BG]: test email sent successfully to {recipient}")
-                except Exception as exc_cfg:
-                    app.logger.error(f"❌ test_email_config[BG]: failed to send test email to {recipient}: {str(exc_cfg)}")
-
-            Thread(target=_send_test_config_email_bg, args=(msg, test_email), daemon=True).start()
-
-            return jsonify(
-                {
-                    "status": "queued",
-                    "success": True,
-                    "message": "Email test queued",
-                }
-            ), 202
-        except Exception as e:
-            error_msg = f"Failed to queue test email: {str(e)}"
-            app.logger.error(f"❌ {error_msg}")
-            import traceback
-            app.logger.error(traceback.format_exc())
-
-            return jsonify({
-                "status": "error",
-                "success": False,
-                "message": f"Email failed: {str(e)}",
-            }), 500
-
-    # For GET requests, return configuration and optional SMTP test status as JSON
     return jsonify({
         "status": "ok",
         "success": True,
         "env_config": env_config,
         "app_config": app_config,
-        "smtp_test": smtp_test_result,
     }), 200
 
 @app.route('/admin/whatsapp', methods=['GET', 'POST'])
@@ -7029,27 +6872,19 @@ def _send_backup_success_email(recipient: Optional[str], backup_path: str, times
         current_app.logger.warning("Backup completed but no recipient configured; skipping email.")
         return
 
-    from threading import Thread
+    from app.utils.email_queue import queue_single_email
+    app_obj = current_app._get_current_object()
 
-    def _send_backup_success_email_bg(recipient_email, path, ts):
-        try:
-            with current_app.app_context():
-                current_app.logger.info("backup_success_email[BG]: job started")
-                msg = Message(
-                    subject=f"Daily Database Backup – {ts.strftime('%Y/%m/%d')}",
-                    recipients=[recipient_email],
-                    body="Your automated daily database backup is ready.\nAttached is the latest PostgreSQL SQL dump."
-                )
-                with open(path, 'rb') as fh:
-                    msg.attach(os.path.basename(path), 'application/sql', fh.read())
-                mail.send(msg)
-                current_app.logger.info(f"backup_success_email[BG]: email sent to {recipient_email}")
-        except Exception as exc_bg:
-            current_app.logger.error(
-                f"backup_success_email[BG]: failed to send backup success email to {recipient_email}: {str(exc_bg)}"
-            )
-
-    Thread(target=_send_backup_success_email_bg, args=(recipient, backup_path, timestamp), daemon=True).start()
+    subject = f"Daily Database Backup – {timestamp.strftime('%Y/%m/%d')}"
+    html_body = (
+        "Your automated daily database backup is ready.<br>"
+        "Attached file path (server side): {path}".format(path=backup_path)
+    )
+    current_app.logger.info(
+        "backup_success_email: queueing backup success email",
+        extra={"recipient": recipient},
+    )
+    queue_single_email(app_obj, recipient, subject, html_body)
 
 
 def _send_backup_failure_email(recipient: Optional[str], error_message: str, timestamp: datetime):
@@ -7057,24 +6892,21 @@ def _send_backup_failure_email(recipient: Optional[str], error_message: str, tim
         current_app.logger.warning("Backup failed but no recipient configured for warning email.")
         return
 
-    from threading import Thread
+    from app.utils.email_queue import queue_single_email
+    app_obj = current_app._get_current_object()
 
-    def _send_backup_failure_email_bg(recipient_email, error_msg, ts):
-        try:
-            with current_app.app_context():
-                current_app.logger.info("backup_failure_email[BG]: job started")
-                msg = Message(
-                    subject="⚠️ Daily Backup Failed – Action Required",
-                    recipients=[recipient_email],
-                    body=f"Automated backup failed at {ts.strftime('%Y-%m-%d %H:%M UTC')}.\n\nError: {error_msg}\n"
-                         "Please review the server logs and retry the backup manually."
-                )
-                mail.send(msg)
-                current_app.logger.info(f"backup_failure_email[BG]: email sent to {recipient_email}")
-        except Exception as exc:
-            current_app.logger.error(f"Could not send backup failure email (background): {exc}")
-
-    Thread(target=_send_backup_failure_email_bg, args=(recipient, error_message, timestamp), daemon=True).start()
+    subject = "⚠️ Daily Backup Failed – Action Required"
+    html_body = (
+        "Automated backup failed at {ts}.<br><br>Error: {err}<br>"
+        "Please review the server logs and retry the backup manually.".format(
+            ts=timestamp.strftime('%Y-%m-%d %H:%M UTC'), err=error_message
+        )
+    )
+    current_app.logger.info(
+        "backup_failure_email: queueing backup failure email",
+        extra={"recipient": recipient},
+    )
+    queue_single_email(app_obj, recipient, subject, html_body)
 
 
 def run_database_backup(trigger: str = 'manual', email_override: Optional[str] = None) -> Dict[str, str]:
