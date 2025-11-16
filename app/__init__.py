@@ -135,8 +135,6 @@ def create_app(config_class: type[Config] | None = None):
         app.config.setdefault('REMEMBER_COOKIE_SECURE', True)
         # Ensure HTTPS URLs are generated correctly behind Render's proxy
         app.config.setdefault('PREFERRED_URL_SCHEME', 'https')
-        # Never hard-code SERVER_NAME when running on Render; rely on host headers
-        app.config.pop('SERVER_NAME', None)
 
     # Google OAuth configuration
     # These must be configured via environment variables in production, e.g.:
