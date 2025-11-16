@@ -280,30 +280,48 @@ def payment_success():
                 if payment.order:
                     payment.order.status = 'paid'
                 db.session.commit()
-                # Send receipt email (best effort)
+                # Send receipt email (best effort, non-blocking)
                 try:
-                    customer = payment.order.customer if payment.order else None
-                    recipient_email = getattr(customer, 'email', None)
-                    recipient_name = getattr(customer, 'username', 'Customer')
-                    if recipient_email:
-                        subject = f"Payment Receipt - Order #{payment.order.id}"
-                        html_body = render_template(
-                            'emails/receipt_email.html',
-                            payment=payment,
-                            order=payment.order,
-                            order_items=getattr(payment.order, 'items', []),
-                            customer_name=recipient_name
-                        )
-                        msg = Message(
-                            subject=subject, 
-                            recipients=[recipient_email],
-                            sender=current_app.config.get('MAIL_DEFAULT_SENDER', current_app.config.get('MAIL_USERNAME'))
-                        )
-                        msg.html = html_body
-                        mail.send(msg)
-                        current_app.logger.info(f"✅ Receipt email sent to {recipient_email}")
+                    from threading import Thread
+
+                    def _send_receipt_email_bg(payment_id):
+                        try:
+                            from app.payments.models import Payment as PaymentModel
+
+                            with current_app.app_context():
+                                payment_obj = PaymentModel.query.get(payment_id)
+                                if not payment_obj or not payment_obj.order:
+                                    return
+                                customer = payment_obj.order.customer
+                                recipient_email = getattr(customer, 'email', None)
+                                recipient_name = getattr(customer, 'username', 'Customer')
+                                if not recipient_email:
+                                    return
+
+                                subject = f"Payment Receipt - Order #{payment_obj.order.id}"
+                                html_body = render_template(
+                                    'emails/receipt_email.html',
+                                    payment=payment_obj,
+                                    order=payment_obj.order,
+                                    order_items=getattr(payment_obj.order, 'items', []),
+                                    customer_name=recipient_name
+                                )
+                                msg = Message(
+                                    subject=subject,
+                                    recipients=[recipient_email],
+                                    sender=current_app.config.get('MAIL_DEFAULT_SENDER', current_app.config.get('MAIL_USERNAME'))
+                                )
+                                msg.html = html_body
+                                mail.send(msg)
+                                current_app.logger.info(f"✅ Receipt email sent to {recipient_email} (background)")
+                        except Exception as email_err_inner:
+                            current_app.logger.error(
+                                f"Failed to send receipt email on success redirect (background): {str(email_err_inner)}"
+                            )
+
+                    Thread(target=_send_receipt_email_bg, args=(payment.id,), daemon=True).start()
                 except Exception as email_err:
-                    current_app.logger.error(f"Failed to send receipt email on success redirect: {str(email_err)}")
+                    current_app.logger.error(f"Failed to queue receipt email on success redirect: {str(email_err)}")
                 
                 # Send WhatsApp message (best effort, only in live mode)
                 try:

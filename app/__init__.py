@@ -110,6 +110,7 @@ from .utils.db_backup import (
     dump_database_to_file,
     dump_database_to_memory,
 )
+from .utils.email_worker import start_batch_email_send, send_email_safe
 
 
 def get_base_url() -> str:
@@ -231,6 +232,10 @@ def create_app(config_class: type[Config] | None = None):
     def inject_base_url():
         # Always derive from the helper so changes to PUBLIC_URL are reflected everywhere
         return {"base_url": app.get_base_url()}
+
+    @app.route("/_health", methods=["GET"])
+    def healthcheck():
+        return jsonify({"status": "ok"}), 200
 
     return app
 
@@ -1302,10 +1307,22 @@ If you didn't request a password reset, please ignore this email.
                     '''
                 )
                 
-                with current_app.app_context():
-                    mail.send(msg)
+                from threading import Thread
+
+                def _send_password_reset_email_bg(user_email, message):
+                    try:
+                        with current_app.app_context():
+                            current_app.logger.info("forgot_password[BG]: sending password reset email")
+                            mail.send(message)
+                            current_app.logger.info(f"✅ forgot_password[BG]: password reset email sent to {user_email}")
+                    except Exception as exc_email:
+                        current_app.logger.error(
+                            f"forgot_password[BG]: failed to send password reset email to {user_email}: {str(exc_email)}"
+                        )
                 
-                current_app.logger.info(f"✅ Password reset email sent to {user.email}")
+                Thread(target=_send_password_reset_email_bg, args=(user.email, msg), daemon=True).start()
+                
+                current_app.logger.info(f"✅ Password reset email queued for {user.email}")
                 # Don't reveal if email exists or not for security
                 flash('If that email address is registered, you will receive a password reset link shortly.', 'success')
             except Exception as e:
@@ -3068,8 +3085,10 @@ def admin_settings_test_whatsapp():
 def admin_settings_test_email():
     """Test email configuration"""
     try:
+        current_app.logger.info("admin_settings_test_email: route start")
         settings = AppSettings.query.first()
         if not settings:
+            current_app.logger.warning("admin_settings_test_email: settings not found")
             return jsonify({
                 'success': False,
                 'status': 'error',
@@ -3079,6 +3098,7 @@ def admin_settings_test_email():
         test_email = request.json.get('test_email', '').strip() if request.is_json else request.form.get('test_email', '').strip()
         if not test_email:
             test_email = settings.support_email or current_user.email
+        current_app.logger.info(f"admin_settings_test_email: using recipient={test_email}")
         
         smtp_server = settings.smtp_server or os.getenv('MAIL_SERVER', 'smtp.gmail.com')
         smtp_port = settings.smtp_port or int(os.getenv('MAIL_PORT', 587))
@@ -3089,16 +3109,16 @@ def admin_settings_test_email():
         smtp_password = settings.smtp_password or os.getenv('MAIL_PASSWORD')
         
         if not all([smtp_server, smtp_username, smtp_password]):
+            current_app.logger.warning("admin_settings_test_email: email credentials not fully configured")
             return jsonify({
                 'success': False,
                 'status': 'error',
                 'message': 'Email failed: email credentials not configured'
             }), 400
         
-        # Send test email
         from flask_mail import Message, Mail
-        
-        # Temporarily update mail config and reinitialize
+        from threading import Thread
+
         old_config = {
             'MAIL_SERVER': app.config.get('MAIL_SERVER'),
             'MAIL_PORT': app.config.get('MAIL_PORT'),
@@ -3106,36 +3126,59 @@ def admin_settings_test_email():
             'MAIL_USERNAME': app.config.get('MAIL_USERNAME'),
             'MAIL_PASSWORD': app.config.get('MAIL_PASSWORD')
         }
-        
-        app.config['MAIL_SERVER'] = smtp_server
-        app.config['MAIL_PORT'] = smtp_port
-        app.config['MAIL_USE_TLS'] = smtp_use_tls
-        app.config['MAIL_USERNAME'] = smtp_username
-        app.config['MAIL_PASSWORD'] = smtp_password
-        
-        # Create a temporary mail instance with new config
-        temp_mail = Mail()
-        temp_mail.init_app(app)
-        
-        msg = Message(
-            subject='Test Email from BuXin Admin',
-            sender=smtp_username,
-            recipients=[test_email],
-            body='Hello! This is a test email from your BuXin Admin Settings page. Your email configuration is working correctly! ✅'
-        )
-        
-        temp_mail.send(msg)
-        
-        # Restore old config
-        for key, value in old_config.items():
-            if value is not None:
-                app.config[key] = value
-        
+
+        def _send_test_email_bg(recipient, smtp_server_val, smtp_port_val, smtp_use_tls_val, smtp_username_val, smtp_password_val, old_cfg):
+            try:
+                with app.app_context():
+                    log = current_app.logger
+                    log.info("admin_settings_test_email[BG]: background job started")
+
+                    app.config['MAIL_SERVER'] = smtp_server_val
+                    app.config['MAIL_PORT'] = smtp_port_val
+                    app.config['MAIL_USE_TLS'] = smtp_use_tls_val
+                    app.config['MAIL_USERNAME'] = smtp_username_val
+                    app.config['MAIL_PASSWORD'] = smtp_password_val
+
+                    temp_mail = Mail()
+                    temp_mail.init_app(app)
+
+                    msg = Message(
+                        subject='Test Email from BuXin Admin',
+                        sender=smtp_username_val,
+                        recipients=[recipient],
+                        body='Hello! This is a test email from your BuXin Admin Settings page. Your email configuration is working correctly! ✅'
+                    )
+
+                    log.info("admin_settings_test_email[BG]: sending test email")
+                    temp_mail.send(msg)
+                    log.info(f"admin_settings_test_email[BG]: test email sent successfully to {recipient}")
+            except Exception as exc_bg:
+                current_app.logger.error(f"admin_settings_test_email[BG]: failed to send test email: {str(exc_bg)}")
+            finally:
+                try:
+                    with app.app_context():
+                        for key, value in old_cfg.items():
+                            if value is not None:
+                                app.config[key] = value
+                        current_app.logger.info("admin_settings_test_email[BG]: mail config restored")
+                except Exception as restore_exc:
+                    current_app.logger.error(
+                        f"admin_settings_test_email[BG]: failed to restore mail config: {str(restore_exc)}"
+                    )
+
+        current_app.logger.info("admin_settings_test_email: queueing background test email send")
+        Thread(
+            target=_send_test_email_bg,
+            args=(test_email, smtp_server, smtp_port, smtp_use_tls, smtp_username, smtp_password, old_config),
+            daemon=True
+        ).start()
+
+        current_app.logger.info("admin_settings_test_email: returning queued response to client")
         return jsonify({
             'success': True,
-            'status': 'success',
-            'message': f'Test email sent successfully to {test_email}!'
-        }), 200
+            'status': 'queued',
+            'message': f'Test email queued to {test_email}!'
+        }), 202
         
     except Exception as e:
         current_app.logger.error(f"Email test error: {str(e)}")
@@ -3198,290 +3241,197 @@ def admin_email_customers():
     - API/AJAX usage: XHR/fetch or JSON clients should receive JSON responses
       (never HTML), to avoid "Unexpected token '<'" parse errors.
     """
-    # ------------------------------------------------------------------
-    # EMAIL CUSTOMER ROUTE MAINTENANCE NOTES
-    #
-    # Main goal:
-    # Fix and prevent 502 errors at:
-    #   https://store.techbuxin.com/admin/email/customers
-    #
-    # Key invariants:
-    # - This route must never:
-    #     * timeout
-    #     * return HTML instead of JSON
-    #     * return None
-    #     * raise unhandled exceptions
-    # - Do NOT use request.url_root anywhere in this route (or globally).
-    # - Do NOT hardcode store.techbuxin.com or Render subdomains.
-    #
-    # Base URL system (STEP 2):
-    # - Inside create_app(), we configure:
-    #       app.config.setdefault("SERVER_NAME", None)
-    #       app.config.setdefault("PREFERRED_URL_SCHEME", "https")
-    #       app.config.setdefault(
-    #           "PUBLIC_URL",
-    #           os.environ.get("PUBLIC_URL", "https://store.techbuxin.com"),
-    #       )
-    #
-    # - Base URL helper:
-    #       def get_base_url():
-    #           try:
-    #               return (current_app.config.get("PUBLIC_URL") or "").rstrip("/")
-    #           except RuntimeError:
-    #               return current_app.config.get("PUBLIC_URL")
-    #
-    #   and we attach:
-    #       current_app.get_base_url = get_base_url
-    #
-    # - Never use request.url_root or SERVER_NAME for URL building.
-    #
-    # Email route requirements (STEP 3):
-    # - For GET:
-    #       return jsonify({"status": "ok"})
-    # - For POST:
-    #     * perform work quickly
-    #     * always respond with JSON (never HTML)
-    # - When building URLs, always use:
-    #       base = current_app.get_base_url()
-    #       full_url = f"{base}{url_for('admin.some_route', _external=False)}"
-    #
-    # Test email endpoint (STEP 4):
-    # - Must return:
-    #       return jsonify({"message": "Email sent successfully"})
-    #   (or a superset that never includes HTML).
-    #
-    # Templates (STEP 5):
-    # - Use context processor:
-    #       @app.context_processor
-    #       def inject_base_url():
-    #           return {"base_url": current_app.get_base_url()}
-    # - Replace hardcoded domain links with {{ base_url }} where appropriate.
-    #
-    # Debug logging (STEP 6):
-    # - Log the start of the route and base URL:
-    #       log.error("EMAIL CUSTOMER ROUTE STARTED")
-    #       log.error(f"BASE URL = {current_app.get_base_url()}")
-    # - Log any significant branch or error in this route.
-    #
-    # Environment configuration (STEP 7):
-    # - Ensure these are used:
-    #       PUBLIC_URL = https://store.techbuxin.com
-    #       GOOGLE_REDIRECT_URI = https://store.techbuxin.com/auth/google/callback
-    # - Remove any usage of:
-    #       store.techbuxin.com
-    #       render subdomain logic for URL building
-    #
-    # Local/Render simulation (STEP 8):
-    # - Use a test client-based script to call GET /admin/email/customers
-    #   and verify:
-    #       * no timeout
-    #       * no HTML in response
-    #       * no None or exception is returned
-    #
-    # Git/Deploy (FINAL TASK):
-    # - After changes:
-    #       git add ...
-    #       git commit -m "fix: eliminate all hardcoded domains, repair email route, prevent 502, unify PUBLIC_URL system"
-    #       git push
-    #   then trigger/allow Render to redeploy.
-    # ------------------------------------------------------------------
 
     log = current_app.logger
-    log.error("EMAIL CUSTOMER ROUTE STARTED")
+    log.info("admin_email_customers: route start")
+
     try:
-        log.error(f"BASE URL = {current_app.get_base_url()}")
-    except Exception as exc:
-        log.error(f"BASE URL resolution failed: {exc}")
-
-    from .extensions import mail as _mail
-
-    # For GET requests:
-    # - If the client clearly wants JSON (AJAX/fetch/API), return a small JSON
-    #   health payload so JS never sees HTML.
-    # - Otherwise (regular browser visit), render the HTML email form.
-    if request.method == "GET":
-        wants_json = (
-            request.is_json
-            or request.headers.get("X-Requested-With") == "XMLHttpRequest"
-            or "application/json" in (request.headers.get("Accept") or "")
-        )
-        if wants_json:
-            return jsonify({"status": "ok"}), 200
-        return render_template("admin/admin/email_customers.html"), 200
-
-    # For POST, require mail configuration but still respond with JSON
-    if not (
-        app.config.get("MAIL_SERVER")
-        and app.config.get("MAIL_USERNAME")
-        and app.config.get("MAIL_PASSWORD")
-    ):
-        log.error(
-            "EMAIL CUSTOMER ROUTE: Mail is not configured. "
-            "Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in environment."
-        )
-        return jsonify(
-            {
-                "success": False,
-                "status": "error",
-                "message": "Mail is not configured. Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in environment.",
-                "sent_count": 0,
-            }
-        ), 500
-    
-    if request.method == 'POST':
-        subject = request.form.get('subject', '').strip()
-        body = request.form.get('body', '').strip()
-        test_only = request.form.get('test_only') == 'on'
-        test_email = request.form.get('test_email', '').strip()
-        
-        if not subject or not body:
-            return jsonify({
-                "success": False,
-                "status": "error",
-                "message": "Subject and body are required.",
-                "sent_count": 0,
-            }), 400
+        base_url = None
         try:
-            from flask_mail import Message
-            # Collect recipient emails (customers only: non-admin users)
-            recipients = [u.email for u in User.query.filter(User.is_admin == False, User.email.isnot(None)).all()]
-            sent_count = 0
-            failed_count = 0
-            failed_emails = []
-            
-            # Verify mail is properly configured
-            if not _mail or not app.config.get('MAIL_SERVER'):
-                return jsonify({
-                    "success": False,
-                    "status": "error",
-                    "message": "Mail server is not properly configured. Please check your environment variables and restart the application.",
-                    "sent_count": 0,
-                }), 500
-            
-            # Log email configuration for debugging
-            app.logger.info(f"📧 Email Configuration Check:")
-            app.logger.info(f"   MAIL_SERVER: {app.config.get('MAIL_SERVER')}")
-            app.logger.info(f"   MAIL_PORT: {app.config.get('MAIL_PORT')}")
-            app.logger.info(f"   MAIL_USE_TLS: {app.config.get('MAIL_USE_TLS')}")
-            app.logger.info(f"   MAIL_USERNAME: {app.config.get('MAIL_USERNAME')}")
-            app.logger.info(f"   MAIL_PASSWORD: {'***' if app.config.get('MAIL_PASSWORD') else 'NOT SET'}")
-            app.logger.info(f"   MAIL_DEFAULT_SENDER: {app.config.get('MAIL_DEFAULT_SENDER')}")
-            
-            if test_only and test_email:
-                try:
-                    app.logger.info(f"📤 Attempting to send test email to {test_email}...")
-                    msg = Message(
-                        subject=subject,
-                        recipients=[test_email],
-                        body=body,
-                        sender=app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME'))
-                    )
-                    app.logger.info(f"   Message created: From={msg.sender}, To={msg.recipients}, Subject={msg.subject}")
-                    
-                    # Attempt to send (already in an app/request context)
-                    _mail.send(msg)
-                    
-                    app.logger.info(f"✅ Test email sent successfully to {test_email} (SMTP accepted)")
-                    sent_count = 1
-                    success_msg = f"✅ Test email sent successfully to {test_email}. Please check your inbox (and spam folder)."
-                    return jsonify({
-                        "success": True,
-                        "status": "success",
-                        "message": success_msg,
-                        "sent_count": sent_count,
-                        "failed_count": 0,
-                        "failed_emails": [],
-                    }), 200
-                except Exception as e:
-                    failed_count = 1
-                    error_msg = f"Failed to send test email to {test_email}: {str(e)}"
-                    app.logger.error(f"❌ {error_msg}")
-                    import traceback
-                    app.logger.error(traceback.format_exc())
-                    return jsonify({
-                        "success": False,
-                        "status": "error",
-                        "message": error_msg,
-                        "sent_count": 0,
-                        "failed_count": failed_count,
-                        "failed_emails": [test_email],
-                    }), 500
-            else:
-                # Send individually to avoid exposing addresses
-                app.logger.info(f"📤 Attempting to send emails to {len(recipients)} recipients...")
-                for email in recipients:
-                    if not email:
-                        continue
-                    try:
-                        app.logger.info(f"   Sending email to {email}...")
-                        msg = Message(
-                            subject=subject,
-                            recipients=[email],
-                            body=body,
-                            sender=app.config.get('MAIL_DEFAULT_SENDER', app.config.get('MAIL_USERNAME'))
-                        )
-                        
-                        # Send within current app/request context
-                        _mail.send(msg)
-                        
-                        sent_count += 1
-                        app.logger.info(f"✅ Email sent successfully to {email} (SMTP accepted)")
-                    except Exception as e:
-                        failed_count += 1
-                        failed_emails.append(email)
-                        error_detail = str(e)
-                        app.logger.error(f"❌ Failed to send email to {email}: {error_detail}")
-                        import traceback
-                        app.logger.error(traceback.format_exc())
-                        # Continue with next email instead of stopping
-            
-            # Prepare response message
-            if sent_count > 0 and failed_count == 0:
-                success_msg = f"✅ Successfully sent {sent_count} email(s)"
-                return jsonify({
-                    "success": True,
-                    "status": "success",
-                    "message": success_msg,
-                    "sent_count": sent_count,
-                    "failed_count": 0,
-                    "failed_emails": [],
-                }), 200
-            elif sent_count > 0 and failed_count > 0:
-                warning_msg = f"⚠️ Sent {sent_count} email(s), {failed_count} failed. Failed emails: {', '.join(failed_emails[:5])}{'...' if len(failed_emails) > 5 else ''}"
-                return jsonify({
-                    "success": False,
-                    "status": "partial",
-                    "message": warning_msg,
-                    "sent_count": sent_count,
-                    "failed_count": failed_count,
-                    "failed_emails": failed_emails,
-                }), 207
-            else:
-                error_msg = f"❌ Failed to send all {failed_count} email(s). Check server logs for details."
-                if failed_emails:
-                    error_msg += f" Failed emails: {', '.join(failed_emails[:5])}"
-                return jsonify({
-                    "success": False,
-                    "status": "error",
-                    "message": error_msg,
-                    "sent_count": 0,
-                    "failed_count": failed_count,
-                    "failed_emails": failed_emails,
-                }), 500
-        except Exception as e:
-            error_msg = f"Error sending customer emails: {str(e)}"
-            log.error(f"❌ {error_msg}")
-            import traceback
-            log.error(traceback.format_exc())
-            return jsonify({
-                "success": False,
-                "status": "error",
-                "message": error_msg,
-                "sent_count": 0,
-                "failed_count": 0,
-                "failed_emails": [],
-            }), 500
+            base_url = current_app.get_base_url()
+            log.info(f"admin_email_customers: resolved base URL={base_url}")
+        except Exception as exc:
+            log.warning(f"admin_email_customers: base URL resolution failed: {exc}")
 
+        if request.method == "GET":
+            log.info("admin_email_customers[GET]: determining response type (JSON vs HTML)")
+            wants_json = (
+                request.is_json
+                or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+                or "application/json" in (request.headers.get("Accept") or "")
+            )
+            if wants_json:
+                log.info("admin_email_customers[GET]: returning JSON health payload")
+                return jsonify({"status": "ok"}), 200
+
+            log.info("admin_email_customers[GET]: rendering HTML form")
+            return render_template("admin/admin/email_customers.html"), 200
+
+        if request.method != "POST":
+            log.warning(f"admin_email_customers: unexpected method {request.method}")
+            return jsonify({"status": "error", "message": "Method not allowed"}), 405
+
+        log.info("admin_email_customers[POST]: validating mail configuration")
+        if not (
+            app.config.get("MAIL_SERVER")
+            and app.config.get("MAIL_USERNAME")
+            and app.config.get("MAIL_PASSWORD")
+        ):
+            log.error(
+                "admin_email_customers[POST]: mail is not configured. "
+                "Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in environment."
+            )
+            log.info("admin_email_customers[POST]: returning JSON error due to mail misconfiguration")
+            return jsonify(
+                {
+                    "success": False,
+                    "status": "error",
+                    "message": "Mail is not configured. Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in environment.",
+                    "sent_count": 0,
+                }
+            ), 500
+
+        log.info("admin_email_customers[POST]: loading form data")
+        subject = (request.form.get("subject") or "").strip()
+        body = (request.form.get("body") or "").strip()
+        test_only = request.form.get("test_only") == "on"
+        test_email = (request.form.get("test_email") or "").strip()
+
+        log.info(
+            "admin_email_customers[POST]: form parsed "
+            f"(test_only={test_only}, has_subject={bool(subject)}, has_body={bool(body)}, "
+            f"has_test_email={bool(test_email)})"
+        )
+
+        if not subject or not body:
+            log.warning("admin_email_customers[POST]: missing subject or body")
+            log.info("admin_email_customers[POST]: returning JSON error for missing subject/body")
+            return jsonify(
+                {
+                    "success": False,
+                    "status": "error",
+                    "message": "Subject and body are required.",
+                    "sent_count": 0,
+                }
+            ), 400
+
+        log.info("admin_email_customers[POST]: email configuration snapshot")
+        log.info(f"   MAIL_SERVER={app.config.get('MAIL_SERVER')}")
+        log.info(f"   MAIL_PORT={app.config.get('MAIL_PORT')}")
+        log.info(f"   MAIL_USE_TLS={app.config.get('MAIL_USE_TLS')}")
+        log.info(f"   MAIL_USERNAME={app.config.get('MAIL_USERNAME')}")
+        log.info(f"   MAIL_PASSWORD={'***' if app.config.get('MAIL_PASSWORD') else 'NOT SET'}")
+        log.info(f"   MAIL_DEFAULT_SENDER={app.config.get('MAIL_DEFAULT_SENDER')}")
+
+        app_obj = app
+
+        if test_only and test_email:
+            log.info(
+                f"admin_email_customers[POST]: queueing single test email to {test_email} via send_email_safe"
+            )
+            from threading import Thread
+
+            def _queue_single_test_email(app_ref, recipient, subj, body_text):
+                html_body = None
+                text_body = body_text or subj
+                send_email_safe(app_ref, recipient, subj, html_body, text_body)
+
+            Thread(
+                target=_queue_single_test_email,
+                args=(app_obj, test_email, subject, body),
+                daemon=True,
+            ).start()
+
+            response_payload = {"status": "queued", "recipients": 1}
+            log.info(f"admin_email_customers[POST]: returning response {response_payload}")
+            return jsonify(response_payload), 202
+
+        from threading import Thread
+        import os
+
+        log.info("admin_email_customers[POST]: building customer email query")
+        base_query = User.query.filter(
+            User.is_admin == False,  # noqa: E712
+            User.email.isnot(None),
+        )
+
+        try:
+            estimated_total = base_query.count()
+        except Exception as count_exc:
+            log.warning(f"admin_email_customers[POST]: could not count recipients: {count_exc}")
+            estimated_total = None
+
+        max_per_request_default = 2000
+        try:
+            max_per_request = int(os.getenv("MAX_EMAILS_PER_REQUEST", str(max_per_request_default)))
+        except Exception:
+            max_per_request = max_per_request_default
+
+        if estimated_total is not None and estimated_total > max_per_request:
+            log.warning(
+                "admin_email_customers[POST]: recipient limit exceeded",
+                extra={
+                    "estimated_total": estimated_total,
+                    "max_per_request": max_per_request,
+                },
+            )
+            return jsonify(
+                {
+                    "success": False,
+                    "status": "error",
+                    "message": (
+                        f"Email job would target {estimated_total} recipients, which exceeds the "
+                        f"per-request limit of {max_per_request}. Please narrow the audience or "
+                        "run from an administrative batch job with explicit confirmation."
+                    ),
+                }
+            ), 400
+
+        log.info(
+            "admin_email_customers[POST]: queueing batched customer email job",
+            extra={"queued_for": estimated_total},
+        )
+
+        def _context_generator(recipient):
+            return {
+                "customer": recipient,
+                "body_text": body,
+            }
+
+        def _run_batched_email_job(app_ref, query_ref, subj, template_name):
+            start_batch_email_send(
+                app_ref,
+                email_query=query_ref,
+                subject=subj,
+                template_name=template_name,
+                context_generator=_context_generator,
+                base_context={},
+            )
+
+        Thread(
+            target=_run_batched_email_job,
+            args=(app_obj, base_query, subject, "emails/admin_broadcast_email.html"),
+            daemon=True,
+        ).start()
+
+        response_payload = {
+            "status": "queued",
+            "recipients": int(estimated_total or 0),
+            "background": True,
+        }
+        log.info(f"admin_email_customers[POST]: returning response {response_payload}")
+        return jsonify(response_payload), 202
+
+    except Exception as e:
+        log.exception(f"admin_email_customers: unhandled error in route: {e}")
+        error_payload = {
+            "success": False,
+            "status": "error",
+            "message": "An unexpected error occurred while processing customer emails.",
+        }
+        log.info(f"admin_email_customers: returning error response {error_payload}")
+        return jsonify(error_payload), 500
+ 
 @app.route('/admin/test-email-config', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -3535,9 +3485,9 @@ def test_email_config():
         test_email = (data.get('test_email') or 'buxinstore9@gmail.com').strip()
 
         try:
-            app.logger.info(f"📤 Sending test email to {test_email}...")
+            app.logger.info(f"📤 Queueing test email to {test_email} in background...")
             app.logger.info(f"   Using sender: {app.config.get('MAIL_DEFAULT_SENDER')}")
-            
+
             msg = Message(
                 subject='Test Email from BuXin Store - Email Configuration Test',
                 recipients=[test_email],
@@ -3561,27 +3511,33 @@ Time sent: {time}
                     time=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
                 )
             )
-            
-            # We are already in an application/request context; send directly
-            _mail.send(msg)
 
-            app.logger.info(f"✅ Test email sent successfully to {test_email} (SMTP accepted)")
+            from threading import Thread
 
-            # JSON/API response – NEVER return HTML here
+            def _send_test_config_email_bg(message, recipient):
+                try:
+                    with app.app_context():
+                        app.logger.info("test_email_config[BG]: sending test email")
+                        _mail.send(message)
+                        app.logger.info(f"✅ test_email_config[BG]: test email sent successfully to {recipient}")
+                except Exception as exc_cfg:
+                    app.logger.error(f"❌ test_email_config[BG]: failed to send test email to {recipient}: {str(exc_cfg)}")
+
+            Thread(target=_send_test_config_email_bg, args=(msg, test_email), daemon=True).start()
+
             return jsonify(
                 {
-                    "status": "success",
+                    "status": "queued",
                     "success": True,
-                    "message": "Email sent successfully",
+                    "message": "Email test queued",
                 }
-            ), 200
+            ), 202
         except Exception as e:
-            error_msg = f"Failed to send test email: {str(e)}"
+            error_msg = f"Failed to queue test email: {str(e)}"
             app.logger.error(f"❌ {error_msg}")
             import traceback
             app.logger.error(traceback.format_exc())
 
-            # JSON/API error response – structured error payload
             return jsonify({
                 "status": "error",
                 "success": False,
@@ -7087,30 +7043,53 @@ def _send_backup_success_email(recipient: Optional[str], backup_path: str, times
     if not recipient:
         current_app.logger.warning("Backup completed but no recipient configured; skipping email.")
         return
-    msg = Message(
-        subject=f"Daily Database Backup – {timestamp.strftime('%Y/%m/%d')}",
-        recipients=[recipient],
-        body="Your automated daily database backup is ready.\nAttached is the latest PostgreSQL SQL dump."
-    )
-    with open(backup_path, 'rb') as fh:
-        msg.attach(os.path.basename(backup_path), 'application/sql', fh.read())
-    mail.send(msg)
+
+    from threading import Thread
+
+    def _send_backup_success_email_bg(recipient_email, path, ts):
+        try:
+            with current_app.app_context():
+                current_app.logger.info("backup_success_email[BG]: job started")
+                msg = Message(
+                    subject=f"Daily Database Backup – {ts.strftime('%Y/%m/%d')}",
+                    recipients=[recipient_email],
+                    body="Your automated daily database backup is ready.\nAttached is the latest PostgreSQL SQL dump."
+                )
+                with open(path, 'rb') as fh:
+                    msg.attach(os.path.basename(path), 'application/sql', fh.read())
+                mail.send(msg)
+                current_app.logger.info(f"backup_success_email[BG]: email sent to {recipient_email}")
+        except Exception as exc_bg:
+            current_app.logger.error(
+                f"backup_success_email[BG]: failed to send backup success email to {recipient_email}: {str(exc_bg)}"
+            )
+
+    Thread(target=_send_backup_success_email_bg, args=(recipient, backup_path, timestamp), daemon=True).start()
 
 
 def _send_backup_failure_email(recipient: Optional[str], error_message: str, timestamp: datetime):
     if not recipient:
         current_app.logger.warning("Backup failed but no recipient configured for warning email.")
         return
-    try:
-        msg = Message(
-            subject="⚠️ Daily Backup Failed – Action Required",
-            recipients=[recipient],
-            body=f"Automated backup failed at {timestamp.strftime('%Y-%m-%d %H:%M UTC')}.\n\nError: {error_message}\n"
-                 "Please review the server logs and retry the backup manually."
-        )
-        mail.send(msg)
-    except Exception as exc:
-        current_app.logger.error(f"Could not send backup failure email: {exc}")
+
+    from threading import Thread
+
+    def _send_backup_failure_email_bg(recipient_email, error_msg, ts):
+        try:
+            with current_app.app_context():
+                current_app.logger.info("backup_failure_email[BG]: job started")
+                msg = Message(
+                    subject="⚠️ Daily Backup Failed – Action Required",
+                    recipients=[recipient_email],
+                    body=f"Automated backup failed at {ts.strftime('%Y-%m-%d %H:%M UTC')}.\n\nError: {error_msg}\n"
+                         "Please review the server logs and retry the backup manually."
+                )
+                mail.send(msg)
+                current_app.logger.info(f"backup_failure_email[BG]: email sent to {recipient_email}")
+        except Exception as exc:
+            current_app.logger.error(f"Could not send backup failure email (background): {exc}")
+
+    Thread(target=_send_backup_failure_email_bg, args=(recipient, error_message, timestamp), daemon=True).start()
 
 
 def run_database_backup(trigger: str = 'manual', email_override: Optional[str] = None) -> Dict[str, str]:
