@@ -126,6 +126,9 @@ def create_app(config_class: type[Config] | None = None):
     config_obj = config_class or Config
     app.config.from_object(config_obj)
 
+    # Ensure SERVER_NAME is always present but optional by default
+    app.config.setdefault('SERVER_NAME', None)
+
     if app.config.get('IS_RENDER'):
         app.logger.info("Render deployment detected – enabling secure cookies.")
         app.config.setdefault('SESSION_COOKIE_SECURE', True)
