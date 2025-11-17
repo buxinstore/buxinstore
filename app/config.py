@@ -10,6 +10,26 @@ class Config:
     # Use DATABASE_URL directly without rewriting, fallbacks, or driver switching.
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Connection pool settings to handle SSL connection errors
+    # pool_pre_ping: Test connections before using them (handles stale connections)
+    # pool_recycle: Recycle connections after 1 hour (prevents SSL timeout issues)
+    # pool_size: Number of connections to maintain in the pool
+    # max_overflow: Maximum number of connections beyond pool_size
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,  # Test connections before using them
+        "pool_recycle": 3600,   # Recycle connections after 1 hour
+        "pool_size": 10,        # Number of connections to maintain
+        "max_overflow": 20,     # Maximum overflow connections
+        "connect_args": {
+            "connect_timeout": 10,  # Connection timeout in seconds
+            "sslmode": "require",   # Require SSL for PostgreSQL
+            "keepalives": 1,        # Enable TCP keepalives
+            "keepalives_idle": 30,  # Start keepalives after 30 seconds of idle
+            "keepalives_interval": 10,  # Send keepalives every 10 seconds
+            "keepalives_count": 5,  # Close connection after 5 failed keepalives
+        }
+    }
 
     IS_RENDER = bool(os.environ.get("RENDER"))
 

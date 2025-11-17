@@ -230,6 +230,27 @@ def create_app(config_class: type[Config] | None = None):
     def healthcheck():
         return jsonify({"status": "ok"}), 200
 
+    # Add error handler for database connection errors
+    @app.errorhandler(OperationalError)
+    def handle_database_error(e):
+        """Handle database connection errors gracefully."""
+        app.logger.error(f"Database connection error: {e}", exc_info=True)
+        # Try to rollback any pending transaction
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        
+        # Return a user-friendly error message
+        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({
+                "error": "Database connection error",
+                "message": "A temporary database error occurred. Please try again."
+            }), 503
+        else:
+            flash("A temporary database error occurred. Please try again.", "error")
+            return redirect(request.referrer or url_for("home")), 503
+
     return app
 
 # Create the application
