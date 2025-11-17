@@ -3593,13 +3593,18 @@ def admin_email_customers():
             return jsonify(response_payload), 202
 
         log.info("admin_email_customers[POST]: building customer email query")
+        # Build query with proper email validation
+        # Filter: is_admin == False, email is not None, email != "", email contains "@"
         base_query = User.query.filter(
             User.is_admin == False,  # noqa: E712
             User.email.isnot(None),
+            User.email != "",
+            User.email.contains("@"),
         )
 
         try:
             estimated_total = base_query.count()
+            log.info(f"admin_email_customers[POST]: Total customers found: {estimated_total}")
         except Exception as count_exc:
             log.warning(f"admin_email_customers[POST]: could not count recipients: {count_exc}")
             estimated_total = None
@@ -3631,7 +3636,7 @@ def admin_email_customers():
             ), 400
 
         log.info(
-            "admin_email_customers[POST]: queueing batched customer email job",
+            f"admin_email_customers[POST]: queueing batched customer email job for {estimated_total} customers",
             extra={"queued_for": estimated_total},
         )
 

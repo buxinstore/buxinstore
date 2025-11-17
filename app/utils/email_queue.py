@@ -112,52 +112,82 @@ def _send_bulk_email_job(
         try:
             _ensure_resend_config()
             from_email = _get_from_email()
+            log.info(f"email_queue._send_bulk_email_job: Resend configured, from_email={from_email}")
 
             sent = 0
             failed = 0
             total = 0
+            skipped = 0
+            valid_emails = []
 
-            # Stream recipients; do NOT materialize full list
+            # Helper function to validate email
+            def is_valid_email(email: str) -> bool:
+                """Check if email is valid: not None, not empty, contains @"""
+                if not email:
+                    return False
+                if not isinstance(email, str):
+                    return False
+                email = email.strip()
+                if not email:
+                    return False
+                if "@" not in email:
+                    return False
+                return True
+
+            # Stream recipients and collect valid emails
+            log.info("email_queue._send_bulk_email_job: collecting valid customer emails")
             if hasattr(recipients_source, "yield_per"):
                 iterator = recipients_source.yield_per(100)
-
-                def iter_emails():
-                    for user in iterator:
-                        addr = getattr(user, "email", None)
-                        if addr:
-                            yield addr
+                for user in iterator:
+                    addr = getattr(user, "email", None)
+                    if is_valid_email(addr):
+                        valid_emails.append(addr)
+                    else:
+                        skipped += 1
+                        log.warning(f"email_queue._send_bulk_email_job: skipping invalid email: {addr}")
             else:
+                for addr in recipients_source:
+                    if is_valid_email(addr):
+                        valid_emails.append(addr)
+                    else:
+                        skipped += 1
+                        log.warning(f"email_queue._send_bulk_email_job: skipping invalid email: {addr}")
 
-                def iter_emails():
-                    for addr in recipients_source:
-                        if addr:
-                            yield addr
+            total_valid = len(valid_emails)
+            log.info(f"email_queue._send_bulk_email_job: Valid customer emails: {total_valid}, Skipped: {skipped}")
 
-            for addr in iter_emails():
+            # Send emails to all valid addresses - NEVER break the loop on errors
+            for email in valid_emails:
                 total += 1
+                log.info(f"email_queue._send_bulk_email_job: Sending to: {email} ({total}/{total_valid})")
                 try:
                     payload: Dict[str, Any] = {
                         "from": from_email,
-                        "to": addr,
+                        "to": email,
                         "subject": subject,
                         "html": html_body or "",
                     }
                     if metadata:
                         payload["headers"] = {"X-Metadata": str(metadata)}
 
-                    resend.Emails.send(payload)
+                    r = resend.Emails.send(payload)
                     sent += 1
                     log.info(
-                        "email_queue._send_bulk_email_job: email sent",
-                        extra={"job_id": job_id, "recipient": addr, "thread": thread_name},
+                        f"email_queue._send_bulk_email_job: Successfully sent to: {email}",
+                        extra={"job_id": job_id, "recipient": email, "thread": thread_name},
                     )
-                except Exception as exc_send:
+                except Exception as e:
                     failed += 1
+                    error_msg = str(e)
                     log.error(
-                        f"email_queue._send_bulk_email_job: failed to send to {addr}: {exc_send}",
+                        f"email_queue._send_bulk_email_job: Error sending to: {email} - {error_msg}",
                         exc_info=True,
+                        extra={"job_id": job_id, "recipient": email, "thread": thread_name},
                     )
+                    # Continue to next email - DO NOT break the loop
+                    continue
 
+                # Update status after each attempt
                 email_status[job_id] = {
                     "status": "running",
                     "sent": sent,
@@ -173,13 +203,14 @@ def _send_bulk_email_job(
             }
 
             log.info(
-                "email_queue._send_bulk_email_job: finished",
+                f"email_queue._send_bulk_email_job: finished - Total: {total}, Sent: {sent}, Failed: {failed}, Skipped: {skipped}",
                 extra={
                     "job_id": job_id,
                     "thread": thread_name,
                     "sent": sent,
                     "failed": failed,
                     "total": total,
+                    "skipped": skipped,
                 },
             )
         except Exception as exc:
