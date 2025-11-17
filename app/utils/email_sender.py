@@ -41,15 +41,20 @@ def sendEmail(to: str, subject: str, html: str) -> bool:
                 current_app.logger.error("sendEmail: AppSettings not found in database")
                 return False
             
-            # Get API key from environment (never hardcoded)
-            api_key = os.getenv("RESEND_API_KEY")
+            # Get API key from database settings or environment
+            api_key = settings.resend_api_key or os.getenv("RESEND_API_KEY")
             if not api_key:
-                current_app.logger.error("sendEmail: RESEND_API_KEY not configured in environment")
+                current_app.logger.error("sendEmail: RESEND_API_KEY not configured in environment or database")
+                return False
+            
+            # Check if Resend is enabled
+            if settings.resend_enabled is False:
+                current_app.logger.warning("sendEmail: Resend email is disabled in settings")
                 return False
             
             # Get from_email from database, fallback to environment, then default
             from_email = (
-                settings.from_email or 
+                settings.resend_from_email or 
                 os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
             )
             

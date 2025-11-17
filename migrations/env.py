@@ -11,11 +11,22 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv  # noqa: E402
+import os  # noqa: E402
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-from app import app  # noqa: E402
-from app.extensions import db  # noqa: E402
+# Get database URL from environment variable directly (for migrations)
+# This must be set BEFORE importing the app, as the app initialization
+# requires SQLALCHEMY_DATABASE_URI to be set
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    raise RuntimeError(
+        "DATABASE_URL environment variable is not set. "
+        "Please set it in your .env file or environment before running migrations."
+    )
+
+# Set the database URL in the environment so the app can use it
+os.environ["DATABASE_URL"] = database_url
 
 config = context.config
 
@@ -27,7 +38,11 @@ if config.config_file_name is not None:
             "Alembic logging configuration skipped: %s", exc
         )
 
-config.set_main_option("sqlalchemy.url", app.config["SQLALCHEMY_DATABASE_URI"])
+config.set_main_option("sqlalchemy.url", database_url)
+
+# Now import app and db - the database URL is already set in the environment
+from app import app  # noqa: E402
+from app.extensions import db  # noqa: E402
 
 target_metadata = db.metadata
 

@@ -25,19 +25,7 @@ def init_extensions(app):
 
     csrf.init_app(app)
 
-    try:
-        if app.config.get("MAIL_SERVER"):
-            mail.init_app(app)
-            app.logger.info(
-                "✅ Flask-Mail initialized: %s:%s",
-                app.config.get("MAIL_SERVER"),
-                app.config.get("MAIL_PORT"),
-            )
-        else:
-            app.logger.warning(
-                "⚠️ Flask-Mail not initialized: MAIL_SERVER not configured"
-            )
-    except Exception as exc:  # pragma: no cover - defensive logging
-        app.logger.error(f"❌ Failed to initialize Flask-Mail: {exc}", exc_info=True)
+    # Flask-Mail removed - using Resend API instead
+    app.logger.info("✅ Email system: Using Resend API (Flask-Mail disabled)")
 
     return app

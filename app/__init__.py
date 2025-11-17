@@ -170,16 +170,7 @@ def create_app(config_class: type[Config] | None = None):
         default_google_redirect,
     )
     
-    # Email configuration (from environment variables only)
-    app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-    try:
-        app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-    except (ValueError, TypeError):
-        app.config['MAIL_PORT'] = 587
-    app.config['MAIL_USE_TLS'] = str(os.environ.get('MAIL_USE_TLS', 'True')).lower() == 'true'
-    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
-    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
-    app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', os.environ.get('MAIL_USERNAME', ''))
+    # Email configuration removed - using Resend API instead
     
     # File uploads
     app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
@@ -1181,15 +1172,12 @@ class AppSettings(db.Model):
     whatsapp_business_name = db.Column(db.String(255))
     whatsapp_bulk_messaging_enabled = db.Column(db.Boolean, default=False)
     # Email Settings (Resend)
-    from_email = db.Column(db.String(255))  # Resend from email address
+    resend_api_key = db.Column(db.String(255))  # Resend API key (stored in DB, can also use env var)
+    resend_from_email = db.Column(db.String(255))  # Resend from email address
+    resend_default_recipient = db.Column(db.String(255))  # Default recipient for admin emails
+    resend_enabled = db.Column(db.Boolean, default=True)  # Enable/disable Resend email sending
     contact_email = db.Column(db.String(255))  # Contact email for support
     default_subject_prefix = db.Column(db.String(100), default='BuXin Store')  # Default subject prefix
-    # Legacy SMTP Settings (deprecated, kept for migration compatibility)
-    smtp_server = db.Column(db.String(255), default='smtp.gmail.com')
-    smtp_port = db.Column(db.Integer, default=587)
-    smtp_use_tls = db.Column(db.Boolean, default=True)
-    smtp_username = db.Column(db.String(255))
-    smtp_password = db.Column(db.String(255))
     # AI Settings (Optional)
     ai_api_key = db.Column(db.String(255))
     ai_auto_prompt_improvements = db.Column(db.Boolean, default=False)
@@ -2983,11 +2971,39 @@ def admin_settings():
             # Different error - re-raise
             raise
     
-    # Get stats for Data & Security section
-    from sqlalchemy import func
-    total_customers = User.query.filter(User.role == 'customer').count()
-    total_products = Product.query.count()
-    total_orders = Order.query.count()
+    # Get stats for Data & Security section (with defensive error handling)
+    from sqlalchemy import func, text
+    from sqlalchemy.exc import InternalError, OperationalError, ProgrammingError
+    
+    # Safely get customer count with rollback on error
+    try:
+        total_customers = User.query.filter(User.role == 'customer').count()
+    except (InternalError, OperationalError, ProgrammingError) as e:
+        current_app.logger.warning(f"Error counting customers (role column may not exist): {str(e)}")
+        try:
+            db.session.rollback()
+            # Try alternative query if role column doesn't exist
+            total_customers = User.query.filter(~User.is_admin).count()
+        except Exception as e2:
+            current_app.logger.error(f"Error in fallback customer count: {str(e2)}")
+            db.session.rollback()
+            total_customers = 0
+    
+    # Safely get product count
+    try:
+        total_products = Product.query.count()
+    except Exception as e:
+        current_app.logger.error(f"Error counting products: {str(e)}")
+        db.session.rollback()
+        total_products = 0
+    
+    # Safely get order count
+    try:
+        total_orders = Order.query.count()
+    except Exception as e:
+        current_app.logger.error(f"Error counting orders: {str(e)}")
+        db.session.rollback()
+        total_orders = 0
     
     # Handle POST requests
     if request.method == 'POST':
@@ -3074,7 +3090,10 @@ def admin_settings():
                 
             elif section == 'email':
                 # Resend email settings
-                settings.from_email = request.form.get('from_email', '').strip()
+                settings.resend_api_key = request.form.get('resend_api_key', '').strip()
+                settings.resend_from_email = request.form.get('resend_from_email', '').strip()
+                settings.resend_default_recipient = request.form.get('resend_default_recipient', '').strip()
+                settings.resend_enabled = request.form.get('resend_enabled') == 'on'
                 settings.contact_email = request.form.get('contact_email', '').strip()
                 settings.default_subject_prefix = request.form.get('default_subject_prefix', 'BuXin Store').strip()
                 
@@ -3105,7 +3124,7 @@ def admin_settings():
         explicit_website_url = os.getenv("WEBSITE_URL")
         settings.website_url = (explicit_website_url or current_app.get_base_url() or "").rstrip("/")
     if not settings.support_email:
-        settings.support_email = os.getenv('SUPPORT_EMAIL', os.getenv('MAIL_DEFAULT_SENDER', ''))
+        settings.support_email = os.getenv('SUPPORT_EMAIL', '')
     if not settings.contact_whatsapp:
         settings.contact_whatsapp = os.getenv('CONTACT_WHATSAPP', '')
     
@@ -3129,30 +3148,22 @@ def admin_settings():
         settings.whatsapp_business_name = os.getenv('BUSINESS_NAME', os.getenv('WHATSAPP_BUSINESS_NAME', ''))
     
     # Resend email settings (load from environment if not set)
-    if not settings.from_email:
-        settings.from_email = os.getenv('RESEND_FROM_EMAIL', 'onboarding@resend.dev')
+    if not settings.resend_api_key:
+        settings.resend_api_key = os.getenv('RESEND_API_KEY', '')
+    if not settings.resend_from_email:
+        settings.resend_from_email = os.getenv('RESEND_FROM_EMAIL', 'onboarding@resend.dev')
+    if not settings.resend_default_recipient:
+        settings.resend_default_recipient = os.getenv('RESEND_DEFAULT_RECIPIENT', '')
+    if settings.resend_enabled is None:
+        settings.resend_enabled = os.getenv('RESEND_ENABLED', 'True').lower() == 'true'
     if not settings.contact_email:
-        settings.contact_email = os.getenv('SUPPORT_EMAIL', os.getenv('MAIL_DEFAULT_SENDER', ''))
+        settings.contact_email = os.getenv('SUPPORT_EMAIL', '')
     if not settings.default_subject_prefix:
         settings.default_subject_prefix = os.getenv('EMAIL_SUBJECT_PREFIX', 'BuXin Store')
-    # Legacy SMTP settings (deprecated, kept for compatibility)
-    if not settings.smtp_server:
-        settings.smtp_server = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
-    if not settings.smtp_port:
-        try:
-            settings.smtp_port = int(os.getenv('MAIL_PORT', 587))
-        except ValueError:
-            settings.smtp_port = 587
-    if settings.smtp_use_tls is None:
-        settings.smtp_use_tls = os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
-    if not settings.smtp_username:
-        settings.smtp_username = os.getenv('MAIL_USERNAME', '')
-    if not settings.smtp_password:
-        settings.smtp_password = os.getenv('MAIL_PASSWORD', '')
     if not settings.backup_time:
         settings.backup_time = '02:00'
     if not settings.backup_email:
-        settings.backup_email = settings.contact_email or settings.from_email or settings.smtp_username or app.config.get('MAIL_USERNAME') or os.getenv('MAIL_USERNAME', '')
+        settings.backup_email = settings.contact_email or settings.resend_from_email or settings.resend_default_recipient or os.getenv('RESEND_DEFAULT_RECIPIENT', '')
     if not settings.backup_retention_days:
         settings.backup_retention_days = 30
     
@@ -3359,18 +3370,19 @@ def admin_settings_test_email():
         current_app.logger.info(f"admin_settings_test_email: using recipient={test_email}")
 
         import resend
-        api_key = os.getenv("RESEND_API_KEY")
+        # Get API key from database settings or environment
+        api_key = settings.resend_api_key or os.getenv("RESEND_API_KEY")
         if not api_key:
             current_app.logger.warning("admin_settings_test_email: RESEND_API_KEY is not configured")
             return jsonify({
                 'success': False,
                 'status': 'error',
-                'message': 'Email failed: RESEND_API_KEY is not configured in environment variables'
+                'message': 'Email failed: RESEND_API_KEY is not configured in environment variables or admin settings'
             }), 400
 
         resend.api_key = api_key
         # Get from_email from database settings
-        from_email = settings.from_email or os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+        from_email = settings.resend_from_email or os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
         subject_prefix = settings.default_subject_prefix or "BuXin Store"
 
         subject = f"{subject_prefix} - Test Email"
@@ -3496,22 +3508,21 @@ def admin_email_customers():
             log.warning(f"admin_email_customers: unexpected method {request.method}")
             return jsonify({"status": "error", "message": "Method not allowed"}), 405
 
-        log.info("admin_email_customers[POST]: validating mail configuration")
-        if not (
-            app.config.get("MAIL_SERVER")
-            and app.config.get("MAIL_USERNAME")
-            and app.config.get("MAIL_PASSWORD")
-        ):
+        log.info("admin_email_customers[POST]: validating Resend email configuration")
+        # Check Resend configuration
+        settings = AppSettings.query.first()
+        resend_api_key = os.getenv("RESEND_API_KEY") or (settings.resend_api_key if settings else None)
+        if not resend_api_key:
             log.error(
-                "admin_email_customers[POST]: mail is not configured. "
-                "Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in environment."
+                "admin_email_customers[POST]: Resend is not configured. "
+                "Set RESEND_API_KEY in environment or admin settings."
             )
-            log.info("admin_email_customers[POST]: returning JSON error due to mail misconfiguration")
+            log.info("admin_email_customers[POST]: returning JSON error due to Resend misconfiguration")
             return jsonify(
                 {
                     "success": False,
                     "status": "error",
-                    "message": "Mail is not configured. Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD in environment.",
+                    "message": "Resend email is not configured. Set RESEND_API_KEY in environment or admin settings.",
                     "sent_count": 0,
                 }
             ), 500
@@ -7116,7 +7127,7 @@ def ensure_backup_defaults(settings: AppSettings, auto_commit: bool = False) -> 
         settings.backup_retention_days = 30
         updated = True
     if not settings.backup_email:
-        fallback = settings.smtp_username or current_app.config.get('MAIL_USERNAME') or os.getenv('MAIL_USERNAME')
+        fallback = settings.resend_default_recipient or settings.resend_from_email or settings.contact_email or os.getenv('RESEND_DEFAULT_RECIPIENT', '')
         settings.backup_email = fallback
         updated = True
     if updated and auto_commit:
@@ -7227,7 +7238,7 @@ def run_database_backup(trigger: str = 'manual', email_override: Optional[str] =
             backup_dir = os.path.dirname(backup_path)
             cleanup_old_backups(backup_dir, settings.backup_retention_days or 30)
 
-            recipient = email_override or settings.backup_email or settings.smtp_username or current_app.config.get('MAIL_USERNAME')
+            recipient = email_override or settings.backup_email or settings.resend_default_recipient or settings.resend_from_email
             try:
                 _send_backup_success_email(recipient, backup_path, timestamp)
             except Exception as email_exc:
@@ -7262,7 +7273,7 @@ def run_database_backup(trigger: str = 'manual', email_override: Optional[str] =
                 settings.backup_last_run = failure_time
                 settings.backup_last_status = 'fail'
                 settings.backup_last_message = str(exc)
-                failure_recipient = recipient or email_override or settings.backup_email or settings.smtp_username or current_app.config.get('MAIL_USERNAME')
+                failure_recipient = recipient or email_override or settings.backup_email or settings.resend_default_recipient or settings.resend_from_email
                 file_map = {}
                 if backup_path:
                     file_map['sql'] = backup_path
@@ -8008,7 +8019,7 @@ def admin_database_automation():
             if backup_email:
                 settings.backup_email = backup_email
             else:
-                settings.backup_email = settings.smtp_username or current_app.config.get('MAIL_USERNAME') or os.getenv('MAIL_USERNAME')
+                settings.backup_email = settings.resend_default_recipient or settings.resend_from_email or settings.contact_email or os.getenv('RESEND_DEFAULT_RECIPIENT', '')
             try:
                 retention_input = int(request.form.get('backup_retention_days', settings.backup_retention_days or 30))
                 settings.backup_retention_days = max(1, min(retention_input, 365))

@@ -16,6 +16,16 @@ email_status: Dict[str, Dict[str, Any]] = {}
 
 
 def _ensure_resend_config() -> None:
+    """Configure Resend API key from database settings or environment."""
+    try:
+        from app import AppSettings
+        settings = AppSettings.query.first()
+        if settings and settings.resend_api_key:
+            resend.api_key = settings.resend_api_key
+            return
+    except Exception:
+        pass
+    # Fallback to environment variable
     api_key = os.getenv("RESEND_API_KEY")
     if api_key:
         resend.api_key = api_key
@@ -26,8 +36,8 @@ def _get_from_email() -> str:
     try:
         from app import AppSettings
         settings = AppSettings.query.first()
-        if settings and settings.from_email:
-            return settings.from_email
+        if settings and settings.resend_from_email:
+            return settings.resend_from_email
     except Exception:
         pass
     # Fallback to environment variable, then default
