@@ -998,10 +998,11 @@ def _send_form_submission_notifications(
         if not settings:
             return
         
-        # Send WhatsApp notification if receiver is configured
-        if settings.contact_whatsapp_receiver:
+        # Send WhatsApp notification if receiver is configured (use new field with fallback to old)
+        whatsapp_receiver = settings.whatsapp_receiver or settings.contact_whatsapp_receiver
+        if whatsapp_receiver:
             try:
-                receiver_number = normalize_whatsapp_number(settings.contact_whatsapp_receiver)
+                receiver_number = normalize_whatsapp_number(whatsapp_receiver)
                 user_type = "User" if is_logged_in else "Subscriber"
                 name_info = f" ({user_name})" if user_name else ""
                 notification_message = (
@@ -1021,8 +1022,9 @@ def _send_form_submission_notifications(
             except Exception as e:
                 current_app.logger.error(f"Failed to send WhatsApp notification: {str(e)}")
         
-        # Send email notification if receiver is configured
-        if settings.contact_email_receiver:
+        # Send email notification if receiver is configured (use new field with fallback to old)
+        email_receiver = settings.email_receiver or settings.contact_email_receiver
+        if email_receiver:
             try:
                 from app.utils.email_queue import queue_single_email
                 
@@ -1048,7 +1050,7 @@ def _send_form_submission_notifications(
                 app_obj = current_app._get_current_object()
                 queue_single_email(
                     app_obj,
-                    settings.contact_email_receiver,
+                    email_receiver,
                     subject,
                     html_body
                 )
@@ -1153,9 +1155,12 @@ class AppSettings(db.Model):
     support_email = db.Column(db.String(255))
     contact_whatsapp = db.Column(db.String(50))
     company_logo_url = db.Column(db.String(500))
-    # Contact Form Receivers
+    # Contact Form Receivers (legacy - kept for backward compatibility)
     contact_whatsapp_receiver = db.Column(db.String(50))  # WhatsApp number that receives form submissions
     contact_email_receiver = db.Column(db.String(255))  # Email address that receives form submissions
+    # Default Communication Receivers (new - use these instead)
+    whatsapp_receiver = db.Column(db.String(50), default="+2200000000")  # Default WhatsApp receiver for all communications
+    email_receiver = db.Column(db.String(255), default="buxinstore9@gmail.com")  # Default email receiver for all communications
     # Payment Settings
     modempay_api_key = db.Column(db.String(255))
     modempay_public_key = db.Column(db.String(255))
@@ -3028,6 +3033,11 @@ def admin_settings():
                         settings.contact_whatsapp_receiver = request.form.get('contact_whatsapp_receiver', '').strip()
                     if hasattr(settings, 'contact_email_receiver'):
                         settings.contact_email_receiver = request.form.get('contact_email_receiver', '').strip()
+                    # Save new default receiver fields
+                    if hasattr(settings, 'whatsapp_receiver'):
+                        settings.whatsapp_receiver = request.form.get('whatsapp_receiver', '').strip() or '+2200000000'
+                    if hasattr(settings, 'email_receiver'):
+                        settings.email_receiver = request.form.get('email_receiver', '').strip() or 'buxinstore9@gmail.com'
                 except Exception:
                     # Columns don't exist yet - skip saving them
                     current_app.logger.warning("New receiver columns don't exist yet - migration needs to run")
@@ -3160,10 +3170,15 @@ def admin_settings():
         settings.contact_email = os.getenv('SUPPORT_EMAIL', '')
     if not settings.default_subject_prefix:
         settings.default_subject_prefix = os.getenv('EMAIL_SUBJECT_PREFIX', 'BuXin Store')
+    # Default communication receivers (load from environment if not set)
+    if not settings.whatsapp_receiver:
+        settings.whatsapp_receiver = os.getenv('WHATSAPP_RECEIVER', '+2200000000')
+    if not settings.email_receiver:
+        settings.email_receiver = os.getenv('EMAIL_RECEIVER', 'buxinstore9@gmail.com')
     if not settings.backup_time:
         settings.backup_time = '02:00'
     if not settings.backup_email:
-        settings.backup_email = settings.contact_email or settings.resend_from_email or settings.resend_default_recipient or os.getenv('RESEND_DEFAULT_RECIPIENT', '')
+        settings.backup_email = settings.email_receiver or settings.contact_email or settings.resend_from_email or settings.resend_default_recipient or os.getenv('RESEND_DEFAULT_RECIPIENT', '')
     if not settings.backup_retention_days:
         settings.backup_retention_days = 30
     
@@ -3303,7 +3318,8 @@ def admin_settings_test_whatsapp():
         test_number = request.json.get('test_number', '').strip() if request.is_json else request.form.get('test_number', '').strip()
         
         if not test_number:
-            test_number = os.getenv('WHATSAPP_TEST_NUMBER', '+2200000000')
+            # Use configured receiver or default
+            test_number = settings.whatsapp_receiver or settings.contact_whatsapp_receiver or os.getenv('WHATSAPP_TEST_NUMBER', '+2200000000')
         
         if not access_token or not phone_number_id:
             return jsonify({'success': False, 'message': 'WhatsApp credentials not configured'}), 400
@@ -3555,12 +3571,22 @@ def admin_email_customers():
         from app.utils.email_queue import queue_single_email, queue_bulk_email
         app_obj = app
 
-        if test_only and test_email:
+        if test_only:
+            # Use provided test email or fall back to configured email receiver
+            recipient_email = test_email or (settings.email_receiver if settings else None) or os.getenv('EMAIL_RECEIVER', '')
+            if not recipient_email:
+                return jsonify({
+                    "success": False,
+                    "status": "error",
+                    "message": "Test email address is required. Please provide a test email or configure EMAIL_RECEIVER in settings.",
+                    "sent_count": 0,
+                }), 400
+            
             log.info(
-                f"admin_email_customers[POST]: queueing single test email to {test_email} via email_queue/Resend"
+                f"admin_email_customers[POST]: queueing single test email to {recipient_email} via email_queue/Resend"
             )
             html_body = render_template("emails/admin_broadcast_email.html", subject=subject, body_text=body)
-            queue_single_email(app_obj, test_email, subject, html_body)
+            queue_single_email(app_obj, recipient_email, subject, html_body)
 
             response_payload = {"success": True, "status": "queued", "recipients": 1}
             log.info(f"admin_email_customers[POST]: returning response {response_payload}")
@@ -7127,7 +7153,7 @@ def ensure_backup_defaults(settings: AppSettings, auto_commit: bool = False) -> 
         settings.backup_retention_days = 30
         updated = True
     if not settings.backup_email:
-        fallback = settings.resend_default_recipient or settings.resend_from_email or settings.contact_email or os.getenv('RESEND_DEFAULT_RECIPIENT', '')
+        fallback = settings.email_receiver or settings.resend_default_recipient or settings.resend_from_email or settings.contact_email or os.getenv('RESEND_DEFAULT_RECIPIENT', '')
         settings.backup_email = fallback
         updated = True
     if updated and auto_commit:
@@ -7238,7 +7264,7 @@ def run_database_backup(trigger: str = 'manual', email_override: Optional[str] =
             backup_dir = os.path.dirname(backup_path)
             cleanup_old_backups(backup_dir, settings.backup_retention_days or 30)
 
-            recipient = email_override or settings.backup_email or settings.resend_default_recipient or settings.resend_from_email
+            recipient = email_override or settings.backup_email or settings.email_receiver or settings.resend_default_recipient or settings.resend_from_email
             try:
                 _send_backup_success_email(recipient, backup_path, timestamp)
             except Exception as email_exc:
@@ -7273,7 +7299,7 @@ def run_database_backup(trigger: str = 'manual', email_override: Optional[str] =
                 settings.backup_last_run = failure_time
                 settings.backup_last_status = 'fail'
                 settings.backup_last_message = str(exc)
-                failure_recipient = recipient or email_override or settings.backup_email or settings.resend_default_recipient or settings.resend_from_email
+                failure_recipient = recipient or email_override or settings.backup_email or settings.email_receiver or settings.resend_default_recipient or settings.resend_from_email
                 file_map = {}
                 if backup_path:
                     file_map['sql'] = backup_path
@@ -8019,7 +8045,7 @@ def admin_database_automation():
             if backup_email:
                 settings.backup_email = backup_email
             else:
-                settings.backup_email = settings.resend_default_recipient or settings.resend_from_email or settings.contact_email or os.getenv('RESEND_DEFAULT_RECIPIENT', '')
+                settings.backup_email = settings.email_receiver or settings.resend_default_recipient or settings.resend_from_email or settings.contact_email or os.getenv('RESEND_DEFAULT_RECIPIENT', '')
             try:
                 retention_input = int(request.form.get('backup_retention_days', settings.backup_retention_days or 30))
                 settings.backup_retention_days = max(1, min(retention_input, 365))
