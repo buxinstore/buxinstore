@@ -966,6 +966,87 @@ def send_whatsapp_message_with_logging(
         return False, error_msg, log_entry.id
 
 
+def _send_form_submission_notifications(
+    whatsapp_number: str,
+    email: str,
+    user_name: Optional[str] = None,
+    is_logged_in: bool = False
+) -> None:
+    """
+    Send notifications to admin-configured receivers when a form is submitted.
+    
+    Args:
+        whatsapp_number: The WhatsApp number submitted
+        email: The email address submitted
+        user_name: Name of the user (if logged in)
+        is_logged_in: Whether the user is logged in
+    """
+    try:
+        settings = AppSettings.query.first()
+        if not settings:
+            return
+        
+        # Send WhatsApp notification if receiver is configured
+        if settings.contact_whatsapp_receiver:
+            try:
+                receiver_number = normalize_whatsapp_number(settings.contact_whatsapp_receiver)
+                user_type = "User" if is_logged_in else "Subscriber"
+                name_info = f" ({user_name})" if user_name else ""
+                notification_message = (
+                    f"📱 New WhatsApp Form Submission\n\n"
+                    f"Type: {user_type}{name_info}\n"
+                    f"Email: {email}\n"
+                    f"WhatsApp: {whatsapp_number}\n"
+                    f"Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                )
+                
+                send_whatsapp_message_with_logging(
+                    whatsapp_number=receiver_number,
+                    message=notification_message,
+                    user_id=None,
+                    subscriber_id=None
+                )
+            except Exception as e:
+                current_app.logger.error(f"Failed to send WhatsApp notification: {str(e)}")
+        
+        # Send email notification if receiver is configured
+        if settings.contact_email_receiver:
+            try:
+                from app.utils.email_queue import queue_single_email
+                
+                user_type = "User" if is_logged_in else "Subscriber"
+                name_info = f" ({user_name})" if user_name else ""
+                
+                subject = f"New WhatsApp Form Submission - {user_type}"
+                html_body = f"""
+                <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <h2 style="color: #25D366;">📱 New WhatsApp Form Submission</h2>
+                    <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <p><strong>Type:</strong> {user_type}{name_info}</p>
+                        <p><strong>Email:</strong> {email}</p>
+                        <p><strong>WhatsApp Number:</strong> {whatsapp_number}</p>
+                        <p><strong>Submitted At:</strong> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+                    </div>
+                    <p style="color: #666; font-size: 12px;">This is an automated notification from your BuXin store.</p>
+                </body>
+                </html>
+                """
+                
+                app_obj = current_app._get_current_object()
+                queue_single_email(
+                    app_obj,
+                    settings.contact_email_receiver,
+                    subject,
+                    html_body
+                )
+            except Exception as e:
+                current_app.logger.error(f"Failed to send email notification: {str(e)}")
+                
+    except Exception as e:
+        current_app.logger.error(f"Error in _send_form_submission_notifications: {str(e)}")
+
+
 def is_username_available(username: str, exclude_user_id: Optional[int] = None) -> bool:
     query = User.query.filter_by(username=username)
     if exclude_user_id:
@@ -1060,6 +1141,9 @@ class AppSettings(db.Model):
     support_email = db.Column(db.String(255))
     contact_whatsapp = db.Column(db.String(50))
     company_logo_url = db.Column(db.String(500))
+    # Contact Form Receivers
+    contact_whatsapp_receiver = db.Column(db.String(50))  # WhatsApp number that receives form submissions
+    contact_email_receiver = db.Column(db.String(255))  # Email address that receives form submissions
     # Payment Settings
     modempay_api_key = db.Column(db.String(255))
     modempay_public_key = db.Column(db.String(255))
@@ -2759,6 +2843,8 @@ def admin_settings():
                 settings.website_url = request.form.get('website_url', '').strip()
                 settings.support_email = request.form.get('support_email', '').strip()
                 settings.contact_whatsapp = request.form.get('contact_whatsapp', '').strip()
+                settings.contact_whatsapp_receiver = request.form.get('contact_whatsapp_receiver', '').strip()
+                settings.contact_email_receiver = request.form.get('contact_email_receiver', '').strip()
                 
                 # Handle logo upload
                 logo_file = request.files.get('company_logo')
@@ -3772,6 +3858,14 @@ def api_whatsapp_submit():
                     user_id=current_user.id
                 )
                 
+                # Send notification to admin-configured receivers
+                _send_form_submission_notifications(
+                    whatsapp_number=normalized_number,
+                    email=current_user.email,
+                    user_name=user_name,
+                    is_logged_in=True
+                )
+                
                 if success:
                     return jsonify({
                         'success': True,
@@ -3819,6 +3913,14 @@ def api_whatsapp_submit():
                     whatsapp_number=normalized_number,
                     message=welcome_message,
                     subscriber_id=subscriber.id
+                )
+                
+                # Send notification to admin-configured receivers
+                _send_form_submission_notifications(
+                    whatsapp_number=normalized_number,
+                    email=email,
+                    user_name=None,
+                    is_logged_in=False
                 )
                 
                 if success:
