@@ -21,22 +21,43 @@ csrf = CSRFProtect()
 
 def init_extensions(app):
     """Initialize all extensions with the given Flask app."""
+    # Initialize SQLAlchemy first
+    db.init_app(app)
+    
     # Get engine options from config
     engine_options = app.config.get("SQLALCHEMY_ENGINE_OPTIONS", {})
     
-    # Flask-SQLAlchemy 3.x: Pass engine_options through init_app
-    # The engine_options dict is passed directly to create_engine
+    # Flask-SQLAlchemy 3.x: Configure engine after initialization
+    # Since init_app() doesn't support engine_options, we recreate the engine
     if engine_options:
-        # Initialize with engine options
-        db.init_app(app, engine_options=engine_options)
-        app.logger.info(
-            f"✅ Database connection pool configured: "
-            f"pool_pre_ping={engine_options.get('pool_pre_ping')}, "
-            f"pool_recycle={engine_options.get('pool_recycle')}, "
-            f"pool_size={engine_options.get('pool_size')}"
-        )
-    else:
-        db.init_app(app)
+        with app.app_context():
+            # Get the database URI
+            database_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+            if database_uri:
+                # Import create_engine to recreate with options
+                from sqlalchemy import create_engine
+                
+                # Dispose of the old engine
+                try:
+                    db.engine.dispose(close=True)
+                except Exception:
+                    pass
+                
+                # Create a new engine with the options
+                new_engine = create_engine(
+                    database_uri,
+                    **engine_options
+                )
+                
+                # Replace the engine
+                db.engine = new_engine
+                
+                app.logger.info(
+                    f"✅ Database connection pool configured: "
+                    f"pool_pre_ping={engine_options.get('pool_pre_ping')}, "
+                    f"pool_recycle={engine_options.get('pool_recycle')}, "
+                    f"pool_size={engine_options.get('pool_size')}"
+                )
     
     # Add connection pool event listeners for better error handling
     @event.listens_for(db.engine, "connect")
