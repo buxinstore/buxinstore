@@ -966,6 +966,27 @@ def send_whatsapp_message_with_logging(
         return False, error_msg, log_entry.id
 
 
+def _format_email_subject(subject: str) -> str:
+    """
+    Format email subject with prefix from database settings.
+    
+    Args:
+        subject: The base subject line
+        
+    Returns:
+        Formatted subject with prefix (e.g., "BuXin Store - Reset Your Password")
+    """
+    try:
+        settings = AppSettings.query.first()
+        if settings and settings.default_subject_prefix:
+            prefix = settings.default_subject_prefix.strip()
+            if prefix and not subject.startswith(prefix):
+                return f"{prefix} - {subject}"
+    except Exception:
+        pass
+    return subject
+
+
 def _send_form_submission_notifications(
     whatsapp_number: str,
     email: str,
@@ -1017,7 +1038,7 @@ def _send_form_submission_notifications(
                 user_type = "User" if is_logged_in else "Subscriber"
                 name_info = f" ({user_name})" if user_name else ""
                 
-                subject = f"New WhatsApp Form Submission - {user_type}"
+                subject = _format_email_subject(f"New WhatsApp Form Submission - {user_type}")
                 html_body = f"""
                 <html>
                 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -1159,7 +1180,11 @@ class AppSettings(db.Model):
     whatsapp_phone_number_id = db.Column(db.String(100))
     whatsapp_business_name = db.Column(db.String(255))
     whatsapp_bulk_messaging_enabled = db.Column(db.Boolean, default=False)
-    # Email Settings
+    # Email Settings (Resend)
+    from_email = db.Column(db.String(255))  # Resend from email address
+    contact_email = db.Column(db.String(255))  # Contact email for support
+    default_subject_prefix = db.Column(db.String(100), default='BuXin Store')  # Default subject prefix
+    # Legacy SMTP Settings (deprecated, kept for migration compatibility)
     smtp_server = db.Column(db.String(255), default='smtp.gmail.com')
     smtp_port = db.Column(db.Integer, default=587)
     smtp_use_tls = db.Column(db.Boolean, default=True)
@@ -1404,7 +1429,8 @@ def forgot_password():
                     "forgot_password[BG]: queueing password reset email",
                     extra={"recipient": user.email},
                 )
-                queue_single_email(app_obj, user.email, 'Reset Your Password - BuXin Store', html_body)
+                subject = _format_email_subject('Reset Your Password')
+                queue_single_email(app_obj, user.email, subject, html_body)
 
                 current_app.logger.info(f"✅ Password reset email queued for {user.email}")
                 # Don't reveal if email exists or not for security
@@ -2820,12 +2846,142 @@ def admin_site_settings():
 @admin_required
 def admin_settings():
     """Comprehensive App Settings page - main control center"""
-    # Get or create settings
-    settings = AppSettings.query.first()
-    if not settings:
-        settings = AppSettings()
-        db.session.add(settings)
-        db.session.commit()
+    # Get or create settings - handle missing columns gracefully
+    try:
+        settings = AppSettings.query.first()
+        if not settings:
+            settings = AppSettings()
+            db.session.add(settings)
+            db.session.commit()
+    except Exception as e:
+        # Migration hasn't run yet - use getattr with defaults for new columns
+        from sqlalchemy.exc import ProgrammingError
+        if isinstance(e, ProgrammingError) and 'does not exist' in str(e):
+            current_app.logger.warning("Migration not run yet - using safe access for new columns")
+            # Try to get existing settings using raw query
+            try:
+                from sqlalchemy import text
+                result = db.session.execute(text("SELECT id FROM app_settings LIMIT 1"))
+                row = result.fetchone()
+                if row:
+                    # Create a wrapper that loads all existing fields except the new ones
+                    settings_id = row[0]
+                    try:
+                        # Load all existing fields using raw SQL (excluding new columns)
+                        result = db.session.execute(text(
+                            "SELECT business_name, website_url, support_email, contact_whatsapp, "
+                            "company_logo_url, modempay_api_key, modempay_public_key, "
+                            "payment_return_url, payment_cancel_url, payments_enabled, "
+                            "cloudinary_cloud_name, cloudinary_api_key, cloudinary_api_secret, "
+                            "whatsapp_access_token, whatsapp_phone_number_id, whatsapp_business_name, "
+                            "whatsapp_bulk_messaging_enabled, smtp_server, smtp_port, smtp_use_tls, "
+                            "smtp_username, smtp_password, ai_api_key, ai_auto_prompt_improvements, "
+                            "backup_enabled, backup_time, backup_email, backup_retention_days, "
+                            "backup_last_run, backup_last_status, backup_last_message, updated_at "
+                            "FROM app_settings WHERE id = :id"
+                        ), {"id": settings_id})
+                        data = result.fetchone()
+                        
+                        # Create a simple object with all fields
+                        class SafeSettings:
+                            def __init__(self):
+                                self.id = settings_id
+                                # New columns (don't exist yet)
+                                self.contact_whatsapp_receiver = None
+                                self.contact_email_receiver = None
+                                
+                                # Load existing fields
+                                if data:
+                                    self.business_name = data[0]
+                                    self.website_url = data[1]
+                                    self.support_email = data[2]
+                                    self.contact_whatsapp = data[3]
+                                    self.company_logo_url = data[4]
+                                    self.modempay_api_key = data[5]
+                                    self.modempay_public_key = data[6]
+                                    self.payment_return_url = data[7]
+                                    self.payment_cancel_url = data[8]
+                                    self.payments_enabled = data[9]
+                                    self.cloudinary_cloud_name = data[10]
+                                    self.cloudinary_api_key = data[11]
+                                    self.cloudinary_api_secret = data[12]
+                                    self.whatsapp_access_token = data[13]
+                                    self.whatsapp_phone_number_id = data[14]
+                                    self.whatsapp_business_name = data[15]
+                                    self.whatsapp_bulk_messaging_enabled = data[16]
+                                    self.smtp_server = data[17]
+                                    self.smtp_port = data[18]
+                                    self.smtp_use_tls = data[19]
+                                    self.smtp_username = data[20]
+                                    self.smtp_password = data[21]
+                                    self.ai_api_key = data[22]
+                                    self.ai_auto_prompt_improvements = data[23]
+                                    self.backup_enabled = data[24]
+                                    self.backup_time = data[25]
+                                    self.backup_email = data[26]
+                                    self.backup_retention_days = data[27]
+                                    self.backup_last_run = data[28]
+                                    self.backup_last_status = data[29]
+                                    self.backup_last_message = data[30]
+                                    self.updated_at = data[31]
+                                else:
+                                    # Set defaults if no data
+                                    self.business_name = None
+                                    self.website_url = None
+                                    self.support_email = None
+                                    self.contact_whatsapp = None
+                                    self.company_logo_url = None
+                                    self.modempay_api_key = None
+                                    self.modempay_public_key = None
+                                    self.payment_return_url = None
+                                    self.payment_cancel_url = None
+                                    self.payments_enabled = None
+                                    self.cloudinary_cloud_name = None
+                                    self.cloudinary_api_key = None
+                                    self.cloudinary_api_secret = None
+                                    self.whatsapp_access_token = None
+                                    self.whatsapp_phone_number_id = None
+                                    self.whatsapp_business_name = None
+                                    self.whatsapp_bulk_messaging_enabled = None
+                                    self.smtp_server = None
+                                    self.smtp_port = None
+                                    self.smtp_use_tls = None
+                                    self.smtp_username = None
+                                    self.smtp_password = None
+                                    self.ai_api_key = None
+                                    self.ai_auto_prompt_improvements = None
+                                    self.backup_enabled = None
+                                    self.backup_time = None
+                                    self.backup_email = None
+                                    self.backup_retention_days = None
+                                    self.backup_last_run = None
+                                    self.backup_last_status = None
+                                    self.backup_last_message = None
+                                    self.updated_at = None
+                        
+                        settings = SafeSettings()
+                    except Exception as e:
+                        current_app.logger.error(f"Error loading settings: {str(e)}")
+                        # Fallback to minimal settings
+                        class SafeSettings:
+                            contact_whatsapp_receiver = None
+                            contact_email_receiver = None
+                        settings = SafeSettings()
+                else:
+                    # No settings exist - create empty wrapper
+                    class SafeSettings:
+                        contact_whatsapp_receiver = None
+                        contact_email_receiver = None
+                    settings = SafeSettings()
+            except Exception:
+                # Fallback to empty settings
+                class SafeSettings:
+                    contact_whatsapp_receiver = None
+                    contact_email_receiver = None
+                settings = SafeSettings()
+        else:
+            # Different error - re-raise
+            raise
     
     # Get stats for Data & Security section
     from sqlalchemy import func
@@ -2837,14 +2993,29 @@ def admin_settings():
     if request.method == 'POST':
         section = request.form.get('section')
         
+        # Check if settings is a SafeSettings wrapper (migration hasn't run)
+        is_safe_settings = hasattr(settings, '__class__') and settings.__class__.__name__ == 'SafeSettings'
+        if is_safe_settings and section == 'general':
+            flash('⚠️ Database migration required! Please run: python -m alembic upgrade head. The new receiver fields cannot be saved until the migration is complete.', 'warning')
+            flash('Note: Contact receiver settings will be available after running the migration.', 'info')
+            return redirect(url_for('admin_settings'))
+        
         try:
             if section == 'general':
                 settings.business_name = request.form.get('business_name', '').strip()
                 settings.website_url = request.form.get('website_url', '').strip()
                 settings.support_email = request.form.get('support_email', '').strip()
                 settings.contact_whatsapp = request.form.get('contact_whatsapp', '').strip()
-                settings.contact_whatsapp_receiver = request.form.get('contact_whatsapp_receiver', '').strip()
-                settings.contact_email_receiver = request.form.get('contact_email_receiver', '').strip()
+                # Only try to save new fields if they exist (migration has run)
+                try:
+                    if hasattr(settings, 'contact_whatsapp_receiver'):
+                        settings.contact_whatsapp_receiver = request.form.get('contact_whatsapp_receiver', '').strip()
+                    if hasattr(settings, 'contact_email_receiver'):
+                        settings.contact_email_receiver = request.form.get('contact_email_receiver', '').strip()
+                except Exception:
+                    # Columns don't exist yet - skip saving them
+                    current_app.logger.warning("New receiver columns don't exist yet - migration needs to run")
+                    pass
                 
                 # Handle logo upload
                 logo_file = request.files.get('company_logo')
@@ -2902,17 +3073,10 @@ def admin_settings():
                 flash('WhatsApp settings updated successfully.', 'success')
                 
             elif section == 'email':
-                settings.smtp_server = request.form.get('smtp_server', 'smtp.gmail.com').strip()
-                try:
-                    settings.smtp_port = int(request.form.get('smtp_port', 587))
-                except ValueError:
-                    settings.smtp_port = 587
-                settings.smtp_use_tls = request.form.get('smtp_use_tls') == 'on'
-                settings.smtp_username = request.form.get('smtp_username', '').strip()
-                smtp_password = request.form.get('smtp_password', '').strip()
-                # Only update if provided
-                if smtp_password:
-                    settings.smtp_password = smtp_password
+                # Resend email settings
+                settings.from_email = request.form.get('from_email', '').strip()
+                settings.contact_email = request.form.get('contact_email', '').strip()
+                settings.default_subject_prefix = request.form.get('default_subject_prefix', 'BuXin Store').strip()
                 
                 db.session.commit()
                 flash('Email settings updated successfully.', 'success')
@@ -2964,6 +3128,14 @@ def admin_settings():
     if not settings.whatsapp_business_name:
         settings.whatsapp_business_name = os.getenv('BUSINESS_NAME', os.getenv('WHATSAPP_BUSINESS_NAME', ''))
     
+    # Resend email settings (load from environment if not set)
+    if not settings.from_email:
+        settings.from_email = os.getenv('RESEND_FROM_EMAIL', 'onboarding@resend.dev')
+    if not settings.contact_email:
+        settings.contact_email = os.getenv('SUPPORT_EMAIL', os.getenv('MAIL_DEFAULT_SENDER', ''))
+    if not settings.default_subject_prefix:
+        settings.default_subject_prefix = os.getenv('EMAIL_SUBJECT_PREFIX', 'BuXin Store')
+    # Legacy SMTP settings (deprecated, kept for compatibility)
     if not settings.smtp_server:
         settings.smtp_server = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
     if not settings.smtp_port:
@@ -2980,7 +3152,7 @@ def admin_settings():
     if not settings.backup_time:
         settings.backup_time = '02:00'
     if not settings.backup_email:
-        settings.backup_email = settings.smtp_username or app.config.get('MAIL_USERNAME') or os.getenv('MAIL_USERNAME', '')
+        settings.backup_email = settings.contact_email or settings.from_email or settings.smtp_username or app.config.get('MAIL_USERNAME') or os.getenv('MAIL_USERNAME', '')
     if not settings.backup_retention_days:
         settings.backup_retention_days = 30
     
@@ -3169,7 +3341,7 @@ def admin_settings_test_whatsapp():
 @login_required
 @admin_required
 def admin_settings_test_email():
-    """Test email configuration using Resend synchronously."""
+    """Test email configuration using Resend with database settings."""
     try:
         current_app.logger.info("admin_settings_test_email: route start")
         settings = AppSettings.query.first()
@@ -3183,7 +3355,7 @@ def admin_settings_test_email():
         
         test_email = request.json.get('test_email', '').strip() if request.is_json else request.form.get('test_email', '').strip()
         if not test_email:
-            test_email = settings.support_email or current_user.email
+            test_email = settings.contact_email or settings.support_email or current_user.email
         current_app.logger.info(f"admin_settings_test_email: using recipient={test_email}")
 
         import resend
@@ -3193,18 +3365,23 @@ def admin_settings_test_email():
             return jsonify({
                 'success': False,
                 'status': 'error',
-                'message': 'Email failed: RESEND_API_KEY is not configured'
+                'message': 'Email failed: RESEND_API_KEY is not configured in environment variables'
             }), 400
 
         resend.api_key = api_key
-        from_email = os.getenv("RESEND_FROM_EMAIL", "buxinstore9@gmail.com")
+        # Get from_email from database settings
+        from_email = settings.from_email or os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+        subject_prefix = settings.default_subject_prefix or "BuXin Store"
 
-        subject = "Test Email from BuXin Admin (Resend)"
+        subject = f"{subject_prefix} - Test Email"
         html_body = f"""
             <html>
             <body>
                 <p>This is a test email from your BuXin Admin settings page via Resend.</p>
-                <p>Recipient: {test_email}</p>
+                <p><strong>Recipient:</strong> {test_email}</p>
+                <p><strong>From Email:</strong> {from_email}</p>
+                <p><strong>Subject Prefix:</strong> {subject_prefix}</p>
+                <p>If you received this email, your Resend configuration is working correctly! ✅</p>
             </body>
             </html>
         """
@@ -7002,7 +7179,7 @@ def _send_backup_success_email(recipient: Optional[str], backup_path: str, times
     from app.utils.email_queue import queue_single_email
     app_obj = current_app._get_current_object()
 
-    subject = f"Daily Database Backup – {timestamp.strftime('%Y/%m/%d')}"
+    subject = _format_email_subject(f"Daily Database Backup – {timestamp.strftime('%Y/%m/%d')}")
     html_body = (
         "Your automated daily database backup is ready.<br>"
         "Attached file path (server side): {path}".format(path=backup_path)
@@ -7022,7 +7199,7 @@ def _send_backup_failure_email(recipient: Optional[str], error_message: str, tim
     from app.utils.email_queue import queue_single_email
     app_obj = current_app._get_current_object()
 
-    subject = "⚠️ Daily Backup Failed – Action Required"
+    subject = _format_email_subject("⚠️ Daily Backup Failed – Action Required")
     html_body = (
         "Automated backup failed at {ts}.<br><br>Error: {err}<br>"
         "Please review the server logs and retry the backup manually.".format(

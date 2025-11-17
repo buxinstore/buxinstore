@@ -248,50 +248,52 @@
     </form>
   </div>
 
-  <!-- 5. Email Settings -->
+  <!-- 5. Email Settings (Resend) -->
   <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
     <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
       <i class="fas fa-envelope mr-2 text-red-500"></i>
-      Email Settings
+      Email Settings (Resend)
     </h2>
+    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+      <p class="text-sm text-blue-800 dark:text-blue-200">
+        <i class="fas fa-info-circle mr-2"></i>
+        Your app uses Resend for email delivery. Configure your email settings below. The API key must be set in your environment variables (RESEND_API_KEY).
+      </p>
+    </div>
     <form method="POST" id="email-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="section" value="email">
       
       <div class="grid md:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SMTP Server</label>
-          <input type="text" name="smtp_server" value="{{ settings.smtp_server or 'smtp.gmail.com' }}" 
-                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
-        </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Port</label>
-          <input type="number" name="smtp_port" value="{{ settings.smtp_port or 587 }}" 
-                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
-        </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sender Email</label>
-          <input type="email" name="smtp_username" value="{{ settings.smtp_username or '' }}" 
-                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
-        </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">App Password</label>
-          <input type="password" name="smtp_password" value="" 
-                 placeholder="Leave blank to keep current"
-                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Leave blank to keep current password</p>
-        </div>
-        
-        <div class="flex items-center">
-          <input type="checkbox" name="smtp_use_tls" id="smtp_use_tls" 
-                 {% if settings.smtp_use_tls %}checked{% endif %}
-                 class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-          <label for="smtp_use_tls" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-            Use TLS/SSL
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            From Email <span class="text-red-500">*</span>
           </label>
+          <input type="email" name="from_email" value="{{ settings.from_email or '' }}" 
+                 placeholder="onboarding@resend.dev"
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                 required>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The email address that sends emails (must be verified in Resend)</p>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Contact Email
+          </label>
+          <input type="email" name="contact_email" value="{{ settings.contact_email or '' }}" 
+                 placeholder="support@example.com"
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Email address for customer support inquiries</p>
+        </div>
+        
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Default Subject Prefix
+          </label>
+          <input type="text" name="default_subject_prefix" value="{{ settings.default_subject_prefix or 'BuXin Store' }}" 
+                 placeholder="BuXin Store"
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Default prefix added to email subjects (e.g., "BuXin Store - Order Confirmation")</p>
         </div>
       </div>
       
