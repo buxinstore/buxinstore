@@ -320,7 +320,7 @@
         
         <div class="flex items-center">
           <input type="checkbox" name="resend_enabled" id="resend_enabled" 
-                 {% if settings.resend_enabled is not False %}checked{% endif %}
+                 {% if settings.resend_enabled %}checked{% endif %}
                  class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
           <label for="resend_enabled" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
             Enable Resend Email Sending
