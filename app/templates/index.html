@@ -43,7 +43,7 @@
       <a href="{{ url_for('category', category_id=cat.id) }}" class="flex-shrink-0 bg-[color:var(--app-card)] dark:bg-slate-900/60 hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800/60 border border-[color:var(--app-border)] dark:border-slate-700/60 hover:border-cyan-500 rounded-xl p-4 transition-all hover:scale-105 min-w-[140px] text-[color:var(--app-text)]">
         <div class="w-16 h-16 rounded-lg overflow-hidden mb-3 mx-auto border border-[color:var(--app-border)] dark:border-slate-700">
           {% if cat.image %}
-          <img src="{{ url_for('static', filename=cat.image) }}" alt="{{ cat.name }}" class="w-full h-full object-cover">
+          <img src="{{ cat.image|category_image_url }}" alt="{{ cat.name }}" class="w-full h-full object-cover">
           {% else %}
           <div class="w-full h-full bg-gradient-to-br {{ cat.gradient }} flex items-center justify-center">
             <i data-lucide="{{ cat.icon }}" class="w-6 h-6 text-white"></i>

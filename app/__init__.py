@@ -278,6 +278,31 @@ def product_image_url_filter(image_path):
     # Otherwise, use url_for to generate the correct URL
     return url_for('static', filename=image_path)
 
+@app.template_filter('category_image_url')
+def category_image_url_filter(image_path):
+    """
+    Template filter to get the correct URL for a category image.
+    Handles both formats:
+    - 'uploads/category/{filename}' or relative paths -> uses url_for
+    - '/static/uploads/category/{filename}' -> returns as-is
+    - Cloudinary URLs -> returns as-is
+    """
+    if not image_path:
+        return None
+    
+    image_path = image_path.strip()
+    
+    # If it's already a full URL (Cloudinary), return as-is
+    if image_path.startswith('http://') or image_path.startswith('https://'):
+        return image_path
+    
+    # If path already starts with /static/, return as-is
+    if image_path.startswith('/static/'):
+        return image_path
+    
+    # Otherwise, use url_for to generate the correct URL
+    return url_for('static', filename=image_path)
+
 @app.context_processor
 def inject_site_settings():
     settings = SiteSettings.query.first()
