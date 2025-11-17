@@ -100,13 +100,10 @@ class ModemPayGateway(BasePaymentGateway):
             # Last resort fallback
             return "https://modempay.com"
 
-        base_url = _get_base_url()
+        # Use hardcoded production URLs as specified
+        base_url = "https://store.techbuxin.com"
         
-        # Construct callback URLs with proper paths
-        cancel_url = f"{base_url}/payments/failure"
-        return_url = f"{base_url}/payments/success"
-
-        # Append identifying params so success callback can find the payment without waiting for webhook
+        # Construct callback URLs with proper paths and parameters
         def _append_params(url_value: str, params: Dict[str, Any]) -> str:
             try:
                 from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
@@ -124,10 +121,23 @@ class ModemPayGateway(BasePaymentGateway):
                 kv = '&'.join([f"{k}={v}" for k, v in params.items() if v not in [None, '']])
                 return f"{url_value}{sep}{kv}" if kv else url_value
 
-        # Exact payload as required by the working test script
-        # Include identifiers on callback URLs
-        return_url_with_ids = _append_params(return_url, {"reference": reference, "order_id": order_id})
-        cancel_url_with_ids = _append_params(cancel_url, {"reference": reference, "order_id": order_id})
+        # Success URL with all required parameters
+        # Format: https://store.techbuxin.com/payments/success?reference={reference}&order_id={order_id}&status={status}&transaction_id={transaction_id}
+        return_url = f"{base_url}/payments/success"
+        return_url_with_ids = _append_params(return_url, {
+            "reference": reference,
+            "order_id": order_id,
+            "status": "success",
+            "transaction_id": reference  # Use reference as transaction_id initially, will be updated by webhook
+        })
+        
+        # Cancel URL with required parameters
+        # Format: https://store.techbuxin.com/payments/cancel?reference={reference}&order_id={order_id}
+        cancel_url = f"{base_url}/payments/cancel"
+        cancel_url_with_ids = _append_params(cancel_url, {
+            "reference": reference,
+            "order_id": order_id
+        })
 
         base_payload: Dict[str, Any] = {
             "amount": int(float(amount)),

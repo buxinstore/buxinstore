@@ -398,6 +398,38 @@ def payment_failure():
     )), 400
 
 
+@payment_bp.route('/cancel', methods=['GET'])
+def payment_cancel():
+    """
+    Payment cancellation callback page.
+    """
+    reference = request.args.get('reference')
+    order_id = request.args.get('order_id', type=int)
+    
+    # Mark payment as cancelled if we can find it
+    try:
+        if reference or order_id:
+            from app.payments.models import Payment
+            payment = None
+            if reference:
+                payment = Payment.query.filter_by(reference=reference).first()
+            if not payment and order_id:
+                payment = Payment.query.filter_by(order_id=order_id).order_by(Payment.id.desc()).first()
+            if payment and payment.status not in ['completed', 'cancelled']:
+                payment.status = 'cancelled'
+                if payment.order:
+                    payment.order.status = 'cancelled'
+                db.session.commit()
+    except Exception as e:
+        current_app.logger.error(f"Error updating payment status on cancel: {str(e)}")
+    
+    return jsonify(format_payment_response(
+        success=False,
+        message='Payment was cancelled',
+        data={'reference': reference, 'order_id': order_id}
+    )), 200
+
+
 @payment_bp.route('/modempay/pay', methods=['POST'])
 @login_required
 def modempay_pay():
