@@ -3592,8 +3592,6 @@ def admin_email_customers():
             log.info(f"admin_email_customers[POST]: returning response {response_payload}")
             return jsonify(response_payload), 202
 
-        import os
-
         log.info("admin_email_customers[POST]: building customer email query")
         base_query = User.query.filter(
             User.is_admin == False,  # noqa: E712
