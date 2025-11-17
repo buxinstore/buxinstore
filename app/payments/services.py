@@ -500,7 +500,8 @@ class PaymentService:
                             if not recipient_email:
                                 current_app.logger.info("Webhook email[BG]: no recipient email, aborting")
                             else:
-                                subject = f"Payment Receipt - Order #{payment_obj.order.id}"
+                                from app import _format_email_subject
+                                subject = _format_email_subject(f"Payment Receipt - Order #{payment_obj.order.id}")
                                 html_body = render_template(
                                     'emails/receipt_email.html',
                                     payment=payment_obj,

@@ -290,7 +290,8 @@ def payment_success():
                             recipient_email = getattr(customer, 'email', None)
                             recipient_name = getattr(customer, 'username', 'Customer')
                             if recipient_email:
-                                subject = f"Payment Receipt - Order #{payment_obj.order.id}"
+                                from app import _format_email_subject
+                                subject = _format_email_subject(f"Payment Receipt - Order #{payment_obj.order.id}")
                                 html_body = render_template(
                                     'emails/receipt_email.html',
                                     payment=payment_obj,

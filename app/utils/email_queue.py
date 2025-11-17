@@ -21,6 +21,19 @@ def _ensure_resend_config() -> None:
         resend.api_key = api_key
 
 
+def _get_from_email() -> str:
+    """Get from_email from database settings, with fallback to environment variable."""
+    try:
+        from app import AppSettings
+        settings = AppSettings.query.first()
+        if settings and settings.from_email:
+            return settings.from_email
+    except Exception:
+        pass
+    # Fallback to environment variable, then default
+    return os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+
+
 def _send_single_email_job(app, recipient: str, subject: str, html_body: str, metadata: Optional[Dict[str, Any]]) -> None:
     with app.app_context():
         log = current_app.logger
@@ -35,7 +48,7 @@ def _send_single_email_job(app, recipient: str, subject: str, html_body: str, me
 
         try:
             _ensure_resend_config()
-            from_email = os.getenv("RESEND_FROM_EMAIL", "buxinstore9@gmail.com")
+            from_email = _get_from_email()
 
             payload: Dict[str, Any] = {
                 "from": from_email,
@@ -88,7 +101,7 @@ def _send_bulk_email_job(
 
         try:
             _ensure_resend_config()
-            from_email = os.getenv("RESEND_FROM_EMAIL", "buxinstore9@gmail.com")
+            from_email = _get_from_email()
 
             sent = 0
             failed = 0
