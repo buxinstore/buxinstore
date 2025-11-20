@@ -1,0 +1,53 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}Database Migration{% endblock %}
+
+{% block content %}
+<div class="py-6">
+    <div class="max-w-3xl mx-auto">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div class="px-6 py-5">
+                <div class="mb-6">
+                    <h2 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Database Migration</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        Run database migrations to update your database schema.
+                    </p>
+                </div>
+
+                <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Migration Revision:</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 font-mono">{{ current_revision }}</p>
+                </div>
+
+                <form method="POST" onsubmit="return confirm('Are you sure you want to run the migration? This will update your database schema.');">
+                    <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Warning</h3>
+                                <div class="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                                    <p>Running migrations will update your database schema. Make sure you have a backup before proceeding.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-3">
+                        <a href="{{ url_for('admin_dashboard') }}" class="rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 py-2 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                            Cancel
+                        </a>
+                        <button type="submit" class="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                            Run Migration
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

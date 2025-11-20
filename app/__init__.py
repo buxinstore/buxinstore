@@ -2762,6 +2762,32 @@ def checkout():
                            form=form)
 
 # Admin routes
+@app.route('/admin/migrate', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_run_migration():
+    """Admin endpoint to run database migrations"""
+    if request.method == 'POST':
+        try:
+            from flask_migrate import upgrade
+            with app.app_context():
+                upgrade()
+            flash('Database migration completed successfully!', 'success')
+            current_app.logger.info("✅ Database migration completed via admin endpoint")
+        except Exception as e:
+            flash(f'Migration failed: {str(e)}', 'error')
+            current_app.logger.error(f"❌ Migration failed: {str(e)}", exc_info=True)
+        return redirect(url_for('admin_dashboard'))
+    
+    # GET request - show migration status
+    try:
+        from flask_migrate import current
+        current_revision = current()
+    except Exception as e:
+        current_revision = f"Error: {str(e)}"
+    
+    return render_template('admin/admin/migrate.html', current_revision=current_revision)
+
 @app.route('/admin')
 @login_required
 @admin_required
