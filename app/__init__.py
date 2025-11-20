@@ -2762,12 +2762,17 @@ def checkout():
                            form=form)
 
 # Admin routes
+class MigrationForm(FlaskForm):
+    submit = SubmitField('Run Migration')
+
 @app.route('/admin/migrate', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def admin_run_migration():
     """Admin endpoint to run database migrations"""
-    if request.method == 'POST':
+    form = MigrationForm()
+    
+    if form.validate_on_submit():
         try:
             from flask_migrate import upgrade
             with app.app_context():
@@ -2786,7 +2791,7 @@ def admin_run_migration():
     except Exception as e:
         current_revision = f"Error: {str(e)}"
     
-    return render_template('admin/admin/migrate.html', current_revision=current_revision)
+    return render_template('admin/admin/migrate.html', form=form, current_revision=current_revision)
 
 @app.route('/admin')
 @login_required

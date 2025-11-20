@@ -20,6 +20,7 @@
                 </div>
 
                 <form method="POST" onsubmit="return confirm('Are you sure you want to run the migration? This will update your database schema.');">
+                    {{ form.hidden_tag() }}
                     <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
                         <div class="flex">
                             <div class="flex-shrink-0">
@@ -40,9 +41,7 @@
                         <a href="{{ url_for('admin_dashboard') }}" class="rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 py-2 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                             Cancel
                         </a>
-                        <button type="submit" class="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                            Run Migration
-                        </button>
+                        {{ form.submit(class="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2") }}
                     </div>
                 </form>
             </div>
