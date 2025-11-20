@@ -2577,14 +2577,13 @@ def calculate_delivery_price(price, product_id=None):
     
     # If product_id is provided, try to use database rules
     if product_id:
-        product = Product.query.get(product_id)
+        # Load product with delivery_rules relationship eagerly
+        from sqlalchemy.orm import joinedload
+        product = Product.query.options(joinedload(Product.delivery_rules)).get(product_id)
+        
         if product:
             # First, try to use custom delivery rules
-            # Reload delivery_rules to ensure we have the latest data
-            from sqlalchemy.orm import joinedload
-            product = Product.query.options(joinedload(Product.delivery_rules)).get(product_id)
-            
-            if product and product.delivery_rules:
+            if product.delivery_rules:
                 # Sort rules by min_amount (ascending) to find the first matching rule
                 rules = sorted(product.delivery_rules, key=lambda r: r.min_amount)
                 for rule in rules:
