@@ -4501,10 +4501,8 @@ def admin_add_product():
                     flash(f'Failed to upload image to Cloudinary: {error_msg}. Please check the logs for details.', 'error')
                     return redirect(url_for('admin_add_product'))
         
-        # Calculate delivery price if not provided or if price changed
-        delivery_price = form.delivery_price.data
-        if delivery_price is None or delivery_price == 0:
-            delivery_price = calculate_delivery_price(form.price.data)
+        # Use delivery price from form, default to 0.00 if not provided
+        delivery_price = form.delivery_price.data if form.delivery_price.data else 0.0
         
         product = Product(
             name=form.name.data,
