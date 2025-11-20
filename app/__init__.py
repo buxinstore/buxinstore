@@ -1956,8 +1956,12 @@ def admin_required(f):
 def china_partner_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'china_partner' or not current_user.active:
-            flash('China Partner access required', 'error')
+        # Allow admin users or china_partner users
+        if not current_user.is_authenticated or not current_user.active:
+            flash('Access required', 'error')
+            return redirect(url_for('china_login', next=request.url))
+        if not (current_user.is_admin or current_user.role == 'admin' or current_user.role == 'china_partner'):
+            flash('China Partner or Admin access required', 'error')
             return redirect(url_for('china_login', next=request.url))
         return f(*args, **kwargs)
     return decorated_function
@@ -1965,8 +1969,12 @@ def china_partner_required(f):
 def gambia_team_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'gambia_team' or not current_user.active:
-            flash('Gambia Team access required', 'error')
+        # Allow admin users or gambia_team users
+        if not current_user.is_authenticated or not current_user.active:
+            flash('Access required', 'error')
+            return redirect(url_for('gambia_login', next=request.url))
+        if not (current_user.is_admin or current_user.role == 'admin' or current_user.role == 'gambia_team'):
+            flash('Gambia Team or Admin access required', 'error')
             return redirect(url_for('gambia_login', next=request.url))
         return f(*args, **kwargs)
     return decorated_function
@@ -2820,13 +2828,17 @@ def admin_dashboard():
     
     sales_change = ((monthly_sales - last_month_sales) / last_month_sales * 100) if last_month_sales > 0 else 100
     
-    # Get order counts
-    total_orders = Order.query.count()
+    # Get order counts (exclude cancelled)
+    total_orders = Order.query.filter(Order.status != 'Cancelled').count()
     last_month_orders = Order.query.filter(
+        Order.status != 'Cancelled',
         Order.created_at >= last_month,
         Order.created_at < current_month
     ).count()
-    current_month_orders = Order.query.filter(Order.created_at >= current_month).count()
+    current_month_orders = Order.query.filter(
+        Order.status != 'Cancelled',
+        Order.created_at >= current_month
+    ).count()
     orders_change = ((current_month_orders - last_month_orders) / last_month_orders * 100) if last_month_orders > 0 else 100
     
     stats = {
@@ -2836,7 +2848,9 @@ def admin_dashboard():
         'orders_change': round(orders_change, 1),
         'total_products': Product.query.count(),
         'total_customers': User.query.count(),
-        'revenue': db.session.query(db.func.sum(Order.total)).scalar() or 0
+        'revenue': db.session.query(db.func.sum(Order.total)).filter(
+            Order.status != 'Cancelled'
+        ).scalar() or 0
     }
     
     recent_orders = Order.query.order_by(Order.created_at.desc()).limit(5).all()
@@ -6437,23 +6451,34 @@ def admin_export_shipments():
 # China Partner Routes
 @app.route('/china/login', methods=['GET', 'POST'])
 def china_login():
-    """Login page for China Partners"""
-    if current_user.is_authenticated and current_user.role == 'china_partner' and current_user.active:
-        return redirect(url_for('china_orders'))
+    """Login page for China Partners and Admins"""
+    # Allow admin or china_partner users
+    if current_user.is_authenticated and current_user.active:
+        if current_user.is_admin or current_user.role == 'admin' or current_user.role == 'china_partner':
+            return redirect(url_for('china_orders'))
     
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        user = User.query.filter_by(username=username, role='china_partner').first()
+        # Allow admin or china_partner users
+        user = User.query.filter(
+            db.or_(
+                User.role == 'admin',
+                User.role == 'china_partner'
+            ),
+            User.username == username
+        ).first()
         
         if user and user.check_password(password) and user.active:
-            login_user(user)
-            user.last_login_at = datetime.utcnow()
-            db.session.commit()
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('china_orders'))
-        else:
-            flash('Invalid credentials or account inactive', 'error')
+            # Check if user is admin or china_partner
+            if user.is_admin or user.role == 'admin' or user.role == 'china_partner':
+                login_user(user)
+                user.last_login_at = datetime.utcnow()
+                db.session.commit()
+                next_page = request.args.get('next')
+                return redirect(next_page or url_for('china_orders'))
+        
+        flash('Invalid credentials or account inactive', 'error')
     
     return render_template('china/login.html')
 
@@ -6673,23 +6698,34 @@ def china_mark_shipped(order_id):
 # Gambia Team Routes
 @app.route('/gambia/login', methods=['GET', 'POST'])
 def gambia_login():
-    """Login page for Gambia Delivery Team"""
-    if current_user.is_authenticated and current_user.role == 'gambia_team' and current_user.active:
-        return redirect(url_for('gambia_orders'))
+    """Login page for Gambia Delivery Team and Admins"""
+    # Allow admin or gambia_team users
+    if current_user.is_authenticated and current_user.active:
+        if current_user.is_admin or current_user.role == 'admin' or current_user.role == 'gambia_team':
+            return redirect(url_for('gambia_orders'))
     
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        user = User.query.filter_by(username=username, role='gambia_team').first()
+        # Allow admin or gambia_team users
+        user = User.query.filter(
+            db.or_(
+                User.role == 'admin',
+                User.role == 'gambia_team'
+            ),
+            User.username == username
+        ).first()
         
         if user and user.check_password(password) and user.active:
-            login_user(user)
-            user.last_login_at = datetime.utcnow()
-            db.session.commit()
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('gambia_orders'))
-        else:
-            flash('Invalid credentials or account inactive', 'error')
+            # Check if user is admin or gambia_team
+            if user.is_admin or user.role == 'admin' or user.role == 'gambia_team':
+                login_user(user)
+                user.last_login_at = datetime.utcnow()
+                db.session.commit()
+                next_page = request.args.get('next')
+                return redirect(next_page or url_for('gambia_orders'))
+        
+        flash('Invalid credentials or account inactive', 'error')
     
     return render_template('gambia/login.html')
 
