@@ -2580,7 +2580,11 @@ def calculate_delivery_price(price, product_id=None):
         product = Product.query.get(product_id)
         if product:
             # First, try to use custom delivery rules
-            if product.delivery_rules:
+            # Reload delivery_rules to ensure we have the latest data
+            from sqlalchemy.orm import joinedload
+            product = Product.query.options(joinedload(Product.delivery_rules)).get(product_id)
+            
+            if product and product.delivery_rules:
                 # Sort rules by min_amount (ascending) to find the first matching rule
                 rules = sorted(product.delivery_rules, key=lambda r: r.min_amount)
                 for rule in rules:
@@ -2591,7 +2595,7 @@ def calculate_delivery_price(price, product_id=None):
                             return float(rule.fee)
             
             # If no rule matches, use the product's delivery_price if set
-            if product.delivery_price:
+            if product and product.delivery_price:
                 return float(product.delivery_price)
     
     # Final fallback: default tiered pricing (for backward compatibility)
