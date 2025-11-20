@@ -2581,7 +2581,7 @@ def calculate_delivery_price(price, product_id=None):
         Delivery fee amount
     """
     if price is None:
-        return 300.0  # Default fallback
+        return 0.0  # Default fallback
     
     # If product_id is provided, try to use database rules
     if product_id:
@@ -2605,13 +2605,8 @@ def calculate_delivery_price(price, product_id=None):
             if product and product.delivery_price:
                 return float(product.delivery_price)
     
-    # Final fallback: default tiered pricing (for backward compatibility)
-    if price <= 1000:
-        return 300.0
-    elif price > 1000 and price <= 2000:
-        return 800.0
-    else:  # price > 2000
-        return 1200.0
+    # Final fallback: default to 0.00
+    return 0.0
 
 class ProductForm(FlaskForm):
     name = StringField('Product Name', validators=[DataRequired()])
@@ -4579,12 +4574,8 @@ def admin_edit_product(product_id):
         product.available_in_gambia = form.available_in_gambia.data or False
         product.location = form.location.data
         
-        # Auto-calculate delivery price if price changed or delivery_price is not set
-        # But allow manual override if delivery_price is explicitly provided
-        if form.delivery_price.data and form.delivery_price.data > 0:
-            product.delivery_price = form.delivery_price.data
-        elif old_price != form.price.data or product.delivery_price is None:
-            product.delivery_price = calculate_delivery_price(form.price.data, product_id=product.id)
+        # Use delivery price from form, default to 0.00 if not provided
+        product.delivery_price = form.delivery_price.data if form.delivery_price.data else 0.0
         
         # Handle delivery rules
         delivery_rules_data = request.form.getlist('delivery_rules')
@@ -4658,10 +4649,10 @@ def admin_edit_product(product_id):
         flash('Product updated successfully!', 'success')
         return redirect(url_for('admin_products'))
     
-    # Pre-populate delivery_price if not set
+    # Pre-populate delivery_price if not set (default to 0.00)
     if product.delivery_price is None:
-        product.delivery_price = calculate_delivery_price(product.price, product_id=product.id)
-        form.delivery_price.data = product.delivery_price
+        product.delivery_price = 0.0
+        form.delivery_price.data = 0.0
     
     # Load delivery rules for the product
     delivery_rules = DeliveryRule.query.filter_by(product_id=product.id).order_by(DeliveryRule.min_amount).all()
@@ -7180,9 +7171,9 @@ def product(product_id):
     shipping_fee = calculate_delivery_price(product.price, product_id=product.id)
     final_price = product.price + shipping_fee
     
-    # Calculate delivery_price if not set (for backward compatibility)
+    # Set delivery_price to 0.00 if not set (for backward compatibility)
     if product.delivery_price is None:
-        product.delivery_price = shipping_fee
+        product.delivery_price = 0.0
     
     category = Category.query.get(product.category_id)
     related_products = Product.query.filter(

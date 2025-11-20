@@ -93,7 +93,7 @@
                                     </td>
                                     <td class="p-3">
                                         {% if item.product.image %}
-                                            <img src="{{ url_for('static', filename=item.product.image) }}" 
+                                            <img src="{{ item.product.image|product_image_url }}" 
                                                  alt="{{ item.product.name }}" 
                                                  class="w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-600 object-cover">
                                         {% else %}
