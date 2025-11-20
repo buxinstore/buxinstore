@@ -5192,20 +5192,269 @@ def admin_delete_product(product_id):
 @login_required
 @admin_required
 def admin_orders():
-    status = request.args.get('status', 'all')
+    # Get filter parameters
+    date_filter = request.args.get('date_filter', 'all')  # 'yesterday', 'today', 'tomorrow', '7days', '30days', 'this_month', 'last_month', 'this_year', 'custom', 'all'
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
     page = request.args.get('page', 1, type=int)
-    per_page = 10  # Number of orders per page
+    per_page = 20  # Number of orders per page
     
-    query = Order.query
+    # Base query - only paid/confirmed orders
+    # Paid orders are: status in ['paid', 'completed', 'processing'] OR shipping_status in ['shipped', 'delivered']
+    # Exclude: 'Pending', 'Cancelled', 'failed'
+    from sqlalchemy import or_
+    query = Order.query.filter(
+        Order.status != 'Pending',
+        Order.status != 'Cancelled',
+        Order.status != 'failed',
+        or_(
+            Order.status.in_(['paid', 'completed', 'processing']),
+            Order.shipping_status.in_(['shipped', 'delivered'])
+        )
+    )
     
-    if status != 'all':
-        query = query.filter_by(status=status)
+    # Date filtering
+    now = datetime.utcnow()
+    date_start = None
+    date_end = None
     
-    # Get pagination object
-    orders = query.order_by(Order.created_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False)
+    if date_filter == 'yesterday':
+        yesterday = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        date_start = yesterday
+        date_end = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif date_filter == 'today':
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        date_start = today
+        date_end = now
+    elif date_filter == 'tomorrow':
+        tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        date_start = tomorrow
+        date_end = tomorrow.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif date_filter == '7days':
+        date_start = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        date_end = now
+    elif date_filter == '30days':
+        date_start = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        date_end = now
+    elif date_filter == 'this_month':
+        date_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        date_end = now
+    elif date_filter == 'last_month':
+        current_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        date_start = (current_month_start - timedelta(days=1)).replace(day=1)
+        date_end = current_month_start - timedelta(microseconds=1)
+    elif date_filter == 'this_year':
+        date_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        date_end = now
+    elif date_filter == 'custom' and start_date and end_date:
+        try:
+            date_start = datetime.strptime(start_date, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0)
+            date_end = datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            pass
+    
+    if date_start and date_end:
+        query = query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
+    
+    # CSV Export
+    if request.args.get('export') == 'csv':
+        # Get all orders (no pagination for export)
+        export_orders = query.options(
+            joinedload(Order.items).joinedload(OrderItem.product),
+            joinedload(Order.customer)
+        ).order_by(Order.created_at.desc()).all()
         
-    return render_template('admin/admin/orders.html', orders=orders, status=status)
+        # Create CSV
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['Order ID', 'Date', 'Customer', 'Email', 'Phone', 'Total', 'Status', 'Shipping Status', 'Payment Method', 'Items'])
+        
+        # Write data
+        for order in export_orders:
+            items_str = '; '.join([f"{item.product.name if item.product else 'N/A'} (Qty: {item.quantity}, Price: D{item.price})" for item in order.items])
+            customer_email = order.customer.email if order.customer else ''
+            customer_phone = getattr(order, 'customer_phone', '') or ''
+            writer.writerow([
+                order.id,
+                order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                order.customer.username if order.customer else 'N/A',
+                customer_email,
+                customer_phone,
+                f"D{order.total:.2f}",
+                order.status,
+                order.shipping_status,
+                order.payment_method or 'N/A',
+                items_str
+            ])
+        
+        # Prepare response
+        output.seek(0)
+        filename = f"paid_orders_{date_filter}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+        return response
+    
+    # Get pagination object with eager loading
+    orders = query.options(
+        joinedload(Order.items).joinedload(OrderItem.product),
+        joinedload(Order.customer)
+    ).order_by(Order.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False)
+    
+    # Calculate totals for the filtered date range
+    totals_query = Order.query.filter(
+        Order.status != 'Pending',
+        Order.status != 'Cancelled',
+        Order.status != 'failed',
+        or_(
+            Order.status.in_(['paid', 'completed', 'processing']),
+            Order.shipping_status.in_(['shipped', 'delivered'])
+        )
+    )
+    
+    if date_start and date_end:
+        totals_query = totals_query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
+    
+    # Total Sales
+    total_sales_result = totals_query.with_entities(db.func.sum(Order.total)).scalar()
+    total_sales = float(total_sales_result) if total_sales_result else 0.0
+    
+    # Total Paid Orders
+    total_orders_count = totals_query.count()
+    
+    # Average Order Value
+    avg_order_value = (total_sales / total_orders_count) if total_orders_count > 0 else 0.0
+    
+    # Total Quantity Sold
+    quantity_query = db.session.query(db.func.sum(OrderItem.quantity)).join(
+        Order, OrderItem.order_id == Order.id
+    ).filter(
+        Order.status != 'Pending',
+        Order.status != 'Cancelled',
+        Order.status != 'failed',
+        or_(
+            Order.status.in_(['paid', 'completed', 'processing']),
+            Order.shipping_status.in_(['shipped', 'delivered'])
+        )
+    )
+    if date_start and date_end:
+        quantity_query = quantity_query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
+    total_quantity = int(quantity_query.scalar() or 0)
+    
+    # Total Unique Customers
+    unique_customers_query = totals_query.with_entities(db.func.count(db.distinct(Order.user_id)))
+    unique_customers = int(unique_customers_query.scalar() or 0)
+    
+    # Daily Sales Chart Data (for the selected period)
+    if date_start and date_end:
+        daily_sales_query = db.session.query(
+            db.func.date(Order.created_at).label('date'),
+            db.func.sum(Order.total).label('total')
+        ).filter(
+            Order.status != 'Pending',
+            Order.status != 'Cancelled',
+            Order.status != 'failed',
+            or_(
+                Order.status.in_(['paid', 'completed', 'processing']),
+                Order.shipping_status.in_(['shipped', 'delivered'])
+            ),
+            Order.created_at >= date_start,
+            Order.created_at <= date_end
+        ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
+        daily_sales_data = daily_sales_query.all()
+    else:
+        # Last 30 days if no filter
+        thirty_days_ago = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        daily_sales_query = db.session.query(
+            db.func.date(Order.created_at).label('date'),
+            db.func.sum(Order.total).label('total')
+        ).filter(
+            Order.status != 'Pending',
+            Order.status != 'Cancelled',
+            Order.status != 'failed',
+            or_(
+                Order.status.in_(['paid', 'completed', 'processing']),
+                Order.shipping_status.in_(['shipped', 'delivered'])
+            ),
+            Order.created_at >= thirty_days_ago
+        ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
+        daily_sales_data = daily_sales_query.all()
+    
+    # Orders Count Chart Data (same period)
+    if date_start and date_end:
+        orders_count_query = db.session.query(
+            db.func.date(Order.created_at).label('date'),
+            db.func.count(Order.id).label('count')
+        ).filter(
+            Order.status != 'Pending',
+            Order.status != 'Cancelled',
+            Order.status != 'failed',
+            or_(
+                Order.status.in_(['paid', 'completed', 'processing']),
+                Order.shipping_status.in_(['shipped', 'delivered'])
+            ),
+            Order.created_at >= date_start,
+            Order.created_at <= date_end
+        ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
+        orders_count_data = orders_count_query.all()
+    else:
+        thirty_days_ago = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        orders_count_query = db.session.query(
+            db.func.date(Order.created_at).label('date'),
+            db.func.count(Order.id).label('count')
+        ).filter(
+            Order.status != 'Pending',
+            Order.status != 'Cancelled',
+            Order.status != 'failed',
+            or_(
+                Order.status.in_(['paid', 'completed', 'processing']),
+                Order.shipping_status.in_(['shipped', 'delivered'])
+            ),
+            Order.created_at >= thirty_days_ago
+        ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
+        orders_count_data = orders_count_query.all()
+    
+    # Top Products Chart Data
+    top_products_query = db.session.query(
+        Product.id,
+        Product.name,
+        db.func.sum(OrderItem.quantity).label('total_quantity'),
+        db.func.sum(OrderItem.quantity * OrderItem.price).label('total_revenue')
+    ).join(
+        OrderItem, Product.id == OrderItem.product_id
+    ).join(
+        Order, OrderItem.order_id == Order.id
+    ).filter(
+        Order.status != 'Pending',
+        Order.status != 'Cancelled',
+        Order.status != 'failed',
+        or_(
+            Order.status.in_(['paid', 'completed', 'processing']),
+            Order.shipping_status.in_(['shipped', 'delivered'])
+        )
+    )
+    if date_start and date_end:
+        top_products_query = top_products_query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
+    top_products_data = top_products_query.group_by(Product.id, Product.name).order_by(
+        db.func.sum(OrderItem.quantity * OrderItem.price).desc()
+    ).limit(10).all()
+        
+    return render_template('admin/admin/orders.html', 
+                         orders=orders, 
+                         date_filter=date_filter,
+                         start_date=start_date,
+                         end_date=end_date,
+                         total_sales=total_sales,
+                         total_orders_count=total_orders_count,
+                         avg_order_value=avg_order_value,
+                         total_quantity=total_quantity,
+                         unique_customers=unique_customers,
+                         daily_sales_data=daily_sales_data,
+                         orders_count_data=orders_count_data,
+                         top_products_data=top_products_data)
 
 @app.route('/admin/order/<int:order_id>', methods=['GET', 'POST'])
 @login_required
