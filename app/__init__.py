@@ -2801,16 +2801,19 @@ def admin_run_migration():
 @admin_required
 def admin_dashboard():
     # Calculate total sales for the current month
+    # Use shipping_status for delivery tracking, exclude cancelled orders
     current_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     monthly_sales = db.session.query(db.func.sum(Order.total)).filter(
-        Order.status == 'delivered',
+        Order.shipping_status == 'delivered',
+        Order.status != 'Cancelled',
         Order.created_at >= current_month
     ).scalar() or 0
     
     # Calculate sales change percentage
     last_month = (current_month - timedelta(days=1)).replace(day=1)
     last_month_sales = db.session.query(db.func.sum(Order.total)).filter(
-        Order.status == 'delivered',
+        Order.shipping_status == 'delivered',
+        Order.status != 'Cancelled',
         Order.created_at >= last_month,
         Order.created_at < current_month
     ).scalar() or 0
@@ -5266,9 +5269,11 @@ def admin_reports():
     start_date = end_date - timedelta(days=30)
     
     # Get total sales for the period
+    # Use shipping_status for delivery tracking, exclude cancelled orders
     total_sales = db.session.query(db.func.sum(Order.total)).filter(
         Order.created_at.between(start_date, end_date),
-        Order.status == 'delivered'
+        Order.shipping_status == 'delivered',
+        Order.status != 'Cancelled'
     ).scalar() or 0
     
     # Get order counts by status
@@ -5285,7 +5290,8 @@ def admin_reports():
         db.func.sum(Order.total).label('total')
     ).filter(
         Order.created_at >= (end_date - timedelta(days=7)),
-        Order.status == 'delivered'
+        Order.shipping_status == 'delivered',
+        Order.status != 'Cancelled'
     ).group_by(db.func.date(Order.created_at)).all()
     
     # Convert date strings to date objects
@@ -5309,7 +5315,10 @@ def admin_reports():
     )
     top_products_query = top_products_query.join(OrderItem, OrderItem.product_id == Product.id)
     top_products_query = top_products_query.join(Order, Order.id == OrderItem.order_id)
-    top_products_query = top_products_query.filter(Order.status == 'delivered')
+    top_products_query = top_products_query.filter(
+        Order.shipping_status == 'delivered',
+        Order.status != 'Cancelled'
+    )
     top_products_query = top_products_query.group_by(Product.id)
     top_products_raw = top_products_query.order_by(db.desc('total_quantity')).limit(5).all()
     
@@ -5338,8 +5347,11 @@ def admin_sales_dashboard():
     category_id = request.args.get('category_id', type=int)
     date_filter = request.args.get('date_filter', 'all')  # '7days', 'month', 'year', 'all'
     
-    # Base query filter - only delivered orders
-    base_filter = Order.status == 'delivered'
+    # Base query filter - only delivered orders (use shipping_status, exclude cancelled)
+    base_filter = db.and_(
+        Order.shipping_status == 'delivered',
+        Order.status != 'Cancelled'
+    )
     
     # Category filter if specified
     category_filter = None
