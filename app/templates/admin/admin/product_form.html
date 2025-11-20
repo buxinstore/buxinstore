@@ -43,7 +43,7 @@
                             {% endif %}
                         </div>
 
-                        <!-- Delivery Price -->
+                        <!-- Delivery Price (Legacy - kept for backward compatibility) -->
                         <div>
                             {{ form.delivery_price.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
                             <div class="mt-1 relative rounded-md shadow-sm">
@@ -56,7 +56,7 @@
                                 <p class="mt-1 text-sm text-red-600">{{ form.delivery_price.errors[0] }}</p>
                             {% endif %}
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Auto-calculated based on price. You can manually override if needed.
+                                Fallback delivery fee if no rules match. Configure rules below for price-based fees.
                             </p>
                         </div>
 
@@ -127,6 +127,78 @@
                         </div>
                     </div>
 
+                    <!-- Delivery Fee Configuration Section -->
+                    {% if product %}
+                    <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Delivery Fee Configuration</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            Configure price-based delivery fees. The system will use the first matching rule based on product price.
+                        </p>
+                        
+                        <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+                            <table class="min-w-full divide-y divide-gray-300 dark:divide-gray-700" id="delivery-rules-table">
+                                <thead class="bg-gray-50 dark:bg-gray-800">
+                                    <tr>
+                                        <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6">Min Price (D)</th>
+                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Max Price (D)</th>
+                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Delivery Fee (D)</th>
+                                        <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                                            <span class="sr-only">Actions</span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900" id="delivery-rules-tbody">
+                                    {% if product.delivery_rules %}
+                                        {% for rule in product.delivery_rules %}
+                                        <tr data-rule-id="{{ rule.id }}">
+                                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
+                                                <input type="number" name="delivery_rules[{{ rule.id }}][min_amount]" 
+                                                       value="{{ rule.min_amount }}" 
+                                                       step="0.01" min="0" required
+                                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm">
+                                            </td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm">
+                                                <input type="number" name="delivery_rules[{{ rule.id }}][max_amount]" 
+                                                       value="{{ rule.max_amount if rule.max_amount else '' }}" 
+                                                       step="0.01" min="0"
+                                                       placeholder="No limit"
+                                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm">
+                                            </td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm">
+                                                <input type="number" name="delivery_rules[{{ rule.id }}][fee]" 
+                                                       value="{{ rule.fee }}" 
+                                                       step="0.01" min="0" required
+                                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm">
+                                            </td>
+                                            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                                <button type="button" 
+                                                        onclick="removeDeliveryRule({{ rule.id }})"
+                                                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                                                    Remove
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="button" 
+                                    onclick="addDeliveryRule()"
+                                    class="inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                <svg class="-ml-0.5 mr-1.5 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                Add Rule
+                            </button>
+                        </div>
+                        
+                        <div id="delivery-rules-to-delete" style="display: none;"></div>
+                    </div>
+                    {% endif %}
+
                     <div class="flex justify-end space-x-3 pt-6">
                         <a href="{{ url_for('admin_products') }}" class="rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 py-2 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                             Cancel
@@ -164,37 +236,87 @@
         }
     });
 
-    // Auto-calculate delivery price based on product price
-    const priceInput = document.getElementById('product-price');
-    const deliveryPriceInput = document.getElementById('delivery-price');
-    let manualDeliveryPrice = false;
+    // Delivery Rules Management
+    let ruleCounter = 0;
+    const rulesToDelete = new Set();
 
-    // Track if user manually edited delivery price
-    deliveryPriceInput.addEventListener('input', function() {
-        manualDeliveryPrice = true;
-    });
+    function addDeliveryRule() {
+        const tbody = document.getElementById('delivery-rules-tbody');
+        const row = document.createElement('tr');
+        row.setAttribute('data-rule-id', 'new-' + ruleCounter);
+        
+        row.innerHTML = `
+            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
+                <input type="number" name="delivery_rules[new-${ruleCounter}][min_amount]" 
+                       value="0" 
+                       step="0.01" min="0" required
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm">
+            </td>
+            <td class="whitespace-nowrap px-3 py-4 text-sm">
+                <input type="number" name="delivery_rules[new-${ruleCounter}][max_amount]" 
+                       value="" 
+                       step="0.01" min="0"
+                       placeholder="No limit"
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm">
+            </td>
+            <td class="whitespace-nowrap px-3 py-4 text-sm">
+                <input type="number" name="delivery_rules[new-${ruleCounter}][fee]" 
+                       value="0" 
+                       step="0.01" min="0" required
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm">
+            </td>
+            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                <button type="button" 
+                        onclick="removeDeliveryRule('new-${ruleCounter}')"
+                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                    Remove
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+        ruleCounter++;
+    }
 
-    // Auto-calculate when price changes (only if delivery price wasn't manually set)
-    priceInput.addEventListener('input', function() {
-        if (!manualDeliveryPrice) {
-            const price = parseFloat(priceInput.value) || 0;
-            let deliveryPrice = 300; // Default
-            
-            if (price < 1000) {
-                deliveryPrice = 300;
-            } else if (price < 2000) {
-                deliveryPrice = 800;
-            } else {
-                deliveryPrice = 1200;
+    function removeDeliveryRule(ruleId) {
+        const row = document.querySelector(`tr[data-rule-id="${ruleId}"]`);
+        if (row) {
+            // If it's an existing rule (not new), mark it for deletion
+            if (typeof ruleId === 'number' || (typeof ruleId === 'string' && !ruleId.startsWith('new-'))) {
+                rulesToDelete.add(ruleId);
+                // Add hidden input to mark for deletion
+                const deleteInput = document.createElement('input');
+                deleteInput.type = 'hidden';
+                deleteInput.name = 'delivery_rules_to_delete[]';
+                deleteInput.value = ruleId;
+                document.getElementById('delivery-rules-to-delete').appendChild(deleteInput);
             }
-            
-            deliveryPriceInput.value = deliveryPrice.toFixed(2);
+            row.remove();
         }
-    });
+    }
 
-    // Reset manual flag when form is submitted (so it can auto-calculate on next edit)
-    document.querySelector('form').addEventListener('submit', function() {
-        manualDeliveryPrice = false;
+    // Form validation for delivery rules
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const tbody = document.getElementById('delivery-rules-tbody');
+        if (tbody) {
+            const rows = tbody.querySelectorAll('tr');
+            for (let row of rows) {
+                const minInput = row.querySelector('input[name*="[min_amount]"]');
+                const maxInput = row.querySelector('input[name*="[max_amount]"]');
+                
+                if (minInput && maxInput && maxInput.value) {
+                    const min = parseFloat(minInput.value);
+                    const max = parseFloat(maxInput.value);
+                    
+                    if (min >= max) {
+                        e.preventDefault();
+                        alert('Minimum price must be less than maximum price.');
+                        minInput.focus();
+                        return false;
+                    }
+                }
+            }
+        }
     });
 </script>
 {% endblock %}

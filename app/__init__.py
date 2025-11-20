@@ -1230,6 +1230,20 @@ class Product(db.Model):
     delivery_price = db.Column(db.Float, nullable=True)
     location = db.Column(db.String(50), nullable=True)  # 'In The Gambia' or 'Outside The Gambia'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship to delivery rules
+    delivery_rules = db.relationship('DeliveryRule', backref='product', lazy=True, cascade='all, delete-orphan')
+
+class DeliveryRule(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    min_amount = db.Column(db.Float, nullable=False)
+    max_amount = db.Column(db.Float, nullable=True)  # None means no upper limit
+    fee = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<DeliveryRule {self.id}: D{self.min_amount}-{self.max_amount or "∞"} = D{self.fee}>'
 
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2092,16 +2106,13 @@ def calculate_cart_totals(cart_items):
         item_subtotal = Decimal(str(item['total']))
         subtotal += item_subtotal
         
-        # Calculate shipping per unit based on product price
+        # Calculate shipping per unit based on product-specific delivery rules
         product_price = Decimal(str(item['price']))
         quantity = Decimal(str(item['quantity']))
+        product_id = item.get('id')
         
-        if product_price <= Decimal('1000.00'):
-            shipping_per_unit = Decimal('300.00')
-        elif product_price <= Decimal('2000.00'):
-            shipping_per_unit = Decimal('800.00')
-        else:  # product_price > 2000
-            shipping_per_unit = Decimal('1200.00')
+        # Use calculate_delivery_price with product_id to get custom rules
+        shipping_per_unit = Decimal(str(calculate_delivery_price(float(product_price), product_id)))
         
         # Product shipping = shipping_per_unit × quantity
         item_shipping = (shipping_per_unit * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -2549,10 +2560,41 @@ class CheckoutForm(FlaskForm):
     submit = SubmitField('Place Order')
 
 
-def calculate_delivery_price(price):
-    """Calculate delivery price based on product price rules."""
+def calculate_delivery_price(price, product_id=None):
+    """
+    Calculate delivery price based on product-specific delivery rules.
+    If product_id is provided, uses database rules. Otherwise falls back to default.
+    
+    Args:
+        price: Product price
+        product_id: Optional product ID to look up custom delivery rules
+    
+    Returns:
+        Delivery fee amount
+    """
     if price is None:
-        return 300.0  # Default
+        return 300.0  # Default fallback
+    
+    # If product_id is provided, try to use database rules
+    if product_id:
+        product = Product.query.get(product_id)
+        if product:
+            # First, try to use custom delivery rules
+            if product.delivery_rules:
+                # Sort rules by min_amount (ascending) to find the first matching rule
+                rules = sorted(product.delivery_rules, key=lambda r: r.min_amount)
+                for rule in rules:
+                    # Check if price falls within this rule's range
+                    if price >= rule.min_amount:
+                        # If max_amount is None, it means no upper limit
+                        if rule.max_amount is None or price <= rule.max_amount:
+                            return float(rule.fee)
+            
+            # If no rule matches, use the product's delivery_price if set
+            if product.delivery_price:
+                return float(product.delivery_price)
+    
+    # Final fallback: default tiered pricing (for backward compatibility)
     if price <= 1000:
         return 300.0
     elif price > 1000 and price <= 2000:
@@ -4491,7 +4533,74 @@ def admin_edit_product(product_id):
         if form.delivery_price.data and form.delivery_price.data > 0:
             product.delivery_price = form.delivery_price.data
         elif old_price != form.price.data or product.delivery_price is None:
-            product.delivery_price = calculate_delivery_price(form.price.data)
+            product.delivery_price = calculate_delivery_price(form.price.data, product_id=product.id)
+        
+        # Handle delivery rules
+        delivery_rules_data = request.form.getlist('delivery_rules')
+        rules_to_delete = request.form.getlist('delivery_rules_to_delete[]')
+        
+        # Delete marked rules
+        for rule_id_str in rules_to_delete:
+            try:
+                rule_id = int(rule_id_str)
+                rule = DeliveryRule.query.get(rule_id)
+                if rule and rule.product_id == product.id:
+                    db.session.delete(rule)
+            except (ValueError, TypeError):
+                pass
+        
+        # Process delivery rules from form
+        # The form sends data as: delivery_rules[rule_id][field_name]
+        rule_ids_processed = set()
+        
+        # Get all rule IDs from form data
+        for key in request.form.keys():
+            if key.startswith('delivery_rules[') and '][min_amount]' in key:
+                # Extract rule ID from key like "delivery_rules[123][min_amount]"
+                rule_id_str = key.split('[')[1].split(']')[0]
+                rule_ids_processed.add(rule_id_str)
+        
+        # Update existing rules and create new ones
+        for rule_id_str in rule_ids_processed:
+            min_amount = request.form.get(f'delivery_rules[{rule_id_str}][min_amount]')
+            max_amount = request.form.get(f'delivery_rules[{rule_id_str}][max_amount]')
+            fee = request.form.get(f'delivery_rules[{rule_id_str}][fee]')
+            
+            if min_amount and fee:
+                try:
+                    min_val = float(min_amount)
+                    max_val = float(max_amount) if max_amount else None
+                    fee_val = float(fee)
+                    
+                    # Validate: min < max if max is provided
+                    if max_val is not None and min_val >= max_val:
+                        flash('Delivery rule error: Minimum price must be less than maximum price.', 'error')
+                        continue
+                    
+                    # Check if it's a new rule or existing one
+                    if rule_id_str.startswith('new-'):
+                        # Create new rule
+                        new_rule = DeliveryRule(
+                            product_id=product.id,
+                            min_amount=min_val,
+                            max_amount=max_val,
+                            fee=fee_val
+                        )
+                        db.session.add(new_rule)
+                    else:
+                        # Update existing rule
+                        try:
+                            rule_id = int(rule_id_str)
+                            rule = DeliveryRule.query.get(rule_id)
+                            if rule and rule.product_id == product.id:
+                                rule.min_amount = min_val
+                                rule.max_amount = max_val
+                                rule.fee = fee_val
+                        except (ValueError, TypeError):
+                            pass
+                except (ValueError, TypeError):
+                    flash('Invalid delivery rule data. Please check your inputs.', 'error')
+                    continue
         
         db.session.commit()
         
@@ -4500,8 +4609,12 @@ def admin_edit_product(product_id):
     
     # Pre-populate delivery_price if not set
     if product.delivery_price is None:
-        product.delivery_price = calculate_delivery_price(product.price)
+        product.delivery_price = calculate_delivery_price(product.price, product_id=product.id)
         form.delivery_price.data = product.delivery_price
+    
+    # Load delivery rules for the product
+    delivery_rules = DeliveryRule.query.filter_by(product_id=product.id).order_by(DeliveryRule.min_amount).all()
+    product.delivery_rules = delivery_rules
     
     return render_template('admin/admin/product_form.html', form=form, product=product)
 
@@ -6981,8 +7094,8 @@ def category(category_id):
 def product(product_id):
     product = Product.query.get_or_404(product_id)
     
-    # Calculate shipping fee based on product price
-    shipping_fee = calculate_delivery_price(product.price)
+    # Calculate shipping fee based on product-specific delivery rules
+    shipping_fee = calculate_delivery_price(product.price, product_id=product.id)
     final_price = product.price + shipping_fee
     
     # Calculate delivery_price if not set (for backward compatibility)
