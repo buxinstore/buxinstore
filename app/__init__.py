@@ -7436,6 +7436,17 @@ def favicon():
     # Return 204 No Content if favicon doesn't exist (standard way to handle missing favicons)
     return '', 204
 
+@app.route('/service-worker.js')
+def service_worker():
+    """Serve service worker from root for proper scope"""
+    sw_path = os.path.join(app.static_folder, 'service-worker.js')
+    if os.path.exists(sw_path):
+        return send_file(sw_path, mimetype='application/javascript'), 200, {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Service-Worker-Allowed': '/'
+        }
+    return '', 404
+
 @app.route('/')
 def home():
     search_query = request.args.get('q', '')

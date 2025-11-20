@@ -2,11 +2,31 @@
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com;">
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#ffffff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Tech Buxin">
+  <meta name="description" content="Tech Buxin - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  
+  <!-- Favicon and App Icons -->
   <link rel="icon" type="image/x-icon" href="{{ url_for('favicon') }}">
-  <title>{% block title %}Buxin Electronics Store{% endblock %}</title>
+  <link rel="apple-touch-icon" sizes="72x72" href="{{ url_for('static', filename='icons/icon-72.png') }}">
+  <link rel="apple-touch-icon" sizes="96x96" href="{{ url_for('static', filename='icons/icon-96.png') }}">
+  <link rel="apple-touch-icon" sizes="128x128" href="{{ url_for('static', filename='icons/icon-128.png') }}">
+  <link rel="apple-touch-icon" sizes="192x192" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+  <link rel="apple-touch-icon" sizes="256x256" href="{{ url_for('static', filename='icons/icon-256.png') }}">
+  <link rel="apple-touch-icon" sizes="512x512" href="{{ url_for('static', filename='icons/icon-512.png') }}">
+  
+  <title>{% block title %}Tech Buxin{% endblock %}</title>
   <script>
     (function() {
       const storageKey = 'theme';
@@ -956,5 +976,60 @@
   
   <!-- Cart functionality -->
   <script src="{{ url_for('static', filename='js/cart.js') }}"></script>
+
+  <!-- PWA Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('{{ url_for("service_worker") }}')
+          .then((registration) => {
+            console.log('[PWA] Service Worker registered successfully:', registration.scope);
+            
+            // Check for updates
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New service worker available, prompt user to refresh
+                  if (confirm('A new version of Tech Buxin is available. Would you like to refresh?')) {
+                    window.location.reload();
+                  }
+                }
+              });
+            });
+          })
+          .catch((error) => {
+            console.error('[PWA] Service Worker registration failed:', error);
+          });
+
+        // Listen for service worker updates
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          console.log('[PWA] Service Worker controller changed');
+        });
+      });
+
+      // Handle "Add to Home Screen" prompt
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent the mini-infobar from appearing on mobile
+        e.preventDefault();
+        // Stash the event so it can be triggered later
+        deferredPrompt = e;
+        console.log('[PWA] Install prompt available');
+        
+        // Show custom install button (optional)
+        // You can create a custom install button in your UI
+        // and call deferredPrompt.prompt() when clicked
+      });
+
+      // Track when app is installed
+      window.addEventListener('appinstalled', () => {
+        console.log('[PWA] App installed successfully');
+        deferredPrompt = null;
+      });
+    } else {
+      console.warn('[PWA] Service Workers are not supported in this browser');
+    }
+  </script>
 </body>
 </html>
