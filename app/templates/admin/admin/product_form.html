@@ -43,7 +43,7 @@
                             {% endif %}
                         </div>
 
-                        <!-- Delivery Price (Legacy - kept for backward compatibility) -->
+                        <!-- Delivery Price -->
                         <div>
                             {{ form.delivery_price.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
                             <div class="mt-1 relative rounded-md shadow-sm">
@@ -56,7 +56,24 @@
                                 <p class="mt-1 text-sm text-red-600">{{ form.delivery_price.errors[0] }}</p>
                             {% endif %}
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Fallback delivery fee if no rules match. Configure rules below for price-based fees.
+                                Delivery fee shown to customers. Default: 0.00
+                            </p>
+                        </div>
+
+                        <!-- Shipping Price -->
+                        <div>
+                            {{ form.shipping_price.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                            <div class="mt-1 relative rounded-md shadow-sm">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span class="text-gray-500 sm:text-sm">D</span>
+                                </div>
+                                {{ form.shipping_price(class="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white", placeholder="0.00", step="0.01", id="shipping-price") }}
+                            </div>
+                            {% if form.shipping_price.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.shipping_price.errors[0] }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Actual shipping cost. Default: 0.00
                             </p>
                         </div>
 

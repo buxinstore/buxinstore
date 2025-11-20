@@ -1228,6 +1228,7 @@ class Product(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
     available_in_gambia = db.Column(db.Boolean, default=False, nullable=False)
     delivery_price = db.Column(db.Float, nullable=True)
+    shipping_price = db.Column(db.Float, nullable=True)  # Shipping cost (can be different from delivery_price)
     location = db.Column(db.String(50), nullable=True)  # 'In The Gambia' or 'Outside The Gambia'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -2619,6 +2620,7 @@ class ProductForm(FlaskForm):
     ])
     available_in_gambia = BooleanField('Available in Gambia', default=False)
     delivery_price = FloatField('Delivery Fee', validators=[NumberRange(min=0)])
+    shipping_price = FloatField('Shipping Price', validators=[NumberRange(min=0)])
     location = SelectField('Product Location', 
                           choices=[
                               ('', 'Select location'),
@@ -4501,8 +4503,9 @@ def admin_add_product():
                     flash(f'Failed to upload image to Cloudinary: {error_msg}. Please check the logs for details.', 'error')
                     return redirect(url_for('admin_add_product'))
         
-        # Use delivery price from form, default to 0.00 if not provided
+        # Use delivery price and shipping price from form, default to 0.00 if not provided
         delivery_price = form.delivery_price.data if form.delivery_price.data else 0.0
+        shipping_price = form.shipping_price.data if form.shipping_price.data else 0.0
         
         product = Product(
             name=form.name.data,
@@ -4513,6 +4516,7 @@ def admin_add_product():
             image=image_filename,
             available_in_gambia=form.available_in_gambia.data or False,
             delivery_price=delivery_price,
+            shipping_price=shipping_price,
             location=form.location.data
         )
         
@@ -4572,8 +4576,9 @@ def admin_edit_product(product_id):
         product.available_in_gambia = form.available_in_gambia.data or False
         product.location = form.location.data
         
-        # Use delivery price from form, default to 0.00 if not provided
+        # Use delivery price and shipping price from form, default to 0.00 if not provided
         product.delivery_price = form.delivery_price.data if form.delivery_price.data else 0.0
+        product.shipping_price = form.shipping_price.data if form.shipping_price.data else 0.0
         
         # Handle delivery rules
         delivery_rules_data = request.form.getlist('delivery_rules')
