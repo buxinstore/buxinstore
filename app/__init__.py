@@ -5350,6 +5350,9 @@ def admin_orders():
     
     # Daily Sales Chart Data (for the selected period)
     if date_start and date_end:
+        # Calculate number of days in range
+        days_diff = (date_end - date_start).days + 1
+        # Get actual sales data
         daily_sales_query = db.session.query(
             db.func.date(Order.created_at).label('date'),
             db.func.sum(Order.total).label('total')
@@ -5364,10 +5367,26 @@ def admin_orders():
             Order.created_at >= date_start,
             Order.created_at <= date_end
         ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
-        daily_sales_data = daily_sales_query.all()
+        daily_sales_raw = daily_sales_query.all()
+        
+        # Create a dictionary for quick lookup
+        sales_dict = {}
+        for row in daily_sales_raw:
+            date_key = row.date if isinstance(row.date, str) else row.date.strftime('%Y-%m-%d')
+            sales_dict[date_key] = float(row.total) if row.total else 0.0
+        
+        # Fill in all days in the range
+        daily_sales_data = []
+        for i in range(days_diff):
+            current_date = (date_start + timedelta(days=i)).date()
+            date_key = current_date.strftime('%Y-%m-%d')
+            daily_sales_data.append({
+                'date': current_date,
+                'total': sales_dict.get(date_key, 0.0)
+            })
     else:
         # Last 30 days if no filter
-        thirty_days_ago = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        thirty_days_ago = (now - timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
         daily_sales_query = db.session.query(
             db.func.date(Order.created_at).label('date'),
             db.func.sum(Order.total).label('total')
@@ -5381,10 +5400,29 @@ def admin_orders():
             ),
             Order.created_at >= thirty_days_ago
         ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
-        daily_sales_data = daily_sales_query.all()
+        daily_sales_raw = daily_sales_query.all()
+        
+        # Create a dictionary for quick lookup
+        sales_dict = {}
+        for row in daily_sales_raw:
+            date_key = row.date if isinstance(row.date, str) else row.date.strftime('%Y-%m-%d')
+            sales_dict[date_key] = float(row.total) if row.total else 0.0
+        
+        # Fill in all 30 days
+        daily_sales_data = []
+        for i in range(30):
+            current_date = (thirty_days_ago + timedelta(days=i)).date()
+            date_key = current_date.strftime('%Y-%m-%d')
+            daily_sales_data.append({
+                'date': current_date,
+                'total': sales_dict.get(date_key, 0.0)
+            })
     
     # Orders Count Chart Data (same period)
     if date_start and date_end:
+        # Calculate number of days in range
+        days_diff = (date_end - date_start).days + 1
+        # Get actual orders count data
         orders_count_query = db.session.query(
             db.func.date(Order.created_at).label('date'),
             db.func.count(Order.id).label('count')
@@ -5399,9 +5437,25 @@ def admin_orders():
             Order.created_at >= date_start,
             Order.created_at <= date_end
         ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
-        orders_count_data = orders_count_query.all()
+        orders_count_raw = orders_count_query.all()
+        
+        # Create a dictionary for quick lookup
+        count_dict = {}
+        for row in orders_count_raw:
+            date_key = row.date if isinstance(row.date, str) else row.date.strftime('%Y-%m-%d')
+            count_dict[date_key] = int(row.count) if row.count else 0
+        
+        # Fill in all days in the range
+        orders_count_data = []
+        for i in range(days_diff):
+            current_date = (date_start + timedelta(days=i)).date()
+            date_key = current_date.strftime('%Y-%m-%d')
+            orders_count_data.append({
+                'date': current_date,
+                'count': count_dict.get(date_key, 0)
+            })
     else:
-        thirty_days_ago = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        thirty_days_ago = (now - timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
         orders_count_query = db.session.query(
             db.func.date(Order.created_at).label('date'),
             db.func.count(Order.id).label('count')
@@ -5415,7 +5469,23 @@ def admin_orders():
             ),
             Order.created_at >= thirty_days_ago
         ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
-        orders_count_data = orders_count_query.all()
+        orders_count_raw = orders_count_query.all()
+        
+        # Create a dictionary for quick lookup
+        count_dict = {}
+        for row in orders_count_raw:
+            date_key = row.date if isinstance(row.date, str) else row.date.strftime('%Y-%m-%d')
+            count_dict[date_key] = int(row.count) if row.count else 0
+        
+        # Fill in all 30 days
+        orders_count_data = []
+        for i in range(30):
+            current_date = (thirty_days_ago + timedelta(days=i)).date()
+            date_key = current_date.strftime('%Y-%m-%d')
+            orders_count_data.append({
+                'date': current_date,
+                'count': count_dict.get(date_key, 0)
+            })
     
     # Top Products Chart Data
     top_products_query = db.session.query(
