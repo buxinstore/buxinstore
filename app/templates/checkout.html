@@ -446,27 +446,40 @@
             const data = await response.json();
             
             console.log('ModemPay response:', data);
+            console.log('Response status:', response.status);
             
             // Display response
             responseContent.textContent = JSON.stringify(data, null, 2);
             
-            // Handle response
-            if (data.success) {
-                // Support both { payment_url } and { data: { payment_url } }
+            // Handle response - check for payment_url in multiple possible locations
+            if (data.success || response.ok) {
+                // Support multiple response formats:
+                // 1. { success: true, payment_url: "..." }
+                // 2. { success: true, data: { payment_url: "..." } }
                 const paymentUrl = data.payment_url || (data.data && data.data.payment_url);
                 
-                if (paymentUrl) {
-                    // Immediately redirect to payment page
-                    console.log('Redirecting to payment URL:', paymentUrl);
+                console.log('Extracted payment URL:', paymentUrl);
+                
+                if (paymentUrl && typeof paymentUrl === 'string' && paymentUrl.startsWith('http')) {
+                    // Valid payment URL - immediately redirect
+                    console.log('Redirecting to ModemPay checkout:', paymentUrl);
                     window.location.href = paymentUrl;
                     return; // Exit early to prevent any other code from running
                 } else {
-                    // No payment URL - show error
-                    console.error('Payment initiated but no payment_url received:', data);
-                    showMessage('Payment initiated but redirect URL is missing. Please contact support.', 'error');
+                    // No valid payment URL - show error with details
+                    console.error('Payment initiated but no valid payment_url received:', {
+                        data: data,
+                        paymentUrl: paymentUrl,
+                        hasPaymentUrl: !!paymentUrl,
+                        isString: typeof paymentUrl === 'string',
+                        startsWithHttp: paymentUrl && paymentUrl.startsWith('http')
+                    });
+                    showMessage('Payment initiated but redirect URL is missing or invalid. Please contact support.', 'error');
                 }
             } else {
-                showMessage(data.message || 'Payment initiation failed', 'error');
+                const errorMsg = data.message || data.error || 'Payment initiation failed';
+                console.error('Payment failed:', errorMsg, data);
+                showMessage(errorMsg, 'error');
             }
             
         } catch (error) {
