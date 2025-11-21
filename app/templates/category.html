@@ -151,15 +151,15 @@
                                         {% endif %}
                                     </a>
                                     <button type="button"
-                                            class="wishlist-button absolute top-2 right-2 p-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-full shadow-md hover:bg-white/90 dark:hover:bg-slate-800 transition-all group"
+                                            class="wishlist-button absolute top-2 right-2 p-2 bg-[color:var(--app-card)]/80 backdrop-blur-md rounded-full shadow-md hover:bg-[color:var(--app-surface-hover)] transition-all group"
                                             data-product-id="{{ product.id }}"
                                             aria-label="Toggle wishlist">
                                         <i class="heart-icon fas fa-heart text-red-500 absolute inset-0 m-auto hidden"></i>
-                                        <i class="heart-outline-icon fas fa-heart text-slate-400 dark:text-slate-500"></i>
+                                        <i class="heart-outline-icon fas fa-heart text-[color:var(--app-muted)]"></i>
                                     </button>
                                     
                                     {% if product.available_in_gambia %}
-                                    <div class="absolute top-2 left-2 w-8 h-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center z-10" title="Available in Gambia">
+                                    <div class="absolute top-2 left-2 w-8 h-8 bg-[color:var(--app-card)]/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center z-10" title="Available in Gambia">
                                         <span class="text-xl">🇬🇲</span>
                                     </div>
                                     {% endif %}

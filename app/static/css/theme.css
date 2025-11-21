@@ -1,3 +1,9 @@
+/* ============================================
+   THEME SYSTEM - COMPREHENSIVE REWRITE
+   Default: Light Mode
+   ============================================ */
+
+/* Color Scheme Declaration - Prevents OS auto-dark detection override */
 :root {
   color-scheme: light;
 }
@@ -6,6 +12,33 @@ html.dark {
   color-scheme: dark;
 }
 
+/* ============================================
+   CSS Variables - Light Mode (Default)
+   ============================================ */
+:root {
+  --app-bg: #ffffff;
+  --app-card: #ffffff;
+  --app-text: #0f172a;
+  --app-muted: #64748b;
+  --app-border: rgba(0, 0, 0, 0.1);
+  --app-surface-hover: rgba(15, 23, 42, 0.05);
+  --app-input: #f1f5f9;
+}
+
+/* CSS Variables - Dark Mode */
+html.dark {
+  --app-bg: #0f172a;
+  --app-card: #0b1324;
+  --app-text: #f1f5f9;
+  --app-muted: #94a3b8;
+  --app-border: rgba(255, 255, 255, 0.15);
+  --app-surface-hover: rgba(148, 163, 184, 0.12);
+  --app-input: rgba(15, 23, 42, 0.75);
+}
+
+/* ============================================
+   Body and Base Styles
+   ============================================ */
 body {
   background-color: var(--app-bg) !important;
   color: var(--app-text) !important;
@@ -21,11 +54,154 @@ html.theme-initialized body {
 }
 
 /* ============================================
-   CRITICAL: Override ALL Tailwind dark: classes
-   This ensures CSS variables always take precedence
+   CRITICAL: Icon Transparency Fixes
+   ALL icons must have transparent backgrounds
    ============================================ */
 
-/* Override dark: background classes - FORCE light mode values when not in dark mode */
+/* Base icon transparency - applies to ALL icon types */
+i,
+svg,
+[class*="icon"],
+[data-lucide],
+[data-lucide-icon] {
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Lucide Icons - Ensure proper color inheritance */
+i[data-lucide],
+svg[data-lucide-icon] {
+  color: inherit !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  display: inline-block;
+}
+
+/* Font Awesome Icons */
+i[class*="fa-"],
+i[class*="fas"],
+i[class*="far"],
+i[class*="fab"],
+i[class*="fal"] {
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+  display: inline-block;
+}
+
+/* All SVG elements */
+svg {
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+  display: inline-block;
+}
+
+/* Icon containers and wrappers */
+button i,
+a i,
+span i,
+div i,
+button svg,
+a svg,
+span svg,
+div svg {
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Icon parent elements - prevent background bleed */
+[class*="icon"]:not([class*="bg-"]),
+.icon-wrapper,
+.icon-container {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* ============================================
+   Button and Text Element Fixes
+   Buttons need backgrounds, but text spans should be transparent
+   ============================================ */
+
+/* Gradient buttons - PRESERVE background and maintain white text */
+button[class*="bg-gradient"],
+[class*="bg-gradient"] button,
+.add-to-cart-btn[class*="bg-gradient"] {
+  /* Keep gradient background - don't override */
+  background-image: inherit !important;
+  color: white !important;
+}
+
+/* Button text elements - transparent backgrounds, inherit text color */
+button span,
+button .add-to-cart-text,
+.add-to-cart-text,
+button .text,
+button .label {
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+  display: inline-block;
+  color: inherit !important;
+}
+
+/* Gradient button text - ensure white text */
+button[class*="bg-gradient"] span,
+button[class*="bg-gradient"] .add-to-cart-text,
+[class*="bg-gradient"] .add-to-cart-text,
+[class*="bg-gradient"] button span {
+  color: white !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Regular buttons without explicit backgrounds - add subtle background in light mode */
+html:not(.dark) button:not([class*="bg-"]):not([class*="bg-gradient"]) {
+  background-color: var(--app-surface-hover) !important;
+  color: var(--app-text) !important;
+}
+
+html:not(.dark) button:not([class*="bg-"]):not([class*="bg-gradient"]):hover {
+  background-color: var(--app-surface-hover) !important;
+  opacity: 0.8;
+}
+
+/* Link text elements */
+a span,
+a .text,
+a .label {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* All span elements (unless explicitly styled) */
+span:not([class*="bg-"]):not([class*="badge"]):not([class*="pill"]):not([class*="chip"]) {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Add to Cart button - preserve gradient if present */
+.add-to-cart-btn[class*="bg-gradient"] {
+  background-image: inherit !important;
+  background-color: transparent !important;
+}
+
+/* Add to Cart text - transparent background, inherit color */
+.add-to-cart-text {
+  background-color: transparent !important;
+  background: transparent !important;
+  color: inherit !important;
+}
+
+/* ============================================
+   Override Tailwind dark: classes in light mode
+   ============================================ */
+
+/* Dark mode background classes - override in light mode */
 html:not(.dark) .dark\:bg-slate-900,
 html:not(.dark) .dark\:bg-slate-800,
 html:not(.dark) .dark\:bg-slate-700,
@@ -37,16 +213,14 @@ html:not(.dark) [class*="dark:bg-gray-"] {
   background-image: none !important;
 }
 
-/* Override dark: text classes */
+/* Dark mode text classes - override in light mode */
 html:not(.dark) .dark\:text-white,
 html:not(.dark) .dark\:text-slate-100,
 html:not(.dark) .dark\:text-slate-200,
 html:not(.dark) .dark\:text-slate-300,
-html:not(.dark) .dark\:text-slate-400,
 html:not(.dark) .dark\:text-gray-100,
 html:not(.dark) .dark\:text-gray-200,
 html:not(.dark) .dark\:text-gray-300,
-html:not(.dark) .dark\:text-gray-400,
 html:not(.dark) [class*="dark:text-"] {
   color: var(--app-text) !important;
 }
@@ -58,17 +232,16 @@ html:not(.dark) .dark\:text-gray-500 {
   color: var(--app-muted) !important;
 }
 
-/* Override dark: border classes */
+/* Dark mode border classes */
 html:not(.dark) .dark\:border-slate-700,
 html:not(.dark) .dark\:border-slate-600,
 html:not(.dark) .dark\:border-gray-700,
 html:not(.dark) .dark\:border-gray-600,
-html:not(.dark) [class*="dark:border-slate-"],
-html:not(.dark) [class*="dark:border-gray-"] {
+html:not(.dark) [class*="dark:border-"] {
   border-color: var(--app-border) !important;
 }
 
-/* Override dark: hover classes */
+/* Dark mode hover classes */
 html:not(.dark) .dark\:hover\:bg-slate-800:hover,
 html:not(.dark) .dark\:hover\:bg-slate-700:hover,
 html:not(.dark) .dark\:hover\:bg-gray-800:hover,
@@ -81,40 +254,29 @@ html:not(.dark) [class*="dark:hover:text-"]:hover {
   color: var(--app-text) !important;
 }
 
-/* Override dark: ring classes */
-html:not(.dark) .dark\:ring-slate-700,
-html:not(.dark) [class*="dark:ring-"] {
-  --tw-ring-color: var(--app-border) !important;
-}
-
 /* ============================================
    Light mode surface backgrounds
+   Map Tailwind classes to CSS variables
    ============================================ */
 .bg-white,
 .bg-gray-50,
 .bg-gray-100,
 .bg-gray-200,
-.bg-gray-300,
 .bg-slate-50,
 .bg-slate-100,
 .bg-slate-200,
-.bg-slate-300,
 [class*="bg-white/"],
 [class*="bg-gray-50/"],
-[class*="bg-gray-100/"],
-[class*="bg-slate-50/"],
-[class*="bg-slate-100/"] {
+[class*="bg-slate-50/"] {
   background-color: var(--app-card) !important;
 }
 
-/* Muted surface hover states */
+/* Hover states */
 .hover\:bg-slate-100:hover,
 .hover\:bg-slate-200:hover,
 .hover\:bg-gray-50:hover,
 .hover\:bg-gray-100:hover,
-.hover\:bg-white:hover,
-.hover\:bg-white\/90:hover,
-.hover\:bg-white\/80:hover {
+.hover\:bg-white:hover {
   background-color: var(--app-surface-hover) !important;
 }
 
@@ -144,24 +306,12 @@ html:not(.dark) [class*="dark:ring-"] {
 .border-gray-300,
 .border-slate-100,
 .border-slate-200,
-.border-slate-300,
-.divide-gray-100,
-.divide-gray-200,
-.divide-gray-300,
-.divide-slate-100,
-.divide-slate-200,
-.divide-slate-300 {
+.border-slate-300 {
   border-color: var(--app-border) !important;
 }
 
-/* Ring offsets */
-.ring-offset-white,
-.ring-offset-slate-50 {
-  --tw-ring-offset-color: var(--app-card) !important;
-}
-
 /* ============================================
-   Inputs - Ensure consistent theming
+   Input Elements
    ============================================ */
 input,
 textarea,
@@ -176,78 +326,88 @@ textarea::placeholder {
   color: var(--app-muted) !important;
 }
 
-/* Override dark: input classes */
 html:not(.dark) .dark\:bg-slate-800\/50,
-html:not(.dark) [class*="dark:bg-"] {
+html:not(.dark) [class*="dark:bg-"] input,
+html:not(.dark) [class*="dark:bg-"] textarea,
+html:not(.dark) [class*="dark:bg-"] select {
   background-color: var(--app-input) !important;
 }
 
-html:not(.dark) .dark\:border-slate-700 {
-  border-color: var(--app-border) !important;
-}
-
 /* ============================================
-   Mobile-specific fixes
+   MOBILE-SPECIFIC FIXES
+   Aggressive transparency enforcement for mobile
    ============================================ */
 @media (max-width: 768px) {
-  /* Ensure icons have transparent backgrounds on mobile */
-  html:not(.dark) i[data-lucide],
-  html:not(.dark) svg[data-lucide-icon],
-  html:not(.dark) i[class*="fa-"],
-  html:not(.dark) svg {
+  /* Force transparent backgrounds on ALL icon-related elements */
+  html:not(.dark) i,
+  html:not(.dark) svg,
+  html:not(.dark) [data-lucide],
+  html:not(.dark) [data-lucide-icon],
+  html:not(.dark) [class*="icon"],
+  html:not(.dark) i[class*="fa-"] {
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
+  }
+
+  /* Icon containers and wrappers on mobile */
+  html:not(.dark) button i,
+  html:not(.dark) a i,
+  html:not(.dark) span i,
+  html:not(.dark) div i,
+  html:not(.dark) button svg,
+  html:not(.dark) a svg {
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
+  }
+
+  /* Button text elements on mobile - transparent backgrounds */
+  html:not(.dark) button span,
+  html:not(.dark) button .add-to-cart-text,
+  html:not(.dark) .add-to-cart-text,
+  html:not(.dark) button .text {
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
+    color: inherit !important;
+  }
+
+  /* Gradient buttons on mobile - preserve background and white text */
+  html:not(.dark) button[class*="bg-gradient"],
+  html:not(.dark) .add-to-cart-btn[class*="bg-gradient"] {
+    background-image: inherit !important;
+    color: white !important;
+  }
+
+  html:not(.dark) button[class*="bg-gradient"] span,
+  html:not(.dark) button[class*="bg-gradient"] .add-to-cart-text {
+    color: white !important;
+    background-color: transparent !important;
+  }
+
+  /* Regular buttons on mobile - add subtle background for visibility */
+  html:not(.dark) button:not([class*="bg-"]):not([class*="bg-gradient"]) {
+    background-color: var(--app-surface-hover) !important;
+    color: var(--app-text) !important;
+  }
+
+  /* Text spans on mobile */
+  html:not(.dark) span:not([class*="bg-"]):not([class*="badge"]):not([class*="pill"]) {
     background-color: transparent !important;
     background: transparent !important;
   }
-  
-  /* Ensure button text is visible in light mode */
-  html:not(.dark) .add-to-cart-btn,
-  html:not(.dark) .add-to-cart-text {
-    color: inherit !important;
-  }
-  
-  /* Prevent white rectangles on buttons with gradient backgrounds */
-  html:not(.dark) [class*="bg-gradient"] {
-    background-image: inherit !important;
-  }
 }
 
 /* ============================================
-   Ensure backdrop and overlay elements respect theme
+   Backdrop and Overlay Elements
    ============================================ */
 html:not(.dark) [class*="backdrop-blur"] {
   background-color: var(--app-card) !important;
 }
 
 /* ============================================
-   Prevent white rectangles on icons and buttons
-   ============================================ */
-html:not(.dark) i,
-html:not(.dark) svg,
-html:not(.dark) [class*="icon"] {
-  background-color: transparent !important;
-  background: transparent !important;
-}
-
-/* Ensure buttons with text don't have white backgrounds */
-html:not(.dark) button:not([class*="bg-"]):not([class*="gradient"]) {
-  background-color: transparent !important;
-}
-
-/* Prevent white backgrounds on spans and text elements */
-html:not(.dark) span:not([class*="bg-"]):not([class*="badge"]):not([class*="pill"]) {
-  background-color: transparent !important;
-}
-
-/* Ensure text elements don't have backgrounds */
-html:not(.dark) .add-to-cart-text,
-html:not(.dark) button span,
-html:not(.dark) a span {
-  background-color: transparent !important;
-  background: transparent !important;
-}
-
-/* ============================================
-   Dark mode specific overrides (when dark class is present)
+   Dark Mode Specific Overrides
    ============================================ */
 html.dark input,
 html.dark textarea,
@@ -263,99 +423,7 @@ html.dark textarea::placeholder {
 }
 
 /* ============================================
-   Lucide Icons - Ensure they inherit theme colors
-   ============================================ */
-i[data-lucide],
-svg[data-lucide-icon] {
-  color: inherit !important;
-  stroke: currentColor !important;
-  fill: none !important;
-  background-color: transparent !important;
-  background: transparent !important;
-}
-
-/* Ensure Lucide icons in buttons and links inherit parent color */
-button i[data-lucide],
-a i[data-lucide],
-[class*="text-"] i[data-lucide] {
-  color: inherit !important;
-  stroke: currentColor !important;
-  background-color: transparent !important;
-  background: transparent !important;
-}
-
-/* All other Lucide icons should inherit from parent */
-/* Note: text-cyan-400 and text-yellow-400 are allowed for theme toggle icons */
-i[data-lucide]:not(.text-cyan-400):not(.text-yellow-400) {
-  color: inherit !important;
-  background-color: transparent !important;
-  background: transparent !important;
-}
-
-/* Font Awesome icons - ensure transparent backgrounds */
-i[class*="fa-"],
-i[class*="fas"],
-i[class*="far"],
-i[class*="fab"] {
-  background-color: transparent !important;
-  background: transparent !important;
-}
-
-/* All SVG elements should have transparent backgrounds */
-svg {
-  background-color: transparent !important;
-  background: transparent !important;
-}
-
-/* ============================================
-   Button text colors - Ensure they use CSS variables
-   ============================================ */
-button:not([class*="bg-gradient"]):not([class*="text-white"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-blue"]):not([class*="text-cyan"]):not([class*="text-yellow"]),
-a:not([class*="bg-gradient"]):not([class*="text-white"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-blue"]):not([class*="text-cyan"]):not([class*="text-yellow"]) {
-  color: var(--app-text) !important;
-}
-
-/* Add to Cart buttons and similar action buttons */
-.add-to-cart-btn {
-  /* Gradient buttons should keep their text-white class */
-  background-color: transparent !important;
-}
-
-.add-to-cart-text {
-  color: inherit !important;
-  background-color: transparent !important;
-  background: transparent !important;
-}
-
-/* Ensure gradient buttons maintain their white text */
-[class*="bg-gradient"] .add-to-cart-text,
-[class*="bg-gradient"] button,
-button[class*="bg-gradient"],
-button[class*="bg-gradient"] span,
-button[class*="bg-gradient"] .add-to-cart-text {
-  color: white !important;
-  background-color: transparent !important;
-  background: transparent !important;
-}
-
-/* Prevent white backgrounds on buttons in light mode */
-html:not(.dark) button:not([class*="bg-gradient"]):not([class*="bg-white"]) {
-  background-color: transparent !important;
-}
-
-html:not(.dark) button[class*="bg-gradient"] {
-  background-image: inherit !important;
-}
-
-/* Ensure button text spans don't have backgrounds */
-html:not(.dark) button span,
-html:not(.dark) button .add-to-cart-text {
-  background-color: transparent !important;
-  background: transparent !important;
-}
-
-/* ============================================
-   Force immediate theme application (no transition delay)
+   Theme Transition Control
    ============================================ */
 html.theme-changing * {
   transition: none !important;
@@ -374,7 +442,7 @@ html.theme-changing {
   --nav-bg: #ffffff;
   --nav-border: rgba(0, 0, 0, 0.08);
   --nav-icon: #64748b;
-  --nav-icon-active: #06b6d4; /* cyan-500 */
+  --nav-icon-active: #06b6d4;
   --nav-shadow: rgba(0, 0, 0, 0.1);
 }
 
@@ -383,11 +451,11 @@ html.dark {
   --nav-bg: rgba(15, 23, 42, 0.95);
   --nav-border: rgba(255, 255, 255, 0.1);
   --nav-icon: #94a3b8;
-  --nav-icon-active: #22d3ee; /* cyan-400 */
+  --nav-icon-active: #22d3ee;
   --nav-shadow: rgba(0, 0, 0, 0.6);
 }
 
-/* HIDE ON DESKTOP - Completely hidden on tablets and desktops */
+/* HIDE ON DESKTOP */
 @media (min-width: 769px) {
   .curved-nav,
   .mobile-bottom-nav {
@@ -397,64 +465,60 @@ html.dark {
     pointer-events: none !important;
   }
   
-  /* Remove body padding on desktop */
   body {
     padding-bottom: 0 !important;
   }
 }
 
-/* MOBILE CURVED FLOATING NAV BAR - HORIZONTAL LAYOUT */
+/* MOBILE CURVED FLOATING NAV BAR */
 @media (max-width: 768px) {
-  /* Main Navigation Container - FLOATING & FIXED AT BOTTOM */
   .curved-nav,
   .mobile-bottom-nav {
     position: fixed !important;
-    bottom: 12px !important; /* Floating above bottom */
+    bottom: 12px !important;
     left: 50% !important;
-    transform: translateX(-50%) !important; /* Center horizontally */
-    width: calc(100% - 24px) !important; /* 12px margin on each side */
-    max-width: 500px !important; /* Max width for larger phones */
+    transform: translateX(-50%) !important;
+    width: calc(100% - 24px) !important;
+    max-width: 500px !important;
     height: auto !important;
     min-height: 70px;
     background: var(--nav-bg) !important;
-    border-radius: 28px !important; /* Fully rounded corners for floating effect */
+    border-radius: 28px !important;
     display: flex !important;
-    flex-direction: row !important; /* CRITICAL: Force horizontal */
+    flex-direction: row !important;
     flex-wrap: nowrap !important;
     justify-content: space-around !important;
     align-items: center !important;
     padding: 10px 8px !important;
     padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
-    padding-bottom: calc(10px + constant(safe-area-inset-bottom, 0px)) !important; /* iOS fallback */
+    padding-bottom: calc(10px + constant(safe-area-inset-bottom, 0px)) !important;
     box-shadow: 0 10px 40px var(--nav-shadow), 
                 0 4px 12px rgba(0, 0, 0, 0.15),
-                0 0 0 1px rgba(0, 0, 0, 0.05) !important; /* Enhanced multi-layer shadow for floating effect */
+                0 0 0 1px rgba(0, 0, 0, 0.05) !important;
     backdrop-filter: blur(20px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-    border: 1px solid var(--nav-border) !important; /* Border on all sides */
+    border: 1px solid var(--nav-border) !important;
     z-index: 999999 !important;
     transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease !important;
     margin: 0 auto !important;
     box-sizing: border-box !important;
   }
   
-  /* Ensure transform doesn't interfere with active item animations */
   .curved-nav .nav-item.active,
   .mobile-bottom-nav .nav-item.active {
     transform: translateY(-8px) !important;
   }
 
-  /* Navigation Items - HORIZONTAL ROW */
   .curved-nav .nav-item,
   .mobile-bottom-nav .nav-item {
-    flex: 1 1 0% !important; /* Equal width distribution */
+    flex: 1 1 0% !important;
     min-width: 0 !important;
     max-width: 100% !important;
     text-align: center !important;
     text-decoration: none !important;
     color: var(--nav-icon) !important;
     display: flex !important;
-    flex-direction: column !important; /* Icon above text */
+    flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
     gap: 4px !important;
@@ -474,7 +538,6 @@ html.dark {
     outline: none !important;
   }
 
-  /* Haptic-like tap effect */
   .curved-nav .nav-item:active,
   .mobile-bottom-nav .nav-item:active,
   .curved-nav .nav-item.nav-item-clicked,
@@ -483,27 +546,32 @@ html.dark {
     opacity: 0.6 !important;
   }
   
-  /* Active items should maintain their transform even when clicked */
   .curved-nav .nav-item.active:active,
   .mobile-bottom-nav .nav-item.active:active,
   .curved-nav .nav-item.active.nav-item-clicked,
   .mobile-bottom-nav .nav-item.active.nav-item-clicked {
     transform: translateY(-8px) scale(0.95) !important;
   }
-  
-  /* Ensure parent transform doesn't interfere with child transforms */
+
   .curved-nav,
   .mobile-bottom-nav {
     transform: translateX(-50%) !important;
   }
 
-  /* Icons - Horizontal alignment */
+  /* Navigation icons - CRITICAL: transparent backgrounds */
   .curved-nav .nav-item i[data-lucide],
-  .mobile-bottom-nav .nav-item i[data-lucide] {
+  .mobile-bottom-nav .nav-item i[data-lucide],
+  .curved-nav .nav-item i[class*="fa-"],
+  .mobile-bottom-nav .nav-item i[class*="fa-"],
+  .curved-nav .nav-item svg,
+  .mobile-bottom-nav .nav-item svg {
     width: 24px !important;
     height: 24px !important;
     stroke-width: 2 !important;
     color: inherit !important;
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
     transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
                 color 0.3s ease,
                 stroke-width 0.3s ease !important;
@@ -512,13 +580,14 @@ html.dark {
     margin: 0 !important;
   }
 
-  /* Text labels */
   .curved-nav .nav-item span,
   .mobile-bottom-nav .nav-item span {
     font-size: 11px !important;
     font-weight: 500 !important;
     line-height: 1.2 !important;
     color: inherit !important;
+    background-color: transparent !important;
+    background: transparent !important;
     transition: color 0.3s ease, font-weight 0.3s ease !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -527,7 +596,6 @@ html.dark {
     display: block !important;
   }
 
-  /* ACTIVE TAB — Animated pop-up effect */
   .curved-nav .nav-item.active,
   .mobile-bottom-nav .nav-item.active {
     transform: translateY(-8px) !important;
@@ -548,25 +616,23 @@ html.dark {
     color: var(--nav-icon-active) !important;
   }
 
-  /* Prevent content from going under floating nav - Override Tailwind pb-20 */
   body {
-    padding-bottom: calc(94px + env(safe-area-inset-bottom, 0px)) !important; /* 70px nav + 12px bottom + 12px margin */
-    padding-bottom: calc(94px + constant(safe-area-inset-bottom, 0px)) !important; /* iOS fallback */
+    padding-bottom: calc(94px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(94px + constant(safe-area-inset-bottom, 0px)) !important;
   }
   
-  /* Ensure main content container also respects padding */
   .min-h-screen {
     padding-bottom: calc(94px + env(safe-area-inset-bottom, 0px)) !important;
     padding-bottom: calc(94px + constant(safe-area-inset-bottom, 0px)) !important;
   }
 }
 
-/* Extra small devices (phones) */
+/* Extra small devices */
 @media (max-width: 480px) {
   .curved-nav,
   .mobile-bottom-nav {
-    bottom: 10px !important; /* Slightly less margin on smaller screens */
-    width: calc(100% - 20px) !important; /* 10px margin on each side */
+    bottom: 10px !important;
+    width: calc(100% - 20px) !important;
     min-height: 68px !important;
     border-radius: 24px !important;
     padding: 8px 4px !important;
@@ -592,7 +658,7 @@ html.dark {
   }
 
   body {
-    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important; /* 68px nav + 10px bottom + 12px margin */
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
     padding-bottom: calc(90px + constant(safe-area-inset-bottom, 0px)) !important;
   }
   
