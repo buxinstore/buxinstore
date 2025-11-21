@@ -2793,10 +2793,10 @@ def admin_run_migration():
     from alembic.config import Config
     from alembic.runtime.migration import MigrationContext
     from alembic.script import ScriptDirectory
-    from flask import current_app
     
     # Get base directory (project root where alembic.ini is located)
-    basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    # Use app.root_path which points to the project root
+    basedir = app.root_path
     alembic_ini_path = os.path.join(basedir, 'alembic.ini')
     migrations_path = os.path.join(basedir, 'migrations')
     
@@ -2817,7 +2817,7 @@ def admin_run_migration():
         
         # Set database URL if not already set
         if not alembic_cfg.get_main_option('sqlalchemy.url'):
-            database_url = os.getenv('DATABASE_URL') or current_app.config.get('SQLALCHEMY_DATABASE_URI')
+            database_url = os.getenv('DATABASE_URL') or app.config.get('SQLALCHEMY_DATABASE_URI')
             if database_url:
                 alembic_cfg.set_main_option('sqlalchemy.url', database_url)
         
@@ -2825,39 +2825,38 @@ def admin_run_migration():
         script_dir = ScriptDirectory.from_config(alembic_cfg)
         head_revision = script_dir.get_current_head()
         
-        # Get current revision from database
-        with current_app.app_context():
-            conn = db.engine.connect()
-            try:
-                context = MigrationContext.configure(conn)
-                current_rev = context.get_current_revision()
-                
-                if current_rev:
-                    try:
-                        current_script = script_dir.get_revision(current_rev)
-                        current_revision = f"{current_rev[:12]} - {current_script.doc or 'No description'}"
-                    except:
-                        current_revision = current_rev[:12]
-                else:
-                    current_revision = "None (no migrations applied yet)"
-                
-                # Check if already at head
-                if current_rev == head_revision:
-                    is_up_to_date = True
-                
-                # Get target revision info
+        # Get current revision from database (we're already in a request context)
+        conn = db.engine.connect()
+        try:
+            context = MigrationContext.configure(conn)
+            current_rev = context.get_current_revision()
+            
+            if current_rev:
                 try:
-                    head_script = script_dir.get_revision(head_revision)
-                    target_revision = f"{head_revision[:12]} - {head_script.doc or 'No description'}"
+                    current_script = script_dir.get_revision(current_rev)
+                    current_revision = f"{current_rev[:12]} - {current_script.doc or 'No description'}"
                 except:
-                    target_revision = head_revision[:12] if head_revision else "Unknown"
-                    
-            finally:
-                conn.close()
+                    current_revision = current_rev[:12]
+            else:
+                current_revision = "None (no migrations applied yet)"
+            
+            # Check if already at head
+            if current_rev == head_revision:
+                is_up_to_date = True
+            
+            # Get target revision info
+            try:
+                head_script = script_dir.get_revision(head_revision)
+                target_revision = f"{head_revision[:12]} - {head_script.doc or 'No description'}"
+            except:
+                target_revision = head_revision[:12] if head_revision else "Unknown"
+                
+        finally:
+            conn.close()
                 
     except Exception as e:
         error_message = f"Error checking migration status: {str(e)}"
-        current_app.logger.error(f"Migration status check failed: {error_message}", exc_info=True)
+        app.logger.error(f"Migration status check failed: {error_message}", exc_info=True)
     
     # Handle POST request - Run migration
     if form.validate_on_submit():
@@ -2871,13 +2870,13 @@ def admin_run_migration():
                 alembic_cfg = Config(alembic_ini_path)
                 alembic_cfg.set_main_option("script_location", migrations_path)
                 if not alembic_cfg.get_main_option('sqlalchemy.url'):
-                    database_url = os.getenv('DATABASE_URL') or current_app.config.get('SQLALCHEMY_DATABASE_URI')
+                    database_url = os.getenv('DATABASE_URL') or app.config.get('SQLALCHEMY_DATABASE_URI')
                     if database_url:
                         alembic_cfg.set_main_option('sqlalchemy.url', database_url)
             except Exception as e:
                 error_message = f"Failed to initialize Alembic config: {str(e)}"
                 flash(error_message, 'error')
-                current_app.logger.error(f"Failed to initialize Alembic: {error_message}", exc_info=True)
+                app.logger.error(f"Failed to initialize Alembic: {error_message}", exc_info=True)
                 return render_template('admin/admin/migrate.html',
                                      form=form,
                                      current_revision=current_revision,
@@ -2893,14 +2892,13 @@ def admin_run_migration():
             sys.stdout = output_buffer
             
             try:
-                # Run the upgrade command within app context
-                with current_app.app_context():
-                    command.upgrade(alembic_cfg, "head")
+                # Run the upgrade command (we're already in a request context)
+                command.upgrade(alembic_cfg, "head")
                     
                 migration_output = output_buffer.getvalue()
                 
                 # Log success
-                current_app.logger.info(f"✅ Database migration completed via admin endpoint by {current_user.username}")
+                app.logger.info(f"✅ Database migration completed via admin endpoint by {current_user.username}")
                 
                 flash('Database migration completed successfully!', 'success')
                 
@@ -2914,31 +2912,30 @@ def admin_run_migration():
             migration_output = output_buffer.getvalue() if 'output_buffer' in locals() else None
             sys.stdout = old_stdout if 'old_stdout' in locals() else sys.stdout
             
-            current_app.logger.error(f"❌ Migration failed: {error_msg}", exc_info=True)
+            app.logger.error(f"❌ Migration failed: {error_msg}", exc_info=True)
             flash(f'Migration failed: {error_msg}', 'error')
         
         # After POST, show results on the same page (don't redirect immediately)
         # Refresh migration status after running (only if we have the config)
         if not error_message and alembic_cfg and script_dir:
             try:
-                with current_app.app_context():
-                    conn = db.engine.connect()
-                    try:
-                        context = MigrationContext.configure(conn)
-                        current_rev = context.get_current_revision()
-                        if current_rev:
-                            try:
-                                current_script = script_dir.get_revision(current_rev)
-                                current_revision = f"{current_rev[:12]} - {current_script.doc or 'No description'}"
-                            except:
-                                current_revision = current_rev[:12]
-                        else:
-                            current_revision = "None (no migrations applied yet)"
-                        
-                        # Check if now up to date
-                        is_up_to_date = (current_rev == head_revision) if head_revision else False
-                    finally:
-                        conn.close()
+                conn = db.engine.connect()
+                try:
+                    context = MigrationContext.configure(conn)
+                    current_rev = context.get_current_revision()
+                    if current_rev:
+                        try:
+                            current_script = script_dir.get_revision(current_rev)
+                            current_revision = f"{current_rev[:12]} - {current_script.doc or 'No description'}"
+                        except:
+                            current_revision = current_rev[:12]
+                    else:
+                        current_revision = "None (no migrations applied yet)"
+                    
+                    # Check if now up to date
+                    is_up_to_date = (current_rev == head_revision) if head_revision else False
+                finally:
+                    conn.close()
             except Exception as e:
                 if not error_message:
                     error_message = f"Error refreshing status: {str(e)}"
