@@ -14,30 +14,50 @@
   }
 
   function initBottomNav() {
-    const navItems = document.querySelectorAll('.mobile-bottom-nav__item');
+    const navItems = document.querySelectorAll('.curved-nav .nav-item, .mobile-bottom-nav .nav-item');
     if (navItems.length === 0) return;
 
-    // Get current pathname
+    // Get current URL
+    const currentUrl = window.location.href;
     const currentPath = window.location.pathname;
 
     // Remove active class from all items
     navItems.forEach(item => {
-      item.classList.remove('mobile-bottom-nav__item--active');
+      item.classList.remove('active');
     });
 
     // Find and activate the matching item
     navItems.forEach(item => {
-      const route = item.getAttribute('data-route') || item.getAttribute('href');
-      if (!route) return;
+      const href = item.getAttribute('href');
+      if (!href) return;
 
-      // Normalize routes for comparison
-      const normalizedRoute = route.replace(/^https?:\/\/[^\/]+/, '').split('?')[0];
-      const normalizedPath = currentPath.split('?')[0];
+      try {
+        // Try to match by full URL first
+        const itemUrl = new URL(href, window.location.origin);
+        
+        // Check if URLs match exactly
+        if (itemUrl.href === currentUrl || itemUrl.href.split('?')[0] === currentUrl.split('?')[0]) {
+          item.classList.add('active');
+          return;
+        }
 
-      // Check if current path matches the route
-      if (normalizedPath === normalizedRoute || 
-          (normalizedRoute !== '/' && normalizedPath.startsWith(normalizedRoute))) {
-        item.classList.add('mobile-bottom-nav__item--active');
+        // Check if pathname matches
+        const normalizedRoute = itemUrl.pathname;
+        const normalizedPath = currentPath;
+
+        if (normalizedPath === normalizedRoute || 
+            (normalizedRoute !== '/' && normalizedPath.startsWith(normalizedRoute))) {
+          item.classList.add('active');
+        }
+      } catch (e) {
+        // Fallback: simple string comparison
+        const normalizedRoute = href.replace(/^https?:\/\/[^\/]+/, '').split('?')[0];
+        const normalizedPath = currentPath.split('?')[0];
+        
+        if (normalizedPath === normalizedRoute || 
+            (normalizedRoute !== '/' && normalizedPath.startsWith(normalizedRoute))) {
+          item.classList.add('active');
+        }
       }
     });
 
@@ -49,19 +69,6 @@
         console.warn('Failed to initialize Lucide icons in bottom nav:', err);
       }
     }
-
-    // Add smooth press animation
-    navItems.forEach(item => {
-      item.addEventListener('touchstart', function() {
-        this.style.transform = 'scale(0.95)';
-      }, { passive: true });
-
-      item.addEventListener('touchend', function() {
-        setTimeout(() => {
-          this.style.transform = '';
-        }, 150);
-      }, { passive: true });
-    });
   }
 
   // Re-initialize icons when theme changes

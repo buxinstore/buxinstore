@@ -279,184 +279,156 @@ html.theme-changing {
 }
 
 /* ============================================
-   Mobile Bottom Navigation Bar
+   Mobile Curved Floating Bottom Navigation Bar
    ============================================ */
 
-/* Hide on desktop and tablets */
+/* Navigation CSS Variables - Light Mode */
+:root {
+  --nav-bg: #ffffff;
+  --nav-border: #e6e6e6;
+  --nav-icon: #222222;
+  --nav-active: #06b6d4; /* cyan-500 */
+}
+
+/* Navigation CSS Variables - Dark Mode */
+html.dark {
+  --nav-bg: rgba(20, 20, 20, 0.92);
+  --nav-border: #333333;
+  --nav-icon: #dddddd;
+  --nav-active: #22d3ee; /* cyan-400 */
+}
+
+/* HIDE ON DESKTOP */
 @media (min-width: 769px) {
+  .curved-nav,
   .mobile-bottom-nav {
     display: none !important;
   }
 }
 
-/* Mobile-only styles */
+/* MOBILE CURVED FLOATING NAV BAR */
 @media (max-width: 768px) {
-  .mobile-bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    background-color: var(--app-card);
-    border-top: 1px solid var(--app-border);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    /* Safe area support for iPhone with notch/dynamic island */
-    padding-bottom: env(safe-area-inset-bottom, 0);
-    padding-bottom: constant(safe-area-inset-bottom, 0);
-  }
-
-  html.dark .mobile-bottom-nav {
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
-    border-top-color: rgba(255, 255, 255, 0.15);
-  }
-
-  .mobile-bottom-nav__container {
-    display: flex;
-    align-items: center;
+  .curved-nav {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 92% !important;
+    max-width: 500px;
+    height: 70px;
+    background: var(--nav-bg);
+    border-radius: 25px 25px 0 0;
+    display: flex !important;
+    flex-direction: row !important;
     justify-content: space-around;
-    height: 60px;
-    max-width: 100%;
-    padding: 0 8px;
-    /* Safe area support */
+    align-items: center;
+    padding: 8px 0;
     padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
     padding-bottom: calc(8px + constant(safe-area-inset-bottom, 0));
+    box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.20);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--nav-border);
+    z-index: 999999;
+    transition: background 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
   }
 
-  .mobile-bottom-nav__item {
+  html.dark .curved-nav {
+    box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.50);
+  }
+
+  .curved-nav .nav-item {
+    flex: 1;
+    text-align: center;
+    text-decoration: none;
+    color: var(--nav-icon);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    flex: 1;
-    min-width: 0;
-    padding: 8px 4px;
-    text-decoration: none;
-    color: var(--app-muted);
-    transition: all 0.2s ease;
-    border-radius: 12px;
-    margin: 0 2px;
-    position: relative;
+    gap: 2px;
+    transition: transform 0.20s ease, color 0.3s ease, opacity 0.3s ease;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     user-select: none;
     -webkit-user-select: none;
+    padding: 4px 2px;
+    min-width: 0;
+    opacity: 0.9;
   }
 
-  .mobile-bottom-nav__item:active {
-    transform: scale(0.95);
-    background-color: var(--app-surface-hover);
+  /* Haptic-like tap effect */
+  .curved-nav .nav-item:active {
+    transform: scale(0.88);
+    opacity: 0.7;
   }
 
-  .mobile-bottom-nav__icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    margin-bottom: 4px;
-    transition: all 0.2s ease;
-  }
-
-  .mobile-bottom-nav__icon i[data-lucide] {
-    width: 22px;
-    height: 22px;
+  /* Icons */
+  .curved-nav .nav-item i[data-lucide] {
+    width: 26px;
+    height: 26px;
     stroke-width: 2;
+    margin-bottom: 2px;
     color: inherit;
+    transition: transform 0.25s ease, color 0.3s;
+    display: block;
   }
 
-  .mobile-bottom-nav__label {
+  .curved-nav .nav-item span {
     font-size: 11px;
     font-weight: 500;
     line-height: 1.2;
-    text-align: center;
-    transition: all 0.2s ease;
+    color: inherit;
+    transition: color 0.3s, font-weight 0.3s;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
   }
 
-  /* Active state */
-  .mobile-bottom-nav__item--active {
-    color: #06b6d4; /* cyan-500 */
-    font-weight: 600;
+  /* ACTIVE TAB — bubble animation */
+  .curved-nav .nav-item.active {
+    transform: translateY(-6px);
+    color: var(--nav-active);
+    opacity: 1;
   }
 
-  html.dark .mobile-bottom-nav__item--active {
-    color: #22d3ee; /* cyan-400 for dark mode */
-  }
-
-  .mobile-bottom-nav__item--active .mobile-bottom-nav__icon {
-    transform: scale(1.1);
-  }
-
-  .mobile-bottom-nav__item--active .mobile-bottom-nav__icon i[data-lucide] {
+  .curved-nav .nav-item.active i[data-lucide] {
+    transform: scale(1.25);
+    color: var(--nav-active);
     stroke-width: 2.5;
   }
 
-  .mobile-bottom-nav__item--active .mobile-bottom-nav__label {
-    font-weight: 700;
+  .curved-nav .nav-item.active span {
+    font-weight: 600;
+    color: var(--nav-active);
   }
 
-  /* Add subtle background to active item */
-  .mobile-bottom-nav__item--active::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 40px;
-    height: 40px;
-    background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(37, 99, 235, 0.1));
-    border-radius: 12px;
-    z-index: -1;
-    opacity: 0.6;
-  }
-
-  html.dark .mobile-bottom-nav__item--active::before {
-    background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(59, 130, 246, 0.15));
-  }
-
-  /* Hover state for devices that support it */
-  @media (hover: hover) {
-    .mobile-bottom-nav__item:hover:not(.mobile-bottom-nav__item--active) {
-      color: var(--app-text);
-      background-color: var(--app-surface-hover);
-    }
-  }
-
-  /* Ensure body has padding at bottom to prevent content overlap */
+  /* Prevent content from going under nav */
   body {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0)) !important;
-    padding-bottom: calc(60px + constant(safe-area-inset-bottom, 0)) !important;
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0)) !important;
+    padding-bottom: calc(90px + constant(safe-area-inset-bottom, 0)) !important;
   }
 }
 
-/* Extra small devices - adjust height slightly */
+/* Extra small devices */
 @media (max-width: 480px) {
-  .mobile-bottom-nav__container {
-    height: 56px;
-    padding: 0 4px;
+  .curved-nav {
+    width: 95%;
+    height: 68px;
   }
 
-  .mobile-bottom-nav__icon {
-    width: 22px;
-    height: 22px;
+  .curved-nav .nav-item i[data-lucide] {
+    width: 24px;
+    height: 24px;
   }
 
-  .mobile-bottom-nav__icon i[data-lucide] {
-    width: 20px;
-    height: 20px;
-  }
-
-  .mobile-bottom-nav__label {
+  .curved-nav .nav-item span {
     font-size: 10px;
   }
 
   body {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0)) !important;
-    padding-bottom: calc(56px + constant(safe-area-inset-bottom, 0)) !important;
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0)) !important;
+    padding-bottom: calc(88px + constant(safe-area-inset-bottom, 0)) !important;
   }
 }
