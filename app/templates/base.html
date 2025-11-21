@@ -1020,6 +1020,9 @@
   
   <!-- Cart functionality -->
   <script src="{{ url_for('static', filename='js/cart.js') }}"></script>
+  
+  <!-- Mobile Bottom Navigation -->
+  <script src="{{ url_for('static', filename='js/bottom_nav.js') }}" defer></script>
 
   <!-- PWA Service Worker Registration -->
   <script>
@@ -1075,5 +1078,7 @@
       console.warn('[PWA] Service Workers are not supported in this browser');
     }
   </script>
+  
+  {% include 'components/bottom_nav.html' %}
 </body>
 </html>

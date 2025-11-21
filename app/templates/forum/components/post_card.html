@@ -58,12 +58,12 @@
     <div class="flex items-center justify-between pt-4 border-t border-[color:var(--app-border)]">
         <div class="flex items-center gap-4">
             {% if current_user.is_authenticated %}
-            <button onclick="reactToPost({{ post.id }}, 'like')" 
+            <button onclick="reactToPost('{{ post.slug }}', 'like', {{ post.id }})" 
                     class="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-[color:var(--app-surface-hover)] transition-colors {% if user_reactions.get(post.id) == 'like' %}text-green-500{% else %}text-[color:var(--app-muted)]{% endif %}">
                 <i data-lucide="thumbs-up" class="w-4 h-4"></i>
                 <span class="post-like-count-{{ post.id }}">{{ post.like_count }}</span>
             </button>
-            <button onclick="reactToPost({{ post.id }}, 'dislike')" 
+            <button onclick="reactToPost('{{ post.slug }}', 'dislike', {{ post.id }})" 
                     class="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-[color:var(--app-surface-hover)] transition-colors {% if user_reactions.get(post.id) == 'dislike' %}text-red-500{% else %}text-[color:var(--app-muted)]{% endif %}">
                 <i data-lucide="thumbs-down" class="w-4 h-4"></i>
                 <span class="post-dislike-count-{{ post.id }}">{{ post.dislike_count }}</span>
@@ -86,27 +86,4 @@
         </a>
     </div>
 </div>
-
-<script>
-    function reactToPost(postId, reactionType) {
-        fetch(`{{ url_for('forum.post', slug=post.slug) }}/react`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-            },
-            body: JSON.stringify({ reaction_type: reactionType })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                document.querySelector(`.post-like-count-${postId}`).textContent = data.like_count;
-                document.querySelector(`.post-dislike-count-${postId}`).textContent = data.dislike_count;
-                // Reload page to update button states
-                window.location.reload();
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    }
-</script>
 

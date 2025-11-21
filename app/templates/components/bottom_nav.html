@@ -1,0 +1,55 @@
+<!-- Mobile Bottom Navigation Bar -->
+<nav class="mobile-bottom-nav" role="navigation" aria-label="Main navigation">
+  <div class="mobile-bottom-nav__container">
+    <a href="{{ url_for('home') }}" 
+       class="mobile-bottom-nav__item {% if request.endpoint == 'home' %}mobile-bottom-nav__item--active{% endif %}"
+       aria-label="Home"
+       data-route="/">
+      <div class="mobile-bottom-nav__icon">
+        <i data-lucide="home"></i>
+      </div>
+      <span class="mobile-bottom-nav__label">Home</span>
+    </a>
+    
+    <a href="{{ url_for('all_products') }}" 
+       class="mobile-bottom-nav__item {% if request.endpoint == 'all_products' or request.endpoint == 'product' %}mobile-bottom-nav__item--active{% endif %}"
+       aria-label="Products"
+       data-route="/products">
+      <div class="mobile-bottom-nav__icon">
+        <i data-lucide="package"></i>
+      </div>
+      <span class="mobile-bottom-nav__label">Products</span>
+    </a>
+    
+    <a href="{{ url_for('all_products') }}" 
+       class="mobile-bottom-nav__item {% if request.endpoint == 'category' %}mobile-bottom-nav__item--active{% endif %}"
+       aria-label="Category"
+       data-route="/categories">
+      <div class="mobile-bottom-nav__icon">
+        <i data-lucide="grid-3x3"></i>
+      </div>
+      <span class="mobile-bottom-nav__label">Category</span>
+    </a>
+    
+    <a href="{{ url_for('orders') }}" 
+       class="mobile-bottom-nav__item {% if request.endpoint == 'orders' %}mobile-bottom-nav__item--active{% endif %}"
+       aria-label="Orders Again"
+       data-route="/orders">
+      <div class="mobile-bottom-nav__icon">
+        <i data-lucide="shopping-bag"></i>
+      </div>
+      <span class="mobile-bottom-nav__label">Orders Again</span>
+    </a>
+    
+    <a href="{{ url_for('forum.index') }}" 
+       class="mobile-bottom-nav__item {% if request.endpoint and request.endpoint.startswith('forum.') %}mobile-bottom-nav__item--active{% endif %}"
+       aria-label="Forum"
+       data-route="/forum">
+      <div class="mobile-bottom-nav__icon">
+        <i data-lucide="message-square"></i>
+      </div>
+      <span class="mobile-bottom-nav__label">Forum</span>
+    </a>
+  </div>
+</nav>
+
