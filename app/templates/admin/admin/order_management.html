@@ -520,9 +520,17 @@
                             </td>
                             <td class="px-4 py-3">
                                 {% if item.product.image %}
-                                    <img src="{{ url_for('static', filename=item.product.image) }}" 
-                                         alt="{{ item.product.name }}" 
-                                         class="w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-600 object-cover">
+                                    {% set image_url = item.product.image | product_image_url %}
+                                    {% if image_url %}
+                                        <img src="{{ image_url }}" 
+                                             alt="{{ item.product.name }}" 
+                                             class="w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-600 object-cover"
+                                             onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center\'><i class=\'fas fa-image text-gray-400\'></i></div>';">
+                                    {% else %}
+                                        <div class="w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                                            <i class="fas fa-image text-gray-400"></i>
+                                        </div>
+                                    {% endif %}
                                 {% else %}
                                     <div class="w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                                         <i class="fas fa-image text-gray-400"></i>
