@@ -84,14 +84,16 @@ def validate_payment_amount(amount: float, method: str) -> bool:
         return False
     
     # Define minimum and maximum amounts per method
+    # ModemPay requires minimum 10 GMD
     limits = {
+        'modempay': {'min': 10.0, 'max': 100000.0},
         'wave': {'min': 1.0, 'max': 100000.0},
         'qmoney': {'min': 1.0, 'max': 100000.0},
         'afrimoney': {'min': 1.0, 'max': 100000.0},
         'ecobank': {'min': 1.0, 'max': 100000.0},
     }
     
-    method_limits = limits.get(method.lower(), {'min': 1.0, 'max': 100000.0})
+    method_limits = limits.get(method.lower(), {'min': 10.0, 'max': 100000.0})  # Default to 10 for ModemPay
     return method_limits['min'] <= amount <= method_limits['max']
 
 

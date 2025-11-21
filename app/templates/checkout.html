@@ -347,7 +347,17 @@
         const payButton = document.getElementById('pay-button');
         if (payButton) {
             const hasItems = (checkout.count ?? summary.cart_count ?? itemsData.length) > 0;
-            payButton.disabled = !hasItems;
+            const totalAmount = checkout.total ?? summary.cart_total ?? 0;
+            const MIN_AMOUNT = 10.0; // ModemPay minimum
+            const hasValidAmount = totalAmount >= MIN_AMOUNT;
+            payButton.disabled = !hasItems || !hasValidAmount;
+            
+            // Update button title if amount is too low
+            if (!hasValidAmount && hasItems) {
+                payButton.title = `Minimum payment amount is D${MIN_AMOUNT}. Current: D${totalAmount.toFixed(2)}`;
+            } else {
+                payButton.title = '';
+            }
         }
 
         const cartCountValue = checkout.count ?? summary.cart_count ?? itemsData.length;
@@ -410,8 +420,15 @@
         const amount = parseFloat(document.getElementById('amount').value);
         const provider = 'modempay';
         
-        // Validation
-        // No client-side phone/provider validation; handled by server
+        // Validation - ModemPay requires minimum 10 GMD
+        const MIN_AMOUNT = 10.0;
+        if (isNaN(amount) || amount < MIN_AMOUNT) {
+            showMessage(`Payment amount must be at least D${MIN_AMOUNT}. Current amount: D${amount.toFixed(2)}`, 'error');
+            payButton.disabled = false;
+            buttonText.classList.remove('hidden');
+            buttonLoading.classList.add('hidden');
+            return;
+        }
         
         // Disable button and show loading
         payButton.disabled = true;

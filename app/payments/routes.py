@@ -534,7 +534,7 @@ def modempay_pay():
         
     except PaymentValidationException as e:
         current_app.logger.error(f"Error in modempay_pay (validation): {str(e)}")
-        return jsonify({'success': False}), 400
+        return jsonify({'success': False, 'message': str(e)}), 400
     except PaymentMethodNotSupportedException as e:
         current_app.logger.error(f"Error in modempay_pay (provider): {str(e)}")
         return jsonify({'success': False}), 400
@@ -543,7 +543,13 @@ def modempay_pay():
         return jsonify({'success': False}), 503
     except PaymentException as e:
         current_app.logger.error(f"Error in modempay_pay (payment): {str(e)}")
-        return jsonify({'success': False}), 500
+        # Extract error message from exception
+        error_message = str(e)
+        if hasattr(e, 'gateway_response') and isinstance(e.gateway_response, dict):
+            gateway_msg = e.gateway_response.get('message') or e.gateway_response.get('body', '')
+            if gateway_msg:
+                error_message = gateway_msg
+        return jsonify({'success': False, 'message': error_message}), 400
     except Exception as e:
         current_app.logger.error(f"Error in modempay_pay: {str(e)}")
         return jsonify({'success': False}), 500

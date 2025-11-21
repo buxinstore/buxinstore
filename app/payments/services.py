@@ -327,7 +327,8 @@ class PaymentService:
         
         # Validate payment amount
         if not validate_payment_amount(amount, 'modempay'):
-            raise PaymentValidationException(f"Invalid payment amount: {amount}")
+            min_amount = 10.0  # ModemPay minimum
+            raise PaymentValidationException(f"Payment amount must be at least D{min_amount}. Current amount: D{amount:.2f}")
         
         # Check if ModemPay is configured
         from app.payments.config import PaymentConfig

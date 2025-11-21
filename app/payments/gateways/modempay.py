@@ -214,11 +214,24 @@ class ModemPayGateway(BasePaymentGateway):
                     except Exception:
                         pass
 
-            # If HTML parsing failed, treat as error to match strict test behavior
-            _logger.error({"error": "Failed to create ModemPay payment link", "status": resp.status_code, "response_preview": text[:500]})
+            # If HTML parsing failed, try to extract error message from JSON response
+            error_message = "Failed to create ModemPay payment link"
+            try:
+                # Try to parse JSON error response
+                error_data = json.loads(text)
+                if isinstance(error_data, dict) and 'message' in error_data:
+                    error_message = error_data['message']
+                elif isinstance(error_data, dict) and 'error' in error_data:
+                    error_message = error_data['error']
+            except (json.JSONDecodeError, ValueError):
+                # If not JSON, use the text preview
+                if text and len(text) > 0:
+                    error_message = text[:200]
+            
+            _logger.error({"error": "Failed to create ModemPay payment link", "status": resp.status_code, "error_message": error_message, "response_preview": text[:500]})
             raise PaymentGatewayException(
-                "Failed to create ModemPay payment link",
-                gateway_response={'status_code': resp.status_code, 'body': text[:500]}
+                error_message,
+                gateway_response={'status_code': resp.status_code, 'body': text[:500], 'message': error_message}
             )
 
         except requests.exceptions.RequestException as e:
