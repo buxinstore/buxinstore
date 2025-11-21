@@ -127,12 +127,38 @@ div svg {
    Buttons need backgrounds, but text spans should be transparent
    ============================================ */
 
-/* Gradient buttons - PRESERVE background and maintain white text */
+/* Gradient buttons - PRESERVE Tailwind gradient and maintain white text */
 button[class*="bg-gradient"],
 [class*="bg-gradient"] button,
-.add-to-cart-btn[class*="bg-gradient"] {
-  /* Keep gradient background - don't override */
-  background-image: inherit !important;
+.add-to-cart-btn[class*="bg-gradient"],
+#pay-button[class*="bg-gradient"],
+button#pay-button {
+  /* Don't override Tailwind's gradient - just ensure text is white and background is transparent */
+  background-color: transparent !important;
+  color: white !important;
+}
+
+/* Ensure gradient buttons don't get overridden by other rules */
+button.bg-gradient-to-r,
+.add-to-cart-btn.bg-gradient-to-r,
+#pay-button.bg-gradient-to-r {
+  background-color: transparent !important;
+  color: white !important;
+}
+
+/* Gradient badges and spans - preserve Tailwind gradient */
+span[class*="bg-gradient"],
+#cart-count-badge[class*="bg-gradient"],
+.cart-count-badge[class*="bg-gradient"],
+#cart-count-badge {
+  /* Don't override Tailwind's gradient - just ensure text is white */
+  background-color: transparent !important;
+  color: white !important;
+}
+
+/* Ensure cart badge gradient is preserved */
+#cart-count-badge.bg-gradient-to-r {
+  background-color: transparent !important;
   color: white !important;
 }
 
@@ -141,7 +167,8 @@ button span,
 button .add-to-cart-text,
 .add-to-cart-text,
 button .text,
-button .label {
+button .label,
+#button-text {
   background-color: transparent !important;
   background: transparent !important;
   background-image: none !important;
@@ -153,10 +180,32 @@ button .label {
 button[class*="bg-gradient"] span,
 button[class*="bg-gradient"] .add-to-cart-text,
 [class*="bg-gradient"] .add-to-cart-text,
-[class*="bg-gradient"] button span {
+[class*="bg-gradient"] button span,
+button[class*="bg-gradient"] #button-text,
+#pay-button span,
+#pay-button #button-text {
   color: white !important;
   background-color: transparent !important;
   background: transparent !important;
+}
+
+/* Cart count badge - ensure gradient background and white text */
+#cart-count-badge,
+.cart-count-badge {
+  background-image: linear-gradient(to right, rgb(6, 182, 212), rgb(59, 130, 246)) !important;
+  background-color: transparent !important;
+  color: white !important;
+}
+
+/* Cart count badge text - ensure white text */
+#cart-count-badge .cart-count,
+.cart-count-badge .cart-count,
+#cart-count-badge span,
+.cart-count-badge span {
+  color: white !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
 }
 
 /* Regular buttons without explicit backgrounds - add subtle background in light mode */
@@ -186,8 +235,9 @@ span:not([class*="bg-"]):not([class*="badge"]):not([class*="pill"]):not([class*=
 
 /* Add to Cart button - preserve gradient if present */
 .add-to-cart-btn[class*="bg-gradient"] {
-  background-image: inherit !important;
+  background-image: linear-gradient(to right, rgb(6, 182, 212), rgb(59, 130, 246)) !important;
   background-color: transparent !important;
+  color: white !important;
 }
 
 /* Add to Cart text - transparent background, inherit color */
@@ -373,17 +423,42 @@ html:not(.dark) [class*="dark:bg-"] select {
     color: inherit !important;
   }
 
-  /* Gradient buttons on mobile - preserve background and white text */
+  /* Gradient buttons on mobile - preserve Tailwind gradient and white text */
   html:not(.dark) button[class*="bg-gradient"],
-  html:not(.dark) .add-to-cart-btn[class*="bg-gradient"] {
-    background-image: inherit !important;
+  html:not(.dark) .add-to-cart-btn[class*="bg-gradient"],
+  html:not(.dark) #pay-button[class*="bg-gradient"],
+  html:not(.dark) button#pay-button {
+    /* Don't override Tailwind's gradient - just ensure text is white */
+    background-color: transparent !important;
     color: white !important;
   }
 
   html:not(.dark) button[class*="bg-gradient"] span,
-  html:not(.dark) button[class*="bg-gradient"] .add-to-cart-text {
+  html:not(.dark) button[class*="bg-gradient"] .add-to-cart-text,
+  html:not(.dark) button[class*="bg-gradient"] #button-text,
+  html:not(.dark) #pay-button span,
+  html:not(.dark) #pay-button #button-text {
     color: white !important;
     background-color: transparent !important;
+    background: transparent !important;
+  }
+
+  /* Cart badge on mobile - preserve Tailwind gradient and white text */
+  html:not(.dark) #cart-count-badge,
+  html:not(.dark) .cart-count-badge {
+    /* Don't override Tailwind's gradient - just ensure text is white */
+    background-color: transparent !important;
+    color: white !important;
+  }
+
+  html:not(.dark) #cart-count-badge .cart-count,
+  html:not(.dark) .cart-count-badge .cart-count,
+  html:not(.dark) #cart-count-badge span,
+  html:not(.dark) .cart-count-badge span {
+    color: white !important;
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
   }
 
   /* Regular buttons on mobile - add subtle background for visibility */
