@@ -82,13 +82,23 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Daily Sales Chart -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Daily Sales</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                {% if use_monthly_aggregation %}Monthly Sales{% else %}Daily Sales{% endif %}
+            </h3>
+            {% if use_monthly_aggregation %}
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Showing monthly aggregation for large date ranges</p>
+            {% endif %}
             <canvas id="dailySalesChart" height="300"></canvas>
         </div>
 
         <!-- Orders Count Chart -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Orders Count</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                {% if use_monthly_aggregation %}Monthly Orders Count{% else %}Orders Count{% endif %}
+            </h3>
+            {% if use_monthly_aggregation %}
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Showing monthly aggregation for large date ranges</p>
+            {% endif %}
             <canvas id="ordersCountChart" height="300"></canvas>
         </div>
 
@@ -224,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const labels = [
             {% for day in daily_sales_data %}
-                '{{ day.date.strftime("%b %d") if day.date else "" }}'{% if not loop.last %},{% endif %}
+                '{{ day.date.strftime("%b %Y") if use_monthly_aggregation else day.date.strftime("%b %d") if day.date else "" }}'{% if not loop.last %},{% endif %}
             {% endfor %}
         ];
         
@@ -256,7 +266,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: {
-                    duration: 750
+                    duration: 200,
+                    easing: 'linear'
                 },
                 plugins: {
                     legend: {
@@ -282,7 +293,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         ticks: {
                             callback: function(value) {
                                 return 'D' + value.toFixed(0);
-                            }
+                            },
+                            maxTicksLimit: 8
                         }
                     },
                     x: {
@@ -291,7 +303,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         ticks: {
                             maxRotation: 45,
-                            minRotation: 45
+                            minRotation: 45,
+                            maxTicksLimit: 15,
+                            autoSkip: true,
+                            autoSkipPadding: 10
                         }
                     }
                 },
@@ -299,6 +314,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     mode: 'nearest',
                     axis: 'x',
                     intersect: false
+                },
+                elements: {
+                    point: {
+                        radius: 2,
+                        hoverRadius: 4
+                    },
+                    line: {
+                        tension: 0.3
+                    }
                 }
             }
         });
@@ -314,7 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const labels = [
             {% for day in orders_count_data %}
-                '{{ day.date.strftime("%b %d") if day.date else "" }}'{% if not loop.last %},{% endif %}
+                '{{ day.date.strftime("%b %Y") if use_monthly_aggregation else day.date.strftime("%b %d") if day.date else "" }}'{% if not loop.last %},{% endif %}
             {% endfor %}
         ];
         
@@ -342,7 +366,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: {
-                    duration: 750
+                    duration: 200,
+                    easing: 'linear'
                 },
                 plugins: {
                     legend: {
@@ -365,7 +390,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         ticks: {
                             stepSize: 1,
-                            precision: 0
+                            precision: 0,
+                            maxTicksLimit: 8
                         }
                     },
                     x: {
@@ -374,8 +400,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         ticks: {
                             maxRotation: 45,
-                            minRotation: 45
+                            minRotation: 45,
+                            maxTicksLimit: 15,
+                            autoSkip: true,
+                            autoSkipPadding: 10
                         }
+                    }
+                },
+                elements: {
+                    bar: {
+                        borderWidth: 1
                     }
                 }
             }
@@ -420,7 +454,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: {
-                    duration: 750
+                    duration: 200,
+                    easing: 'linear'
                 },
                 plugins: {
                     legend: {
@@ -444,7 +479,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         ticks: {
                             callback: function(value) {
                                 return 'D' + value.toFixed(0);
-                            }
+                            },
+                            maxTicksLimit: 8
                         }
                     },
                     x: {
@@ -453,8 +489,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         ticks: {
                             maxRotation: 45,
-                            minRotation: 45
+                            minRotation: 45,
+                            autoSkip: true,
+                            autoSkipPadding: 10
                         }
+                    }
+                },
+                elements: {
+                    bar: {
+                        borderWidth: 1
                     }
                 }
             }

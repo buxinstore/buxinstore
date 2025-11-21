@@ -63,6 +63,11 @@ _google_openid_config_cache = None
 _google_openid_config_cache_time = None
 GOOGLE_CONFIG_CACHE_TTL = 86400  # 24 hours in seconds
 
+# Chart data cache (10 minutes TTL)
+_chart_cache = {}
+_chart_cache_time = {}
+CHART_CACHE_TTL = 600  # 10 minutes
+
 def get_google_openid_config():
     """Get Google OpenID configuration with caching and error handling"""
     global _google_openid_config_cache, _google_openid_config_cache_time
@@ -5348,144 +5353,244 @@ def admin_orders():
     unique_customers_query = totals_query.with_entities(db.func.count(db.distinct(Order.user_id)))
     unique_customers = int(unique_customers_query.scalar() or 0)
     
-    # Daily Sales Chart Data (for the selected period)
-    if date_start and date_end:
-        # Calculate number of days in range
-        days_diff = (date_end - date_start).days + 1
-        # Get actual sales data
-        daily_sales_query = db.session.query(
-            db.func.date(Order.created_at).label('date'),
-            db.func.sum(Order.total).label('total')
-        ).filter(
-            Order.status != 'Pending',
-            Order.status != 'Cancelled',
-            Order.status != 'failed',
-            or_(
-                Order.status.in_(['paid', 'completed', 'processing']),
-                Order.shipping_status.in_(['shipped', 'delivered'])
-            ),
-            Order.created_at >= date_start,
-            Order.created_at <= date_end
-        ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
-        daily_sales_raw = daily_sales_query.all()
-        
-        # Create a dictionary for quick lookup
-        sales_dict = {}
-        for row in daily_sales_raw:
-            date_key = row.date if isinstance(row.date, str) else row.date.strftime('%Y-%m-%d')
-            sales_dict[date_key] = float(row.total) if row.total else 0.0
-        
-        # Fill in all days in the range
-        daily_sales_data = []
-        for i in range(days_diff):
-            current_date = (date_start + timedelta(days=i)).date()
-            date_key = current_date.strftime('%Y-%m-%d')
-            daily_sales_data.append({
-                'date': current_date,
-                'total': sales_dict.get(date_key, 0.0)
-            })
-    else:
-        # Last 30 days if no filter
-        thirty_days_ago = (now - timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
-        daily_sales_query = db.session.query(
-            db.func.date(Order.created_at).label('date'),
-            db.func.sum(Order.total).label('total')
-        ).filter(
-            Order.status != 'Pending',
-            Order.status != 'Cancelled',
-            Order.status != 'failed',
-            or_(
-                Order.status.in_(['paid', 'completed', 'processing']),
-                Order.shipping_status.in_(['shipped', 'delivered'])
-            ),
-            Order.created_at >= thirty_days_ago
-        ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
-        daily_sales_raw = daily_sales_query.all()
-        
-        # Create a dictionary for quick lookup
-        sales_dict = {}
-        for row in daily_sales_raw:
-            date_key = row.date if isinstance(row.date, str) else row.date.strftime('%Y-%m-%d')
-            sales_dict[date_key] = float(row.total) if row.total else 0.0
-        
-        # Fill in all 30 days
-        daily_sales_data = []
-        for i in range(30):
-            current_date = (thirty_days_ago + timedelta(days=i)).date()
-            date_key = current_date.strftime('%Y-%m-%d')
-            daily_sales_data.append({
-                'date': current_date,
-                'total': sales_dict.get(date_key, 0.0)
-            })
+    def get_cached_chart_data(cache_key):
+        """Get cached chart data if available and not expired"""
+        global _chart_cache, _chart_cache_time
+        if cache_key in _chart_cache and cache_key in _chart_cache_time:
+            if time.time() - _chart_cache_time[cache_key] < CHART_CACHE_TTL:
+                return _chart_cache[cache_key]
+        return None
     
-    # Orders Count Chart Data (same period)
+    def set_cached_chart_data(cache_key, data):
+        """Cache chart data with timestamp"""
+        global _chart_cache, _chart_cache_time
+        _chart_cache[cache_key] = data
+        _chart_cache_time[cache_key] = time.time()
+    
+    # Determine chart date range with safety limits
+    chart_date_start = None
+    chart_date_end = None
+    use_monthly_aggregation = False
+    
     if date_start and date_end:
-        # Calculate number of days in range
         days_diff = (date_end - date_start).days + 1
-        # Get actual orders count data
-        orders_count_query = db.session.query(
-            db.func.date(Order.created_at).label('date'),
-            db.func.count(Order.id).label('count')
-        ).filter(
-            Order.status != 'Pending',
-            Order.status != 'Cancelled',
-            Order.status != 'failed',
-            or_(
-                Order.status.in_(['paid', 'completed', 'processing']),
-                Order.shipping_status.in_(['shipped', 'delivered'])
-            ),
-            Order.created_at >= date_start,
-            Order.created_at <= date_end
-        ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
-        orders_count_raw = orders_count_query.all()
-        
-        # Create a dictionary for quick lookup
-        count_dict = {}
-        for row in orders_count_raw:
-            date_key = row.date if isinstance(row.date, str) else row.date.strftime('%Y-%m-%d')
-            count_dict[date_key] = int(row.count) if row.count else 0
-        
-        # Fill in all days in the range
-        orders_count_data = []
-        for i in range(days_diff):
-            current_date = (date_start + timedelta(days=i)).date()
-            date_key = current_date.strftime('%Y-%m-%d')
-            orders_count_data.append({
-                'date': current_date,
-                'count': count_dict.get(date_key, 0)
-            })
+        # Safety guard: If range > 90 days, use monthly aggregation
+        if days_diff > 90:
+            use_monthly_aggregation = True
+            # Use the full range but aggregate by month
+            chart_date_start = date_start
+            chart_date_end = date_end
+        # Safety guard: If range > 30 days, limit to last 30 days
+        elif days_diff > 30:
+            chart_date_end = now
+            chart_date_start = (now - timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            chart_date_start = date_start
+            chart_date_end = date_end
     else:
-        thirty_days_ago = (now - timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
-        orders_count_query = db.session.query(
-            db.func.date(Order.created_at).label('date'),
-            db.func.count(Order.id).label('count')
-        ).filter(
-            Order.status != 'Pending',
-            Order.status != 'Cancelled',
-            Order.status != 'failed',
-            or_(
-                Order.status.in_(['paid', 'completed', 'processing']),
-                Order.shipping_status.in_(['shipped', 'delivered'])
-            ),
-            Order.created_at >= thirty_days_ago
-        ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
+        # Default to last 30 days if no filter
+        chart_date_end = now
+        chart_date_start = (now - timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Daily Sales Chart Data (with optimizations)
+    cache_key_sales = f'sales_chart_{chart_date_start.strftime("%Y%m%d")}_{chart_date_end.strftime("%Y%m%d")}_{use_monthly_aggregation}'
+    daily_sales_data = get_cached_chart_data(cache_key_sales)
+    
+    if daily_sales_data is None:
+        if use_monthly_aggregation:
+            # Monthly aggregation for large ranges
+            daily_sales_query = db.session.query(
+                db.func.date_trunc('month', Order.created_at).label('period'),
+                db.func.sum(Order.total).label('total')
+            ).filter(
+                Order.status != 'Pending',
+                Order.status != 'Cancelled',
+                Order.status != 'failed',
+                or_(
+                    Order.status.in_(['paid', 'completed', 'processing']),
+                    Order.shipping_status.in_(['shipped', 'delivered'])
+                ),
+                Order.created_at >= chart_date_start,
+                Order.created_at <= chart_date_end
+            ).group_by(db.func.date_trunc('month', Order.created_at)).order_by(db.func.date_trunc('month', Order.created_at))
+        else:
+            # Daily aggregation (max 30 days)
+            daily_sales_query = db.session.query(
+                db.func.date(Order.created_at).label('date'),
+                db.func.sum(Order.total).label('total')
+            ).filter(
+                Order.status != 'Pending',
+                Order.status != 'Cancelled',
+                Order.status != 'failed',
+                or_(
+                    Order.status.in_(['paid', 'completed', 'processing']),
+                    Order.shipping_status.in_(['shipped', 'delivered'])
+                ),
+                Order.created_at >= chart_date_start,
+                Order.created_at <= chart_date_end
+            ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
+        
+        daily_sales_raw = daily_sales_query.all()
+        
+        if use_monthly_aggregation:
+            # Process monthly data
+            sales_dict = {}
+            for row in daily_sales_raw:
+                period = row.period
+                # date_trunc returns a datetime/timestamp, convert to date
+                if isinstance(period, datetime):
+                    period_date = period.date()
+                elif isinstance(period, str):
+                    period_date = datetime.strptime(period[:10], '%Y-%m-%d').date()
+                elif hasattr(period, 'date'):
+                    period_date = period.date()
+                else:
+                    continue
+                # Use year-month as key for monthly aggregation
+                date_key = period_date.strftime('%Y-%m-01')
+                sales_dict[date_key] = float(row.total) if row.total else 0.0
+            
+            # Generate monthly data points (limit to max 12 months)
+            daily_sales_data = []
+            current = chart_date_start.replace(day=1).date()
+            end_date = chart_date_end.date()
+            month_count = 0
+            max_months = 12
+            
+            while current <= end_date and month_count < max_months:
+                date_key = current.strftime('%Y-%m-01')
+                daily_sales_data.append({
+                    'date': current,
+                    'total': sales_dict.get(date_key, 0.0)
+                })
+                # Move to next month
+                if current.month == 12:
+                    current = current.replace(year=current.year + 1, month=1)
+                else:
+                    current = current.replace(month=current.month + 1)
+                month_count += 1
+        else:
+            # Process daily data (max 30 days)
+            sales_dict = {}
+            for row in daily_sales_raw:
+                date_key = row.date if isinstance(row.date, str) else row.date.strftime('%Y-%m-%d')
+                sales_dict[date_key] = float(row.total) if row.total else 0.0
+            
+            # Fill in all days in the range (max 30 days)
+            days_diff = (chart_date_end.date() - chart_date_start.date()).days + 1
+            days_diff = min(days_diff, 30)  # Hard limit to 30 days
+            
+            daily_sales_data = []
+            for i in range(days_diff):
+                current_date = (chart_date_start + timedelta(days=i)).date()
+                date_key = current_date.strftime('%Y-%m-%d')
+                daily_sales_data.append({
+                    'date': current_date,
+                    'total': sales_dict.get(date_key, 0.0)
+                })
+        
+        # Cache the result
+        set_cached_chart_data(cache_key_sales, daily_sales_data)
+    
+    # Orders Count Chart Data (with same optimizations)
+    cache_key_orders = f'orders_chart_{chart_date_start.strftime("%Y%m%d")}_{chart_date_end.strftime("%Y%m%d")}_{use_monthly_aggregation}'
+    orders_count_data = get_cached_chart_data(cache_key_orders)
+    
+    if orders_count_data is None:
+        if use_monthly_aggregation:
+            # Monthly aggregation for large ranges
+            orders_count_query = db.session.query(
+                db.func.date_trunc('month', Order.created_at).label('period'),
+                db.func.count(Order.id).label('count')
+            ).filter(
+                Order.status != 'Pending',
+                Order.status != 'Cancelled',
+                Order.status != 'failed',
+                or_(
+                    Order.status.in_(['paid', 'completed', 'processing']),
+                    Order.shipping_status.in_(['shipped', 'delivered'])
+                ),
+                Order.created_at >= chart_date_start,
+                Order.created_at <= chart_date_end
+            ).group_by(db.func.date_trunc('month', Order.created_at)).order_by(db.func.date_trunc('month', Order.created_at))
+        else:
+            # Daily aggregation (max 30 days)
+            orders_count_query = db.session.query(
+                db.func.date(Order.created_at).label('date'),
+                db.func.count(Order.id).label('count')
+            ).filter(
+                Order.status != 'Pending',
+                Order.status != 'Cancelled',
+                Order.status != 'failed',
+                or_(
+                    Order.status.in_(['paid', 'completed', 'processing']),
+                    Order.shipping_status.in_(['shipped', 'delivered'])
+                ),
+                Order.created_at >= chart_date_start,
+                Order.created_at <= chart_date_end
+            ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
+        
         orders_count_raw = orders_count_query.all()
         
-        # Create a dictionary for quick lookup
-        count_dict = {}
-        for row in orders_count_raw:
-            date_key = row.date if isinstance(row.date, str) else row.date.strftime('%Y-%m-%d')
-            count_dict[date_key] = int(row.count) if row.count else 0
+        if use_monthly_aggregation:
+            # Process monthly data
+            count_dict = {}
+            for row in orders_count_raw:
+                period = row.period
+                # date_trunc returns a datetime/timestamp, convert to date
+                if isinstance(period, datetime):
+                    period_date = period.date()
+                elif isinstance(period, str):
+                    period_date = datetime.strptime(period[:10], '%Y-%m-%d').date()
+                elif hasattr(period, 'date'):
+                    period_date = period.date()
+                else:
+                    continue
+                # Use year-month as key for monthly aggregation
+                date_key = period_date.strftime('%Y-%m-01')
+                count_dict[date_key] = int(row.count) if row.count else 0
+            
+            # Generate monthly data points (limit to max 12 months)
+            orders_count_data = []
+            current = chart_date_start.replace(day=1).date()
+            end_date = chart_date_end.date()
+            month_count = 0
+            max_months = 12
+            
+            while current <= end_date and month_count < max_months:
+                date_key = current.strftime('%Y-%m-01')
+                orders_count_data.append({
+                    'date': current,
+                    'count': count_dict.get(date_key, 0)
+                })
+                # Move to next month
+                if current.month == 12:
+                    current = current.replace(year=current.year + 1, month=1)
+                else:
+                    current = current.replace(month=current.month + 1)
+                month_count += 1
+        else:
+            # Process daily data (max 30 days)
+            count_dict = {}
+            for row in orders_count_raw:
+                date_key = row.date if isinstance(row.date, str) else row.date.strftime('%Y-%m-%d')
+                count_dict[date_key] = int(row.count) if row.count else 0
+            
+            # Fill in all days in the range (max 30 days)
+            days_diff = (chart_date_end.date() - chart_date_start.date()).days + 1
+            days_diff = min(days_diff, 30)  # Hard limit to 30 days
+            
+            orders_count_data = []
+            for i in range(days_diff):
+                current_date = (chart_date_start + timedelta(days=i)).date()
+                date_key = current_date.strftime('%Y-%m-%d')
+                orders_count_data.append({
+                    'date': current_date,
+                    'count': count_dict.get(date_key, 0)
+                })
         
-        # Fill in all 30 days
-        orders_count_data = []
-        for i in range(30):
-            current_date = (thirty_days_ago + timedelta(days=i)).date()
-            date_key = current_date.strftime('%Y-%m-%d')
-            orders_count_data.append({
-                'date': current_date,
-                'count': count_dict.get(date_key, 0)
-            })
+        # Cache the result
+        set_cached_chart_data(cache_key_orders, orders_count_data)
     
     # Top Products Chart Data
     top_products_query = db.session.query(
@@ -5512,7 +5617,7 @@ def admin_orders():
         db.func.sum(OrderItem.quantity * OrderItem.price).desc()
     ).limit(10).all()
         
-    return render_template('admin/admin/orders.html', 
+    return render_template('admin/admin/orders.html',
                          orders=orders, 
                          date_filter=date_filter,
                          start_date=start_date,
@@ -5524,7 +5629,8 @@ def admin_orders():
                          unique_customers=unique_customers,
                          daily_sales_data=daily_sales_data,
                          orders_count_data=orders_count_data,
-                         top_products_data=top_products_data)
+                         top_products_data=top_products_data,
+                         use_monthly_aggregation=use_monthly_aggregation)
 
 @app.route('/admin/order/<int:order_id>', methods=['GET', 'POST'])
 @login_required
