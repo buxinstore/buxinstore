@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Discussion Forum - Tech Buxin{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-[color:var(--app-text)] mb-2">Discussion Forum</h1>
+            <p class="text-[color:var(--app-muted)]">Share ideas, ask questions, and connect with the community</p>
+        </div>
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('forum.create') }}" class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all shadow-lg">
+            <i data-lucide="plus" class="w-5 h-5 inline-block mr-2"></i>
+            New Post
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Search and Sort -->
+    <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-4 mb-6">
+        <form method="GET" action="{{ url_for('forum.index') }}" class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1">
+                <input type="text" name="search" value="{{ search }}" placeholder="Search posts..." 
+                       class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-lg px-4 py-2 text-[color:var(--app-text)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
+            </div>
+            <div>
+                <select name="sort" class="bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-lg px-4 py-2 text-[color:var(--app-text)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
+                    <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest First</option>
+                    <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Oldest First</option>
+                    <option value="most_comments" {% if sort == 'most_comments' %}selected{% endif %}>Most Comments</option>
+                </select>
+            </div>
+            <button type="submit" class="bg-cyan-500 text-white px-6 py-2 rounded-lg hover:bg-cyan-600 transition-colors">
+                <i data-lucide="search" class="w-4 h-4 inline-block mr-2"></i>
+                Search
+            </button>
+        </form>
+    </div>
+
+    <!-- Posts List -->
+    <div class="space-y-4">
+        {% if posts.items %}
+            {% for post in posts.items %}
+                {% include 'forum/components/post_card.html' %}
+            {% endfor %}
+
+            <!-- Pagination -->
+            {% if posts.pages > 1 %}
+            <div class="flex justify-center items-center gap-2 mt-8">
+                {% if posts.has_prev %}
+                <a href="{{ url_for('forum.index', page=posts.prev_num, search=search, sort=sort) }}" 
+                   class="px-4 py-2 bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-lg hover:bg-[color:var(--app-surface-hover)] transition-colors">
+                    Previous
+                </a>
+                {% endif %}
+                
+                <span class="px-4 py-2 text-[color:var(--app-muted)]">
+                    Page {{ posts.page }} of {{ posts.pages }}
+                </span>
+                
+                {% if posts.has_next %}
+                <a href="{{ url_for('forum.index', page=posts.next_num, search=search, sort=sort) }}" 
+                   class="px-4 py-2 bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-lg hover:bg-[color:var(--app-surface-hover)] transition-colors">
+                    Next
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% else %}
+            <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-12 text-center">
+                <i data-lucide="message-square" class="w-16 h-16 mx-auto mb-4 text-[color:var(--app-muted)]"></i>
+                <h3 class="text-xl font-semibold text-[color:var(--app-text)] mb-2">No posts found</h3>
+                <p class="text-[color:var(--app-muted)] mb-6">
+                    {% if search %}
+                        No posts match your search. Try different keywords.
+                    {% else %}
+                        Be the first to start a discussion!
+                    {% endif %}
+                </p>
+                {% if current_user.is_authenticated %}
+                <a href="{{ url_for('forum.create') }}" class="inline-block bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all">
+                    Create First Post
+                </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/forum.js') }}"></script>
+<script src="{{ url_for('static', filename='js/forum_reactions.js') }}"></script>
+<script>
+    // Initialize Lucide icons
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+</script>
+{% endblock %}
+

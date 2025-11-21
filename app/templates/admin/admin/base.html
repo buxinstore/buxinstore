@@ -199,6 +199,10 @@
                             <i class="fas fa-cog mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
                             Site Settings
                         </a>
+                        <a href="{{ url_for('forum.admin_manager') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint == 'forum.admin_manager' else '' }}">
+                            <i class="fas fa-comments mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Forum Manager
+                        </a>
                         {% if current_user.is_admin or current_user.role == 'admin' %}
                         <a href="{{ url_for('admin_database_manager') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint and request.endpoint.startswith('admin_database') and 'automation' not in request.endpoint else '' }}">
                             <i class="fas fa-database mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
@@ -290,6 +294,10 @@
                     <a href="{{ url_for('admin_site_settings') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_site_settings' %}bg-gray-100 dark:bg-gray-700{% endif %}">
                         <i class="fas fa-cog mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
                         Site Settings
+                    </a>
+                    <a href="{{ url_for('forum.admin_manager') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'forum.admin_manager' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-comments mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Forum Manager
                     </a>
                     {% if current_user.is_admin or current_user.role == 'admin' %}
                     <a href="{{ url_for('admin_database_manager') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint and request.endpoint.startswith('admin_database') and 'automation' not in request.endpoint %}bg-gray-100 dark:bg-gray-700{% endif %}">

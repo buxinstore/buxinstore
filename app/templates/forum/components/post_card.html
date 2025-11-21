@@ -1,0 +1,112 @@
+<div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-6 hover:shadow-lg transition-all {% if post.is_featured %}ring-2 ring-cyan-500{% endif %} {% if post.is_highlighted %}bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20{% endif %}">
+    <div class="flex items-start justify-between mb-4">
+        <div class="flex-1">
+            <div class="flex items-center gap-2 mb-2">
+                {% if post.is_featured %}
+                <span class="px-2 py-1 bg-cyan-500 text-white text-xs font-semibold rounded">Featured</span>
+                {% endif %}
+                {% if post.is_locked %}
+                <span class="px-2 py-1 bg-red-500 text-white text-xs font-semibold rounded flex items-center gap-1">
+                    <i data-lucide="lock" class="w-3 h-3"></i>
+                    Locked
+                </span>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('forum.post', slug=post.slug) }}" class="block">
+                <h2 class="text-xl font-bold text-[color:var(--app-text)] hover:text-cyan-500 transition-colors mb-2">
+                    {{ post.title }}
+                </h2>
+            </a>
+            <p class="text-[color:var(--app-muted)] line-clamp-2 mb-4">
+                {{ post.body[:200] }}{% if post.body|length > 200 %}...{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Post Meta -->
+    <div class="flex flex-wrap items-center gap-4 text-sm text-[color:var(--app-muted)] mb-4">
+        <div class="flex items-center gap-2">
+            <img src="{{ post.author.profile.google_avatar_url if post.author.profile and post.author.profile.google_avatar_url else url_for('static', filename='images/default-avatar.svg') }}" 
+                 alt="{{ post.author.username }}" 
+                 class="w-6 h-6 rounded-full">
+            <span class="font-medium text-[color:var(--app-text)]">{{ post.author.display_name or post.author.username }}</span>
+        </div>
+        <span>{{ post.created_at.strftime('%B %d, %Y at %I:%M %p') }}</span>
+        <span>{{ post.comment_count }} comment{{ 's' if post.comment_count != 1 else '' }}</span>
+    </div>
+
+    <!-- Files and Links Preview -->
+    {% if post.files or post.links %}
+    <div class="mb-4 flex flex-wrap gap-2">
+        {% for file in post.files[:3] %}
+            {% include 'forum/components/file_preview.html' %}
+        {% endfor %}
+        {% if post.files|length > 3 %}
+            <span class="text-sm text-[color:var(--app-muted)]">+{{ post.files|length - 3 }} more</span>
+        {% endif %}
+        {% for link in post.links[:2] %}
+            <a href="{{ link.url }}" target="_blank" rel="noopener" 
+               class="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
+                <i data-lucide="external-link" class="w-3 h-3"></i>
+                {{ link.link_type|title }}
+            </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Reactions and Actions -->
+    <div class="flex items-center justify-between pt-4 border-t border-[color:var(--app-border)]">
+        <div class="flex items-center gap-4">
+            {% if current_user.is_authenticated %}
+            <button onclick="reactToPost({{ post.id }}, 'like')" 
+                    class="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-[color:var(--app-surface-hover)] transition-colors {% if user_reactions.get(post.id) == 'like' %}text-green-500{% else %}text-[color:var(--app-muted)]{% endif %}">
+                <i data-lucide="thumbs-up" class="w-4 h-4"></i>
+                <span class="post-like-count-{{ post.id }}">{{ post.like_count }}</span>
+            </button>
+            <button onclick="reactToPost({{ post.id }}, 'dislike')" 
+                    class="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-[color:var(--app-surface-hover)] transition-colors {% if user_reactions.get(post.id) == 'dislike' %}text-red-500{% else %}text-[color:var(--app-muted)]{% endif %}">
+                <i data-lucide="thumbs-down" class="w-4 h-4"></i>
+                <span class="post-dislike-count-{{ post.id }}">{{ post.dislike_count }}</span>
+            </button>
+            {% else %}
+            <div class="flex items-center gap-2 text-[color:var(--app-muted)]">
+                <i data-lucide="thumbs-up" class="w-4 h-4"></i>
+                <span>{{ post.like_count }}</span>
+            </div>
+            <div class="flex items-center gap-2 text-[color:var(--app-muted)]">
+                <i data-lucide="thumbs-down" class="w-4 h-4"></i>
+                <span>{{ post.dislike_count }}</span>
+            </div>
+            {% endif %}
+        </div>
+        <a href="{{ url_for('forum.post', slug=post.slug) }}" 
+           class="text-cyan-500 hover:text-cyan-600 font-medium flex items-center gap-1">
+            Read More
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </a>
+    </div>
+</div>
+
+<script>
+    function reactToPost(postId, reactionType) {
+        fetch(`{{ url_for('forum.post', slug=post.slug) }}/react`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            },
+            body: JSON.stringify({ reaction_type: reactionType })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.querySelector(`.post-like-count-${postId}`).textContent = data.like_count;
+                document.querySelector(`.post-dislike-count-${postId}`).textContent = data.dislike_count;
+                // Reload page to update button states
+                window.location.reload();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+</script>
+

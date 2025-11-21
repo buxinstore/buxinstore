@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Create New Post - Discussion Forum{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <a href="{{ url_for('forum.index') }}" class="inline-flex items-center gap-2 text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] transition-colors">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            Back to Forum
+        </a>
+    </div>
+
+    <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-6">
+        <h1 class="text-3xl font-bold text-[color:var(--app-text)] mb-6">Create New Post</h1>
+
+        <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Title -->
+            <div class="mb-6">
+                <label for="title" class="block text-sm font-medium text-[color:var(--app-text)] mb-2">
+                    Title <span class="text-red-500">*</span>
+                </label>
+                <input type="text" name="title" id="title" required
+                       class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-lg px-4 py-3 text-[color:var(--app-text)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                       placeholder="Enter post title...">
+            </div>
+
+            <!-- Body -->
+            <div class="mb-6">
+                <label for="body" class="block text-sm font-medium text-[color:var(--app-text)] mb-2">
+                    Content <span class="text-red-500">*</span>
+                </label>
+                <textarea name="body" id="body" rows="12" required
+                          class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-lg px-4 py-3 text-[color:var(--app-text)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                          placeholder="Write your post content here..."></textarea>
+            </div>
+
+            <!-- Files -->
+            <div class="mb-6">
+                <label for="files" class="block text-sm font-medium text-[color:var(--app-text)] mb-2">
+                    Attach Files (Optional, Max 5 files, 10MB each)
+                </label>
+                <input type="file" name="files" id="files" multiple
+                       class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-lg px-4 py-3 text-[color:var(--app-text)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                       accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar,.xls,.xlsx,.ppt,.pptx">
+                <p class="text-sm text-[color:var(--app-muted)] mt-2">
+                    Allowed: Images, PDFs, Documents, Archives. Max size: 10MB per file. Videos not allowed.
+                </p>
+                <div id="file-list" class="mt-3 space-y-2"></div>
+            </div>
+
+            <!-- External Links -->
+            <div class="mb-6">
+                <label for="links" class="block text-sm font-medium text-[color:var(--app-text)] mb-2">
+                    External Links (Optional)
+                </label>
+                <textarea name="links" id="links" rows="4"
+                          class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-lg px-4 py-3 text-[color:var(--app-text)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                          placeholder="Enter URLs, one per line or separated by commas&#10;Example:&#10;https://youtube.com/watch?v=...&#10;https://github.com/user/repo"></textarea>
+                <p class="text-sm text-[color:var(--app-muted)] mt-2">
+                    Add links to YouTube videos, GitHub repos, blog posts, etc. One URL per line.
+                </p>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="flex items-center gap-4">
+                <button type="submit" class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-8 py-3 rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all">
+                    Create Post
+                </button>
+                <a href="{{ url_for('forum.index') }}" class="px-6 py-3 border border-[color:var(--app-border)] rounded-lg text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] transition-colors">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // File list preview
+    document.getElementById('files')?.addEventListener('change', function(e) {
+        const fileList = document.getElementById('file-list');
+        fileList.innerHTML = '';
+        
+        const files = Array.from(e.target.files);
+        if (files.length > 5) {
+            alert('Maximum 5 files allowed. Only the first 5 will be uploaded.');
+            e.target.files = Array.from(files.slice(0, 5));
+        }
+        
+        files.slice(0, 5).forEach((file, index) => {
+            const fileSize = (file.size / 1024 / 1024).toFixed(2);
+            const div = document.createElement('div');
+            div.className = 'flex items-center justify-between p-2 bg-[color:var(--app-input)] rounded-lg';
+            div.innerHTML = `
+                <span class="text-sm text-[color:var(--app-text)]">${file.name} (${fileSize} MB)</span>
+                ${fileSize > 10 ? '<span class="text-red-500 text-xs">File too large!</span>' : ''}
+            `;
+            fileList.appendChild(div);
+        });
+    });
+</script>
+
+<script>
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+</script>
+{% endblock %}
+

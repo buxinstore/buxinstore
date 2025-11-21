@@ -1,0 +1,14 @@
+{% if file.file_type == 'image' %}
+    <div class="relative inline-block">
+        <img src="{{ file.file_url }}" alt="{{ file.filename }}" 
+             class="w-16 h-16 object-cover rounded-lg border border-[color:var(--app-border)] cursor-pointer hover:opacity-80 transition-opacity"
+             onclick="window.open('{{ file.file_url }}', '_blank')">
+    </div>
+{% else %}
+    <a href="{{ file.file_url }}" target="_blank" rel="noopener" 
+       class="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-800 text-[color:var(--app-text)] rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+        <i data-lucide="file" class="w-4 h-4"></i>
+        <span class="truncate max-w-[100px]">{{ file.filename }}</span>
+    </a>
+{% endif %}
+

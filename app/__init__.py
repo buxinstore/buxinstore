@@ -109,6 +109,9 @@ from apscheduler.triggers.cron import CronTrigger
 
 from .config import Config
 from .extensions import csrf, db, init_extensions, login_manager, mail, migrate
+
+# Import forum models so Alembic can detect them
+from .models.forum import ForumPost, ForumFile, ForumLink, ForumComment, ForumReaction, ForumBan
 from .utils.db_backup import (
     DatabaseBackupError,
     dump_database_to_file,
@@ -221,6 +224,10 @@ def create_app(config_class: type[Config] | None = None):
     
     from app.payments import init_payment_system
     init_payment_system(app)
+    
+    # Register forum blueprint
+    from app.routes.forum import forum_bp
+    app.register_blueprint(forum_bp)
 
     # Attach base URL helper and expose PUBLIC_URL-derived base_url to templates
     # This allows `current_app.get_base_url()` in request handlers.

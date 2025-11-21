@@ -1,0 +1,376 @@
+{% extends "admin/admin/base.html" %}
+
+{% block header %}Forum Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Search and Filter -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <form method="GET" action="{{ url_for('forum.admin_manager') }}" class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1">
+                <input type="text" name="search" value="{{ search }}" placeholder="Search posts and comments..." 
+                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+            <div>
+                <select name="filter" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="all" {% if filter_type == 'all' %}selected{% endif %}>All Posts</option>
+                    <option value="locked" {% if filter_type == 'locked' %}selected{% endif %}>Locked Posts</option>
+                    <option value="featured" {% if filter_type == 'featured' %}selected{% endif %}>Featured Posts</option>
+                    <option value="highlighted" {% if filter_type == 'highlighted' %}selected{% endif %}>Highlighted Posts</option>
+                </select>
+            </div>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                Search
+            </button>
+        </form>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 dark:border-gray-700">
+        <nav class="-mb-px flex space-x-8">
+            <button onclick="showTab('posts')" id="tab-posts" class="tab-button border-b-2 border-blue-500 py-4 px-1 text-sm font-medium text-blue-600 dark:text-blue-400">
+                Posts ({{ posts.total }})
+            </button>
+            <button onclick="showTab('comments')" id="tab-comments" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+                Comments ({{ comments|length }})
+            </button>
+            <button onclick="showTab('banned')" id="tab-banned" class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+                Banned Users ({{ banned_users|length }})
+            </button>
+        </nav>
+    </div>
+
+    <!-- Posts Tab -->
+    <div id="content-posts" class="tab-content">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Post</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Author</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Stats</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for post in posts.items %}
+                    <tr class="{% if post.is_highlighted %}bg-yellow-50 dark:bg-yellow-900/20{% endif %}">
+                        <td class="px-6 py-4">
+                            <div class="text-sm font-medium text-gray-900 dark:text-white">
+                                <a href="{{ url_for('forum.post', slug=post.slug) }}" target="_blank" class="hover:text-blue-600 dark:hover:text-blue-400">
+                                    {{ post.title }}
+                                </a>
+                            </div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {{ post.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            </div>
+                            {% if post.files %}
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {{ post.files|length }} file(s)
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900 dark:text-white">{{ post.author.display_name or post.author.username }}</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">{{ post.author.email }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            <div>👍 {{ post.like_count }} | 👎 {{ post.dislike_count }}</div>
+                            <div>💬 {{ post.comment_count }} comments</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex flex-wrap gap-1">
+                                {% if post.is_featured %}
+                                <span class="px-2 py-1 text-xs font-semibold rounded bg-cyan-500 text-white">Featured</span>
+                                {% endif %}
+                                {% if post.is_highlighted %}
+                                <span class="px-2 py-1 text-xs font-semibold rounded bg-yellow-500 text-white">Highlighted</span>
+                                {% endif %}
+                                {% if post.is_locked %}
+                                <span class="px-2 py-1 text-xs font-semibold rounded bg-red-500 text-white">Locked</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div class="flex flex-wrap gap-2">
+                                <form method="POST" action="{{ url_for('forum.admin_delete_post', post_id=post.id) }}" class="inline" onsubmit="return confirm('Delete this post?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="page" value="{{ posts.page }}">
+                                    <input type="hidden" name="search" value="{{ search }}">
+                                    <input type="hidden" name="filter" value="{{ filter_type }}">
+                                    <button type="submit" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Delete</button>
+                                </form>
+                                {% if post.is_locked %}
+                                <form method="POST" action="{{ url_for('forum.admin_unlock_post', post_id=post.id) }}" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="page" value="{{ posts.page }}">
+                                    <input type="hidden" name="search" value="{{ search }}">
+                                    <input type="hidden" name="filter" value="{{ filter_type }}">
+                                    <button type="submit" class="text-green-600 hover:text-green-900 dark:text-green-400">Unlock</button>
+                                </form>
+                                {% else %}
+                                <form method="POST" action="{{ url_for('forum.admin_lock_post', post_id=post.id) }}" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="page" value="{{ posts.page }}">
+                                    <input type="hidden" name="search" value="{{ search }}">
+                                    <input type="hidden" name="filter" value="{{ filter_type }}">
+                                    <button type="submit" class="text-orange-600 hover:text-orange-900 dark:text-orange-400">Lock</button>
+                                </form>
+                                {% endif %}
+                                {% if post.is_featured %}
+                                <form method="POST" action="{{ url_for('forum.admin_unfeature_post', post_id=post.id) }}" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="page" value="{{ posts.page }}">
+                                    <input type="hidden" name="search" value="{{ search }}">
+                                    <input type="hidden" name="filter" value="{{ filter_type }}">
+                                    <button type="submit" class="text-blue-600 hover:text-blue-900 dark:text-blue-400">Unfeature</button>
+                                </form>
+                                {% else %}
+                                <form method="POST" action="{{ url_for('forum.admin_feature_post', post_id=post.id) }}" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="page" value="{{ posts.page }}">
+                                    <input type="hidden" name="search" value="{{ search }}">
+                                    <input type="hidden" name="filter" value="{{ filter_type }}">
+                                    <button type="submit" class="text-blue-600 hover:text-blue-900 dark:text-blue-400">Feature</button>
+                                </form>
+                                {% endif %}
+                                {% if post.is_highlighted %}
+                                <form method="POST" action="{{ url_for('forum.admin_unhighlight_post', post_id=post.id) }}" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="page" value="{{ posts.page }}">
+                                    <input type="hidden" name="search" value="{{ search }}">
+                                    <input type="hidden" name="filter" value="{{ filter_type }}">
+                                    <button type="submit" class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400">Unhighlight</button>
+                                </form>
+                                {% else %}
+                                <form method="POST" action="{{ url_for('forum.admin_highlight_post', post_id=post.id) }}" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="page" value="{{ posts.page }}">
+                                    <input type="hidden" name="search" value="{{ search }}">
+                                    <input type="hidden" name="filter" value="{{ filter_type }}">
+                                    <button type="submit" class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400">Highlight</button>
+                                </form>
+                                {% endif %}
+                                {% if post.files %}
+                                <button onclick="showFiles({{ post.id }})" class="text-purple-600 hover:text-purple-900 dark:text-purple-400">Files</button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            {% if posts.pages > 1 %}
+            <div class="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    {% if posts.has_prev %}
+                    <a href="{{ url_for('forum.admin_manager', page=posts.prev_num, search=search, filter=filter_type) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700">Previous</a>
+                    {% endif %}
+                    {% if posts.has_next %}
+                    <a href="{{ url_for('forum.admin_manager', page=posts.next_num, search=search, filter=filter_type) }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700">Next</a>
+                    {% endif %}
+                </div>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700 dark:text-gray-300">
+                            Showing page <span class="font-medium">{{ posts.page }}</span> of <span class="font-medium">{{ posts.pages }}</span>
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                            {% if posts.has_prev %}
+                            <a href="{{ url_for('forum.admin_manager', page=posts.prev_num, search=search, filter=filter_type) }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600">Previous</a>
+                            {% endif %}
+                            {% if posts.has_next %}
+                            <a href="{{ url_for('forum.admin_manager', page=posts.next_num, search=search, filter=filter_type) }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600">Next</a>
+                            {% endif %}
+                        </nav>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Comments Tab -->
+    <div id="content-comments" class="tab-content hidden">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Comment</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Author</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Post</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for comment in comments %}
+                    <tr>
+                        <td class="px-6 py-4">
+                            <div class="text-sm text-gray-900 dark:text-white max-w-md truncate">{{ comment.body[:100] }}{% if comment.body|length > 100 %}...{% endif %}</div>
+                            {% if comment.file_url %}
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Has attachment</div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900 dark:text-white">{{ comment.author.display_name or comment.author.username }}</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">{{ comment.author.email }}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <a href="{{ url_for('forum.post', slug=comment.post.slug) }}" target="_blank" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                {{ comment.post.title[:50] }}{% if comment.post.title|length > 50 %}...{% endif %}
+                            </a>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <form method="POST" action="{{ url_for('forum.admin_delete_comment', comment_id=comment.id) }}" class="inline" onsubmit="return confirm('Delete this comment?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="page" value="{{ posts.page }}">
+                                <input type="hidden" name="search" value="{{ search }}">
+                                <input type="hidden" name="filter" value="{{ filter_type }}">
+                                <button type="submit" class="text-red-600 hover:text-red-900 dark:text-red-400">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Banned Users Tab -->
+    <div id="content-banned" class="tab-content hidden">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Banned By</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Reason</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for ban in banned_users %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900 dark:text-white">{{ ban.user.display_name or ban.user.username }}</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">{{ ban.user.email }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {{ ban.banned_by.display_name or ban.banned_by.username }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                            {{ ban.reason or 'No reason provided' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {{ ban.banned_at.strftime('%Y-%m-%d %H:%M') }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <form method="POST" action="{{ url_for('forum.admin_unban_user', user_id=ban.user_id) }}" class="inline" onsubmit="return confirm('Unban this user?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="page" value="{{ posts.page }}">
+                                <input type="hidden" name="search" value="{{ search }}">
+                                <input type="hidden" name="filter" value="{{ filter_type }}">
+                                <button type="submit" class="text-green-600 hover:text-green-900 dark:text-green-400">Unban</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not banned_users %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                            No banned users
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Ban User Form -->
+        <div class="mt-6 bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Ban User</h3>
+            <form method="POST" action="{{ url_for('forum.admin_ban_user', user_id=0) }}" id="ban-user-form" class="flex gap-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="page" value="{{ posts.page }}">
+                <input type="hidden" name="search" value="{{ search }}">
+                <input type="hidden" name="filter" value="{{ filter_type }}">
+                <div class="flex-1">
+                    <input type="number" name="user_id" id="ban-user-id" placeholder="User ID" required
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <div class="flex-1">
+                    <input type="text" name="reason" id="ban-reason" placeholder="Reason (optional)"
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                </div>
+                <button type="submit" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    Ban User
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Files Modal -->
+<div id="files-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white dark:bg-gray-800">
+        <div class="mt-3">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Post Files</h3>
+                <button onclick="closeFilesModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="files-content" class="space-y-2"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showTab(tab) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-button').forEach(el => {
+            el.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+            el.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+        });
+        
+        // Show selected tab
+        document.getElementById('content-' + tab).classList.remove('hidden');
+        const button = document.getElementById('tab-' + tab);
+        button.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+        button.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+    }
+
+    function showFiles(postId) {
+        // This would need to fetch files via AJAX or include them in the page
+        // For now, just show a placeholder
+        document.getElementById('files-modal').classList.remove('hidden');
+        document.getElementById('files-content').innerHTML = '<p>Loading files...</p>';
+        // In a real implementation, you'd fetch the files for this post
+    }
+
+    function closeFilesModal() {
+        document.getElementById('files-modal').classList.add('hidden');
+    }
+
+    // Ban user form handler
+    document.getElementById('ban-user-form')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const userId = document.getElementById('ban-user-id').value;
+        const form = this;
+        form.action = form.action.replace('0', userId);
+        form.submit();
+    });
+</script>
+{% endblock %}
+

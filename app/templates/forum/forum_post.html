@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }} - Discussion Forum{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Back Button -->
+    <a href="{{ url_for('forum.index') }}" class="inline-flex items-center gap-2 text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] mb-6 transition-colors">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+        Back to Forum
+    </a>
+
+    <!-- Post -->
+    <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-6 mb-6 {% if post.is_featured %}ring-2 ring-cyan-500{% endif %} {% if post.is_highlighted %}bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20{% endif %}">
+        <div class="flex items-start justify-between mb-4">
+            <div class="flex-1">
+                <div class="flex items-center gap-2 mb-3">
+                    {% if post.is_featured %}
+                    <span class="px-2 py-1 bg-cyan-500 text-white text-xs font-semibold rounded">Featured</span>
+                    {% endif %}
+                    {% if post.is_locked %}
+                    <span class="px-2 py-1 bg-red-500 text-white text-xs font-semibold rounded flex items-center gap-1">
+                        <i data-lucide="lock" class="w-3 h-3"></i>
+                        Locked
+                    </span>
+                    {% endif %}
+                </div>
+                <h1 class="text-3xl font-bold text-[color:var(--app-text)] mb-4">{{ post.title }}</h1>
+            </div>
+            {% if current_user.is_authenticated and (post.author_id == current_user.id or current_user.is_admin or current_user.role == 'admin') %}
+            <div class="flex items-center gap-2">
+                {% if post.author_id == current_user.id %}
+                <a href="{{ url_for('forum.edit', slug=post.slug) }}" class="p-2 hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors">
+                    <i data-lucide="edit" class="w-5 h-5 text-[color:var(--app-muted)]"></i>
+                </a>
+                {% endif %}
+                {% if post.author_id == current_user.id or current_user.is_admin or current_user.role == 'admin' %}
+                <form method="POST" action="{{ url_for('forum.delete', slug=post.slug) }}" class="inline" onsubmit="return confirm('Are you sure you want to delete this post?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="p-2 hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors">
+                        <i data-lucide="trash-2" class="w-5 h-5 text-red-500"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Post Meta -->
+        <div class="flex items-center gap-4 text-sm text-[color:var(--app-muted)] mb-6 pb-6 border-b border-[color:var(--app-border)]">
+            <div class="flex items-center gap-2">
+                <img src="{{ post.author.profile.google_avatar_url if post.author.profile and post.author.profile.google_avatar_url else url_for('static', filename='images/default-avatar.svg') }}" 
+                     alt="{{ post.author.username }}" 
+                     class="w-8 h-8 rounded-full">
+                <span class="font-medium text-[color:var(--app-text)]">{{ post.author.display_name or post.author.username }}</span>
+            </div>
+            <span>{{ post.created_at.strftime('%B %d, %Y at %I:%M %p') }}</span>
+            {% if post.updated_at != post.created_at %}
+            <span class="text-xs">(edited {{ post.updated_at.strftime('%b %d, %Y') }})</span>
+            {% endif %}
+        </div>
+
+        <!-- Post Body -->
+        <div class="prose prose-lg dark:prose-invert max-w-none mb-6">
+            <p class="text-[color:var(--app-text)] whitespace-pre-wrap">{{ post.body }}</p>
+        </div>
+
+        <!-- Files -->
+        {% if post.files %}
+        <div class="mb-6">
+            <h3 class="text-lg font-semibold text-[color:var(--app-text)] mb-3">Attachments</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {% for file in post.files %}
+                    {% include 'forum/components/file_preview.html' %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- External Links -->
+        {% if post.links %}
+        <div class="mb-6">
+            <h3 class="text-lg font-semibold text-[color:var(--app-text)] mb-3">External Links</h3>
+            <div class="flex flex-wrap gap-2">
+                {% for link in post.links %}
+                    <a href="{{ link.url }}" target="_blank" rel="noopener" 
+                       class="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
+                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                        {{ link.link_type|title }} Link
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Reactions -->
+        <div class="flex items-center gap-4 pt-6 border-t border-[color:var(--app-border)]">
+            {% if current_user.is_authenticated %}
+            <button onclick="reactToPost('{{ post.slug }}', 'like')" 
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-[color:var(--app-surface-hover)] transition-colors {% if user_reaction == 'like' %}text-green-500 bg-green-50 dark:bg-green-900/20{% else %}text-[color:var(--app-muted)]{% endif %}">
+                <i data-lucide="thumbs-up" class="w-5 h-5"></i>
+                <span class="post-like-count">{{ post.like_count }}</span>
+            </button>
+            <button onclick="reactToPost('{{ post.slug }}', 'dislike')" 
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-[color:var(--app-surface-hover)] transition-colors {% if user_reaction == 'dislike' %}text-red-500 bg-red-50 dark:bg-red-900/20{% else %}text-[color:var(--app-muted)]{% endif %}">
+                <i data-lucide="thumbs-down" class="w-5 h-5"></i>
+                <span class="post-dislike-count">{{ post.dislike_count }}</span>
+            </button>
+            {% else %}
+            <div class="flex items-center gap-2 text-[color:var(--app-muted)]">
+                <i data-lucide="thumbs-up" class="w-5 h-5"></i>
+                <span>{{ post.like_count }}</span>
+            </div>
+            <div class="flex items-center gap-2 text-[color:var(--app-muted)]">
+                <i data-lucide="thumbs-down" class="w-5 h-5"></i>
+                <span>{{ post.dislike_count }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Comments Section -->
+    <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-6">
+        <h2 class="text-2xl font-bold text-[color:var(--app-text)] mb-6">
+            Comments ({{ post.comment_count }})
+        </h2>
+
+        <!-- Comment Form -->
+        {% if current_user.is_authenticated %}
+            {% if not post.is_locked %}
+            <form id="comment-form" class="mb-8">
+                <div class="mb-4">
+                    <textarea name="body" id="comment-body" rows="4" 
+                              class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-lg px-4 py-3 text-[color:var(--app-text)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                              placeholder="Write a comment..." required></textarea>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-[color:var(--app-text)] mb-2">
+                        Attach File (Optional)
+                    </label>
+                    <input type="file" name="file" id="comment-file" 
+                           class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-lg px-4 py-2 text-[color:var(--app-text)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                           accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar">
+                </div>
+                <button type="submit" class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:from-cyan-600 hover:to-blue-600 transition-all">
+                    Post Comment
+                </button>
+            </form>
+            {% else %}
+            <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+                <p class="text-yellow-800 dark:text-yellow-200">This post is locked and no longer accepts comments.</p>
+            </div>
+            {% endif %}
+        {% else %}
+            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                <p class="text-blue-800 dark:text-blue-200">
+                    <a href="{{ url_for('login') }}" class="underline">Sign in</a> to post a comment.
+                </p>
+            </div>
+        {% endif %}
+
+        <!-- Comments List -->
+        <div id="comments-list">
+            {% for comment in post.comments %}
+                {% include 'forum/components/comment.html' %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    // Comment form submission
+    document.getElementById('comment-form')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData();
+        formData.append('body', document.getElementById('comment-body').value);
+        const fileInput = document.getElementById('comment-file');
+        if (fileInput.files[0]) {
+            formData.append('file', fileInput.files[0]);
+        }
+        formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.content || '');
+        
+        fetch('{{ url_for("forum.comment", slug=post.slug) }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert(data.message || 'Error posting comment');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error posting comment');
+        });
+    });
+
+    function reactToPost(slug, reactionType) {
+        fetch(`/forum/${slug}/react`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            },
+            body: JSON.stringify({ reaction_type: reactionType })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.querySelector('.post-like-count').textContent = data.like_count;
+                document.querySelector('.post-dislike-count').textContent = data.dislike_count;
+                window.location.reload();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+</script>
+
+<script src="{{ url_for('static', filename='js/forum.js') }}"></script>
+<script src="{{ url_for('static', filename='js/forum_reactions.js') }}"></script>
+<script>
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+</script>
+{% endblock %}
+
