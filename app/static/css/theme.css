@@ -190,19 +190,24 @@ html:not(.dark) .dark\:border-slate-700 {
    Mobile-specific fixes
    ============================================ */
 @media (max-width: 768px) {
-  /* Force recalculation of CSS variables on mobile */
-  html:not(.dark) * {
-    background-color: inherit;
+  /* Ensure icons have transparent backgrounds on mobile */
+  html:not(.dark) i[data-lucide],
+  html:not(.dark) svg[data-lucide-icon],
+  html:not(.dark) i[class*="fa-"],
+  html:not(.dark) svg {
+    background-color: transparent !important;
+    background: transparent !important;
   }
   
-  /* Ensure all containers respect theme */
-  html:not(.dark) [class*="bg-"],
-  html:not(.dark) [class*="dark:bg-"] {
-    background-color: var(--app-bg) !important;
+  /* Ensure button text is visible in light mode */
+  html:not(.dark) .add-to-cart-btn,
+  html:not(.dark) .add-to-cart-text {
+    color: inherit !important;
   }
   
-  html:not(.dark) [class*="bg-"]:not([class*="gradient"]):not([class*="from-"]):not([class*="to-"]) {
-    background-color: var(--app-card) !important;
+  /* Prevent white rectangles on buttons with gradient backgrounds */
+  html:not(.dark) [class*="bg-gradient"] {
+    background-image: inherit !important;
   }
 }
 
@@ -211,6 +216,34 @@ html:not(.dark) .dark\:border-slate-700 {
    ============================================ */
 html:not(.dark) [class*="backdrop-blur"] {
   background-color: var(--app-card) !important;
+}
+
+/* ============================================
+   Prevent white rectangles on icons and buttons
+   ============================================ */
+html:not(.dark) i,
+html:not(.dark) svg,
+html:not(.dark) [class*="icon"] {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Ensure buttons with text don't have white backgrounds */
+html:not(.dark) button:not([class*="bg-"]):not([class*="gradient"]) {
+  background-color: transparent !important;
+}
+
+/* Prevent white backgrounds on spans and text elements */
+html:not(.dark) span:not([class*="bg-"]):not([class*="badge"]):not([class*="pill"]) {
+  background-color: transparent !important;
+}
+
+/* Ensure text elements don't have backgrounds */
+html:not(.dark) .add-to-cart-text,
+html:not(.dark) button span,
+html:not(.dark) a span {
+  background-color: transparent !important;
+  background: transparent !important;
 }
 
 /* ============================================
@@ -237,6 +270,8 @@ svg[data-lucide-icon] {
   color: inherit !important;
   stroke: currentColor !important;
   fill: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
 }
 
 /* Ensure Lucide icons in buttons and links inherit parent color */
@@ -245,12 +280,31 @@ a i[data-lucide],
 [class*="text-"] i[data-lucide] {
   color: inherit !important;
   stroke: currentColor !important;
+  background-color: transparent !important;
+  background: transparent !important;
 }
 
 /* All other Lucide icons should inherit from parent */
 /* Note: text-cyan-400 and text-yellow-400 are allowed for theme toggle icons */
 i[data-lucide]:not(.text-cyan-400):not(.text-yellow-400) {
   color: inherit !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Font Awesome icons - ensure transparent backgrounds */
+i[class*="fa-"],
+i[class*="fas"],
+i[class*="far"],
+i[class*="fab"] {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* All SVG elements should have transparent backgrounds */
+svg {
+  background-color: transparent !important;
+  background: transparent !important;
 }
 
 /* ============================================
@@ -262,9 +316,42 @@ a:not([class*="bg-gradient"]):not([class*="text-white"]):not([class*="text-red"]
 }
 
 /* Add to Cart buttons and similar action buttons */
-.add-to-cart-btn,
+.add-to-cart-btn {
+  /* Gradient buttons should keep their text-white class */
+  background-color: transparent !important;
+}
+
 .add-to-cart-text {
   color: inherit !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Ensure gradient buttons maintain their white text */
+[class*="bg-gradient"] .add-to-cart-text,
+[class*="bg-gradient"] button,
+button[class*="bg-gradient"],
+button[class*="bg-gradient"] span,
+button[class*="bg-gradient"] .add-to-cart-text {
+  color: white !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Prevent white backgrounds on buttons in light mode */
+html:not(.dark) button:not([class*="bg-gradient"]):not([class*="bg-white"]) {
+  background-color: transparent !important;
+}
+
+html:not(.dark) button[class*="bg-gradient"] {
+  background-image: inherit !important;
+}
+
+/* Ensure button text spans don't have backgrounds */
+html:not(.dark) button span,
+html:not(.dark) button .add-to-cart-text {
+  background-color: transparent !important;
+  background: transparent !important;
 }
 
 /* ============================================

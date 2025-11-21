@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -7,7 +7,7 @@
   <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com;">
   
   <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#ffffff" id="theme-color-meta">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -30,14 +30,19 @@
   <script>
     (function() {
       const storageKey = 'theme';
-      const defaultTheme = 'dark';
+      const defaultTheme = 'light';
       const html = document.documentElement;
+      const themeColorMeta = document.getElementById('theme-color-meta');
 
       const resolveTheme = (theme) => (theme === 'light' ? 'light' : 'dark');
 
       const setColorScheme = (scheme) => {
         try {
           html.style.colorScheme = scheme;
+          // Update theme-color meta tag dynamically
+          if (themeColorMeta) {
+            themeColorMeta.content = scheme === 'dark' ? '#0f172a' : '#ffffff';
+          }
         } catch (err) {
           /* noop */
         }
@@ -86,12 +91,15 @@
         }
       };
 
+      // Read stored theme first, then apply
       const storedTheme = readStoredTheme();
-      applyTheme(defaultTheme, { persist: false, silent: true });
-
-      if (storedTheme === 'light') {
-        applyTheme('light', { persist: false, silent: true });
-      } else {
+      const initialTheme = storedTheme || defaultTheme;
+      
+      // Apply initial theme without persisting (to avoid overwriting user preference)
+      applyTheme(initialTheme, { persist: false, silent: true });
+      
+      // If no stored theme, set default
+      if (!storedTheme) {
         try {
           localStorage.setItem(storageKey, defaultTheme);
         } catch (err) {
@@ -658,7 +666,7 @@
         if (controller && typeof controller.get === 'function') {
           return controller.get();
         }
-        return html.dataset.theme || 'dark';
+        return html.dataset.theme || 'light';
       };
 
       const updateButtonState = (theme) => {
