@@ -2,35 +2,40 @@
 <nav class="mobile-bottom-nav curved-nav" role="navigation" aria-label="Main navigation">
   <a href="{{ url_for('home') }}" 
      class="nav-item {% if request.endpoint == 'home' %}active{% endif %}"
-     aria-label="Home">
+     aria-label="Home"
+     data-route="home">
     <i data-lucide="home"></i>
     <span>Home</span>
   </a>
   
   <a href="{{ url_for('all_products') }}" 
      class="nav-item {% if request.endpoint == 'all_products' or request.endpoint == 'product' %}active{% endif %}"
-     aria-label="Products">
+     aria-label="Products"
+     data-route="products">
     <i data-lucide="package"></i>
     <span>Products</span>
   </a>
   
   <a href="{{ url_for('all_products') }}" 
      class="nav-item {% if request.endpoint == 'category' %}active{% endif %}"
-     aria-label="Category">
+     aria-label="Category"
+     data-route="category">
     <i data-lucide="grid-3x3"></i>
     <span>Category</span>
   </a>
   
   <a href="{{ url_for('orders') }}" 
      class="nav-item {% if request.endpoint == 'orders' %}active{% endif %}"
-     aria-label="Orders Again">
+     aria-label="Orders Again"
+     data-route="orders">
     <i data-lucide="shopping-bag"></i>
     <span>Orders Again</span>
   </a>
   
   <a href="{{ url_for('forum.index') }}" 
      class="nav-item {% if request.endpoint and request.endpoint.startswith('forum.') %}active{% endif %}"
-     aria-label="Forum">
+     aria-label="Forum"
+     data-route="forum">
     <i data-lucide="message-square"></i>
     <span>Forum</span>
   </a>
