@@ -452,27 +452,18 @@
             
             // Handle response
             if (data.success) {
-                showMessage('Payment initiated successfully!', 'success');
-                
                 // Support both { payment_url } and { data: { payment_url } }
                 const paymentUrl = data.payment_url || (data.data && data.data.payment_url);
-                if (paymentUrl) {
-                    showMessage('Redirecting to payment page...', 'info');
-                    window.location.href = paymentUrl;
-                }                
                 
-                // Show transaction details
-                if (data.data) {
-                    const details = [];
-                    if (data.data.transaction_id) {
-                        details.push(`Transaction ID: ${data.data.transaction_id}`);
-                    }
-                    if (data.data.reference) {
-                        details.push(`Reference: ${data.data.reference}`);
-                    }
-                    if (details.length > 0) {
-                        showMessage(details.join('<br>'), 'info');
-                    }
+                if (paymentUrl) {
+                    // Immediately redirect to payment page
+                    console.log('Redirecting to payment URL:', paymentUrl);
+                    window.location.href = paymentUrl;
+                    return; // Exit early to prevent any other code from running
+                } else {
+                    // No payment URL - show error
+                    console.error('Payment initiated but no payment_url received:', data);
+                    showMessage('Payment initiated but redirect URL is missing. Please contact support.', 'error');
                 }
             } else {
                 showMessage(data.message || 'Payment initiation failed', 'error');

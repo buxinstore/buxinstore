@@ -136,6 +136,8 @@ button#pay-button {
   /* Don't override Tailwind's gradient - just ensure text is white and background is transparent */
   background-color: transparent !important;
   color: white !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
 }
 
 /* Ensure gradient buttons don't get overridden by other rules */
@@ -144,6 +146,8 @@ button.bg-gradient-to-r,
 #pay-button.bg-gradient-to-r {
   background-color: transparent !important;
   color: white !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
 }
 
 /* Gradient badges and spans - preserve Tailwind gradient */
@@ -174,6 +178,7 @@ button .label,
   background-image: none !important;
   display: inline-block;
   color: inherit !important;
+  pointer-events: none !important; /* Allow clicks to pass through to button */
 }
 
 /* Gradient button text - ensure white text */
