@@ -8,7 +8,7 @@
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-2xl font-bold mb-2 text-[color:var(--app-text)]">{{ site_settings.hero_title or 'Build the Future' }}</h2>
-        <p class="text-[color:var(--app-muted)] dark:text-slate-400">{{ site_settings.hero_subtitle or 'Premium electronics and robotics components' }}</p>
+        <p class="text-[color:var(--app-muted)]">{{ site_settings.hero_subtitle or 'Premium electronics and robotics components' }}</p>
         <div class="mt-4">
           <a href="{{ site_settings.hero_button_link or '#featured' }}" class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-medium hover:shadow-lg hover:shadow-cyan-500/30 transition-all">
             {{ site_settings.hero_button_text or 'Shop Now' }}
@@ -17,7 +17,7 @@
         </div>
       </div>
       {% if hero_image_url %}
-      <div class="w-24 h-24 rounded-2xl overflow-hidden border border-cyan-200 dark:border-cyan-600 shadow-lg">
+      <div class="w-24 h-24 rounded-2xl overflow-hidden border border-cyan-200 shadow-lg">
         <img src="{{ hero_image_url }}" alt="Hero image" class="w-full h-full object-cover">
       </div>
       {% else %}
@@ -40,8 +40,8 @@
 
     <div id="categories-container" class="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
       {% for cat in categories_with_counts %}
-      <a href="{{ url_for('category', category_id=cat.id) }}" class="flex-shrink-0 bg-[color:var(--app-card)] dark:bg-slate-900/60 hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800/60 border border-[color:var(--app-border)] dark:border-slate-700/60 hover:border-cyan-500 rounded-xl p-4 transition-all hover:scale-105 min-w-[140px] text-[color:var(--app-text)]">
-        <div class="w-16 h-16 rounded-lg overflow-hidden mb-3 mx-auto border border-[color:var(--app-border)] dark:border-slate-700">
+      <a href="{{ url_for('category', category_id=cat.id) }}" class="flex-shrink-0 bg-[color:var(--app-card)] hover:bg-[color:var(--app-surface-hover)] border border-[color:var(--app-border)] hover:border-cyan-500 rounded-xl p-4 transition-all hover:scale-105 min-w-[140px] text-[color:var(--app-text)]">
+        <div class="w-16 h-16 rounded-lg overflow-hidden mb-3 mx-auto border border-[color:var(--app-border)]">
           {% if cat.image %}
           <img src="{{ cat.image|category_image_url }}" alt="{{ cat.name }}" class="w-full h-full object-cover">
           {% else %}
@@ -51,7 +51,7 @@
           {% endif %}
         </div>
         <h4 class="font-semibold text-sm mb-1 text-center text-[color:var(--app-text)]">{{ cat.name }}</h4>
-        <p class="text-xs text-[color:var(--app-muted)] dark:text-slate-400 text-center">
+        <p class="text-xs text-[color:var(--app-muted)] text-center">
           {{ cat.count }} {{ 'item' if cat.count == 1 else 'items' }}
         </p>
       </a>
@@ -71,7 +71,7 @@
 
     <div id="products-container" class="grid grid-cols-2 gap-3">
       {% for product in featured_products %}
-      <div class="product-card cursor-pointer bg-[color:var(--app-card)] dark:bg-slate-900/60 border border-[color:var(--app-border)] dark:border-slate-700/60 rounded-xl overflow-hidden hover:border-cyan-500/50 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/10 text-[color:var(--app-text)]"
+      <div class="product-card cursor-pointer bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl overflow-hidden hover:border-cyan-500/50 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/10 text-[color:var(--app-text)]"
            data-wishlist-card
            data-product-id="{{ product.id }}">
         <div class="relative">
@@ -79,22 +79,22 @@
             {% if product.image %}
               <img src="{{ product.image|product_image_url }}" alt="{{ product.name }}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-200" onerror="this.src='https://placehold.co/400x400/34d399/ffffff?text=No+Image'; this.onerror=null;">
             {% else %}
-              <div class="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
-                <i data-lucide="image" class="w-10 h-10 text-[color:var(--app-muted)] dark:text-slate-400"></i>
+              <div class="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+                <i data-lucide="image" class="w-10 h-10 text-[color:var(--app-muted)]"></i>
               </div>
             {% endif %}
           </a>
           
           <button type="button"
-                  class="wishlist-button absolute top-2 right-2 p-2 bg-[color:var(--app-card)] dark:bg-slate-900/80 backdrop-blur-md rounded-full shadow-md hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 transition-all group"
+                  class="wishlist-button absolute top-2 right-2 p-2 bg-[color:var(--app-card)] backdrop-blur-md rounded-full shadow-md hover:bg-[color:var(--app-surface-hover)] transition-all group"
                   data-product-id="{{ product.id }}"
                   aria-label="Toggle wishlist">
                         <i class="heart-icon fas fa-heart text-red-500 absolute inset-0 m-auto hidden"></i>
-                        <i class="heart-outline-icon fas fa-heart text-[color:var(--app-muted)] dark:text-slate-500"></i>
+                        <i class="heart-outline-icon fas fa-heart text-[color:var(--app-muted)]"></i>
                     </button>
           
           {% if product.available_in_gambia %}
-          <div class="absolute top-2 left-2 w-8 h-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center z-10" title="Available in Gambia">
+          <div class="absolute top-2 left-2 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center z-10" title="Available in Gambia">
             <span class="text-xl">🇬🇲</span>
           </div>
           {% endif %}
@@ -107,11 +107,11 @@
         </div>
         
         <div class="p-3">
-          <p class="text-xs text-[color:var(--app-muted)] dark:text-slate-400 mb-1">{{ product.category.name if product.category else 'Electronics' }}</p>
+          <p class="text-xs text-[color:var(--app-muted)] mb-1">{{ product.category.name if product.category else 'Electronics' }}</p>
           <h4 class="font-semibold text-sm mb-2 line-clamp-2 text-[color:var(--app-text)]">{{ product.name }}</h4>
           
           <div class="mt-1 mb-2">
-            <span class="text-sm font-semibold text-green-600 dark:text-green-400">
+            <span class="text-sm font-semibold text-green-600">
               D{{ product.price }}
             </span>
           </div>
@@ -155,36 +155,36 @@
 
   <!-- Features Section -->
   <div class="grid grid-cols-2 gap-4 mb-8">
-    <div class="bg-[color:var(--app-card)] dark:bg-slate-900/60 border border-[color:var(--app-border)] dark:border-slate-700/60 rounded-xl p-4 text-center transition-colors duration-300 text-[color:var(--app-text)]">
-      <div class="w-10 h-10 bg-cyan-100 dark:bg-cyan-900/40 rounded-full flex items-center justify-center mx-auto mb-2">
+    <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-4 text-center transition-colors duration-300 text-[color:var(--app-text)]">
+      <div class="w-10 h-10 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-2">
         <i data-lucide="truck" class="w-5 h-5 text-cyan-500"></i>
       </div>
       <h4 class="font-medium text-sm mb-1 text-[color:var(--app-text)]">Free Delivery in The Gambia</h4>
-      <p class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">On orders over D10,000</p>
+      <p class="text-xs text-[color:var(--app-muted)]">On orders over D10,000</p>
     </div>
     
-    <div class="bg-[color:var(--app-card)] dark:bg-slate-900/60 border border-[color:var(--app-border)] dark:border-slate-700/60 rounded-xl p-4 text-center transition-colors duration-300 text-[color:var(--app-text)]">
-      <div class="w-10 h-10 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center mx-auto mb-2">
+    <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-4 text-center transition-colors duration-300 text-[color:var(--app-text)]">
+      <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
         <i data-lucide="shield-check" class="w-5 h-5 text-green-500"></i>
       </div>
       <h4 class="font-medium text-sm mb-1 text-[color:var(--app-text)]">Secure Payment</h4>
-      <p class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">100% secure payment</p>
+      <p class="text-xs text-[color:var(--app-muted)]">100% secure payment</p>
     </div>
     
-    <div class="bg-[color:var(--app-card)] dark:bg-slate-900/60 border border-[color:var(--app-border)] dark:border-slate-700/60 rounded-xl p-4 text-center transition-colors duration-300 text-[color:var(--app-text)]">
-      <div class="w-10 h-10 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center mx-auto mb-2">
+    <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-4 text-center transition-colors duration-300 text-[color:var(--app-text)]">
+      <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-2">
         <i data-lucide="refresh-cw" class="w-5 h-5 text-amber-500"></i>
       </div>
       <h4 class="font-medium text-sm mb-1 text-[color:var(--app-text)]">Easy Returns</h4>
-      <p class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">30-day return policy</p>
+      <p class="text-xs text-[color:var(--app-muted)]">30-day return policy</p>
     </div>
     
-    <div class="bg-[color:var(--app-card)] dark:bg-slate-900/60 border border-[color:var(--app-border)] dark:border-slate-700/60 rounded-xl p-4 text-center transition-colors duration-300 text-[color:var(--app-text)]">
-      <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/40 rounded-full flex items-center justify-center mx-auto mb-2">
+    <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-4 text-center transition-colors duration-300 text-[color:var(--app-text)]">
+      <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
         <i data-lucide="headphones" class="w-5 h-5 text-blue-500"></i>
       </div>
       <h4 class="font-medium text-sm mb-1 text-[color:var(--app-text)]">24/7 Support</h4>
-      <p class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">Dedicated support</p>
+      <p class="text-xs text-[color:var(--app-muted)]">Dedicated support</p>
     </div>
   </div>
 

@@ -7,8 +7,8 @@ html.dark {
 }
 
 body {
-  background-color: var(--app-bg);
-  color: var(--app-text);
+  background-color: var(--app-bg) !important;
+  color: var(--app-text) !important;
   transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out;
 }
 
@@ -20,7 +20,76 @@ html.theme-initialized body {
   visibility: visible;
 }
 
-/* Surface backgrounds */
+/* ============================================
+   CRITICAL: Override ALL Tailwind dark: classes
+   This ensures CSS variables always take precedence
+   ============================================ */
+
+/* Override dark: background classes - FORCE light mode values when not in dark mode */
+html:not(.dark) .dark\:bg-slate-900,
+html:not(.dark) .dark\:bg-slate-800,
+html:not(.dark) .dark\:bg-slate-700,
+html:not(.dark) .dark\:bg-gray-800,
+html:not(.dark) .dark\:bg-gray-900,
+html:not(.dark) [class*="dark:bg-slate-"],
+html:not(.dark) [class*="dark:bg-gray-"] {
+  background-color: var(--app-card) !important;
+  background-image: none !important;
+}
+
+/* Override dark: text classes */
+html:not(.dark) .dark\:text-white,
+html:not(.dark) .dark\:text-slate-100,
+html:not(.dark) .dark\:text-slate-200,
+html:not(.dark) .dark\:text-slate-300,
+html:not(.dark) .dark\:text-slate-400,
+html:not(.dark) .dark\:text-gray-100,
+html:not(.dark) .dark\:text-gray-200,
+html:not(.dark) .dark\:text-gray-300,
+html:not(.dark) .dark\:text-gray-400,
+html:not(.dark) [class*="dark:text-"] {
+  color: var(--app-text) !important;
+}
+
+html:not(.dark) .dark\:text-slate-400,
+html:not(.dark) .dark\:text-slate-500,
+html:not(.dark) .dark\:text-gray-400,
+html:not(.dark) .dark\:text-gray-500 {
+  color: var(--app-muted) !important;
+}
+
+/* Override dark: border classes */
+html:not(.dark) .dark\:border-slate-700,
+html:not(.dark) .dark\:border-slate-600,
+html:not(.dark) .dark\:border-gray-700,
+html:not(.dark) .dark\:border-gray-600,
+html:not(.dark) [class*="dark:border-slate-"],
+html:not(.dark) [class*="dark:border-gray-"] {
+  border-color: var(--app-border) !important;
+}
+
+/* Override dark: hover classes */
+html:not(.dark) .dark\:hover\:bg-slate-800:hover,
+html:not(.dark) .dark\:hover\:bg-slate-700:hover,
+html:not(.dark) .dark\:hover\:bg-gray-800:hover,
+html:not(.dark) [class*="dark:hover:bg-"]:hover {
+  background-color: var(--app-surface-hover) !important;
+}
+
+html:not(.dark) .dark\:hover\:text-white:hover,
+html:not(.dark) [class*="dark:hover:text-"]:hover {
+  color: var(--app-text) !important;
+}
+
+/* Override dark: ring classes */
+html:not(.dark) .dark\:ring-slate-700,
+html:not(.dark) [class*="dark:ring-"] {
+  --tw-ring-color: var(--app-border) !important;
+}
+
+/* ============================================
+   Light mode surface backgrounds
+   ============================================ */
 .bg-white,
 .bg-gray-50,
 .bg-gray-100,
@@ -91,29 +160,71 @@ html.theme-initialized body {
   --tw-ring-offset-color: var(--app-card) !important;
 }
 
-/* Inputs */
+/* ============================================
+   Inputs - Ensure consistent theming
+   ============================================ */
 input,
 textarea,
 select {
-  background-color: var(--app-card);
-  color: var(--app-text);
-  border-color: var(--app-border);
+  background-color: var(--app-input) !important;
+  color: var(--app-text) !important;
+  border-color: var(--app-border) !important;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--app-muted);
+  color: var(--app-muted) !important;
 }
 
+/* Override dark: input classes */
+html:not(.dark) .dark\:bg-slate-800\/50,
+html:not(.dark) [class*="dark:bg-"] {
+  background-color: var(--app-input) !important;
+}
+
+html:not(.dark) .dark\:border-slate-700 {
+  border-color: var(--app-border) !important;
+}
+
+/* ============================================
+   Mobile-specific fixes
+   ============================================ */
+@media (max-width: 768px) {
+  /* Force recalculation of CSS variables on mobile */
+  html:not(.dark) * {
+    background-color: inherit;
+  }
+  
+  /* Ensure all containers respect theme */
+  html:not(.dark) [class*="bg-"],
+  html:not(.dark) [class*="dark:bg-"] {
+    background-color: var(--app-bg) !important;
+  }
+  
+  html:not(.dark) [class*="bg-"]:not([class*="gradient"]):not([class*="from-"]):not([class*="to-"]) {
+    background-color: var(--app-card) !important;
+  }
+}
+
+/* ============================================
+   Ensure backdrop and overlay elements respect theme
+   ============================================ */
+html:not(.dark) [class*="backdrop-blur"] {
+  background-color: var(--app-card) !important;
+}
+
+/* ============================================
+   Dark mode specific overrides (when dark class is present)
+   ============================================ */
 html.dark input,
 html.dark textarea,
 html.dark select {
-  background-color: var(--app-card);
-  color: var(--app-text);
-  border-color: var(--app-border);
+  background-color: var(--app-input) !important;
+  color: var(--app-text) !important;
+  border-color: var(--app-border) !important;
 }
 
 html.dark input::placeholder,
 html.dark textarea::placeholder {
-  color: var(--app-muted);
+  color: var(--app-muted) !important;
 }

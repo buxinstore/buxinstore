@@ -152,8 +152,13 @@
     }
 
     body {
-      background-color: var(--app-bg);
-      color: var(--app-text);
+      background-color: var(--app-bg) !important;
+      color: var(--app-text) !important;
+    }
+    
+    /* Ensure main container respects theme */
+    .min-h-screen {
+      background-color: var(--app-bg) !important;
     }
 
     /* Custom animation to replace tailwindcss-animate */
@@ -372,7 +377,7 @@
       data-wishlist-ids="{{ wishlist_product_ids|join(',') }}">
   <div class="min-h-screen bg-[color:var(--app-bg)]">
     <!-- Header -->
-    <div class="sticky top-0 z-50 bg-[color:var(--app-card)] backdrop-blur-xl border-b border-[color:var(--app-border)] dark:bg-slate-900/80 dark:border-slate-700/50">
+    <div class="sticky top-0 z-50 bg-[color:var(--app-card)] backdrop-blur-xl border-b border-[color:var(--app-border)]">
       <div class="px-4 py-4">
         <div class="flex items-center justify-between mb-4">
           <!-- Logo (moved to left) -->
@@ -385,7 +390,7 @@
             <div class="relative flex items-center" id="theme-control">
               <button type="button"
                       id="theme-toggle"
-                      class="relative p-2 hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 dark:hover:bg-slate-800"
+                      class="relative p-2 hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
                       aria-label="Toggle dark mode"
                       aria-pressed="false">
                 <span class="sr-only">Toggle dark mode</span>
@@ -395,7 +400,7 @@
             </div>
             
             <!-- Cart Button -->
-            <a href="{{ url_for('cart') }}" class="p-2 hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-xl transition-colors relative">
+            <a href="{{ url_for('cart') }}" class="p-2 hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-colors relative">
               <i data-lucide="shopping-cart" class="w-6 h-6"></i>
               <span id="cart-count-badge" class="absolute -top-1 -right-1 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold hidden">
                 <span class="cart-count">0</span>
@@ -404,23 +409,23 @@
             
             <!-- Profile Button -->
             <div class="relative" id="navbar-profile">
-              <button onclick="toggleProfile()" class="flex items-center gap-2 p-1 pl-2 pr-3 hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500" aria-haspopup="true" aria-expanded="false">
+              <button onclick="toggleProfile()" class="flex items-center gap-2 p-1 pl-2 pr-3 hover:bg-[color:var(--app-surface-hover)] rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500" aria-haspopup="true" aria-expanded="false">
                 <span class="hidden sm:flex flex-col text-right leading-tight text-[color:var(--app-text)]">
                   {% if current_user.is_authenticated %}
-                    <span class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">Welcome back</span>
-                    <span class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white truncate max-w-[110px]" id="navbar-display-name">{{ current_user_display_name or current_user.username }}</span>
+                    <span class="text-xs text-[color:var(--app-muted)]">Welcome back</span>
+                    <span class="text-sm font-semibold text-[color:var(--app-text)] truncate max-w-[110px]" id="navbar-display-name">{{ current_user_display_name or current_user.username }}</span>
                   {% else %}
-                    <span class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">Account</span>
-                    <span class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white">Sign in</span>
+                    <span class="text-xs text-[color:var(--app-muted)]">Account</span>
+                    <span class="text-sm font-semibold text-[color:var(--app-text)]">Sign in</span>
                   {% endif %}
                 </span>
                 <span class="relative">
                   <img src="{{ current_user_avatar_url or url_for('static', filename='images/default-avatar.svg') }}"
                        alt="Profile"
-                       class="h-10 w-10 rounded-full border-2 border-white/70 dark:border-slate-800 object-cover shadow-sm"
+                       class="h-10 w-10 rounded-full border-2 border-white/70 object-cover shadow-sm"
                        id="navbar-avatar">
                   {% if current_user_google_connected %}
-                    <span class="absolute -bottom-1 -right-0.5 h-4 w-4 rounded-full bg-[color:var(--app-card)] dark:bg-slate-900 flex items-center justify-center shadow ring-1 ring-[color:var(--app-border)] dark:ring-slate-700">
+                    <span class="absolute -bottom-1 -right-0.5 h-4 w-4 rounded-full bg-[color:var(--app-card)] flex items-center justify-center shadow ring-1 ring-[color:var(--app-border)]">
                       <i class="fab fa-google text-[0.65rem] text-orange-500"></i>
                     </span>
                   {% endif %}
@@ -428,24 +433,24 @@
               </button>
               
               <!-- Profile Menu -->
-              <div id="profile-menu" class="absolute right-0 mt-3 w-64 bg-[color:var(--app-card)] backdrop-blur-xl border border-[color:var(--app-border)] dark:bg-slate-900/95 dark:border-slate-700/60 rounded-2xl p-3 space-y-1 shadow-2xl animate-in-custom hidden z-50">
+              <div id="profile-menu" class="absolute right-0 mt-3 w-64 bg-[color:var(--app-card)] backdrop-blur-xl border border-[color:var(--app-border)] rounded-2xl p-3 space-y-1 shadow-2xl animate-in-custom hidden z-50">
                 {% if current_user.is_authenticated %}
-                  <div class="flex items-center gap-3 p-3 rounded-xl bg-[color:var(--app-surface-hover)] dark:bg-slate-800/60 mb-1">
-                    <img src="{{ current_user_avatar_url or url_for('static', filename='images/default-avatar.svg') }}" alt="Profile" class="h-12 w-12 rounded-full object-cover border border-white/70 dark:border-slate-700 shadow" id="profile-menu-avatar">
+                  <div class="flex items-center gap-3 p-3 rounded-xl bg-[color:var(--app-surface-hover)] mb-1">
+                    <img src="{{ current_user_avatar_url or url_for('static', filename='images/default-avatar.svg') }}" alt="Profile" class="h-12 w-12 rounded-full object-cover border border-white/70 shadow" id="profile-menu-avatar">
                     <div>
-                      <p class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" id="profile-menu-name">{{ current_user_display_name or current_user.username }}</p>
-                      <p class="text-xs text-[color:var(--app-muted)] dark:text-slate-400 truncate max-w-[160px]" id="profile-menu-email">{{ current_user.email }}</p>
+                      <p class="text-sm font-semibold text-[color:var(--app-text)]" id="profile-menu-name">{{ current_user_display_name or current_user.username }}</p>
+                      <p class="text-xs text-[color:var(--app-muted)] truncate max-w-[160px]" id="profile-menu-email">{{ current_user.email }}</p>
                     </div>
                   </div>
-                  <a href="{{ url_for('profile') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                  <a href="{{ url_for('profile') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors">
                     <i data-lucide="user" class="w-5 h-5 text-cyan-500"></i>
                     <span class="text-sm font-medium">My Profile</span>
                   </a>
-                  <a href="{{ url_for('orders') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                  <a href="{{ url_for('orders') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors">
                     <i data-lucide="package" class="w-5 h-5 text-purple-500"></i>
                     <span class="text-sm font-medium">My Orders</span>
                   </a>
-                  <a href="{{ url_for('wishlist') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                  <a href="{{ url_for('wishlist') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors">
                     <i data-lucide="heart" class="w-5 h-5 text-pink-500"></i>
                     <span class="text-sm font-medium flex items-center gap-2" id="wishlist-count" data-wishlist-count>
                       <span data-wishlist-label>My Wishlist</span>
@@ -453,23 +458,23 @@
                     </span>
                   </a>
                   <!--
-                  <a href="{{ url_for('profile') }}#preferences-card" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                  <a href="{{ url_for('profile') }}#preferences-card" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors">
                     <i data-lucide="settings" class="w-5 h-5 text-amber-500"></i>
                     <span class="text-sm font-medium">Settings</span>
                   </a>
                 -->
-                  <div class="border-t border-[color:var(--app-border)] dark:border-slate-700/60 pt-2 mt-2">
-                    <a href="{{ url_for('logout') }}" class="w-full flex items-center gap-3 p-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
+                  <div class="border-t border-[color:var(--app-border)] pt-2 mt-2">
+                    <a href="{{ url_for('logout') }}" class="w-full flex items-center gap-3 p-3 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                       <i data-lucide="log-out" class="w-5 h-5"></i>
                       <span class="text-sm font-medium">Sign Out</span>
                     </a>
                   </div>
                 {% else %}
-                  <a href="{{ url_for('login') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                  <a href="{{ url_for('login') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors">
                     <i data-lucide="log-in" class="w-5 h-5 text-cyan-400"></i>
                     <span class="text-sm font-medium">Sign In</span>
                   </a>
-                  <a href="{{ url_for('register') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] dark:hover:bg-slate-800 rounded-lg transition-colors">
+                  <a href="{{ url_for('register') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors">
                     <i data-lucide="user-plus" class="w-5 h-5 text-green-400"></i>
                     <span class="text-sm font-medium">Create Account</span>
                   </a>
@@ -481,9 +486,9 @@
         
         <!-- Search Bar -->
         <div class="relative">
-          <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[color:var(--app-muted)] dark:text-slate-400"></i>
+          <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[color:var(--app-muted)]"></i>
           <form action="{{ url_for('home') }}" method="GET" class="w-full">
-            <input type="text" name="q" placeholder="Search products..." class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] dark:bg-slate-800/50 dark:border-slate-700 rounded-xl py-3 pl-11 pr-4 text-sm text-[color:var(--app-text)] placeholder:text-[color:var(--app-muted)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all">
+            <input type="text" name="q" placeholder="Search products..." class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-xl py-3 pl-11 pr-4 text-sm text-[color:var(--app-text)] placeholder:text-[color:var(--app-muted)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all">
           </form>
         </div>
       </div>
@@ -494,7 +499,7 @@
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           {% for category, message in messages %}
-            <div class="mb-4 p-4 rounded-md {% if category == 'success' %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400{% else %}bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400{% endif %} flash-message">
+            <div class="mb-4 p-4 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %} flash-message">
               {{ message }}
             </div>
           {% endfor %}
@@ -505,51 +510,51 @@
     </div>
     
     <!-- Footer 
-    <footer class="bg-[color:var(--app-card)] backdrop-blur-xl border-t border-[color:var(--app-border)] dark:bg-slate-900/80 dark:border-slate-700/50 mt-12 py-8 text-[color:var(--app-text)]">
+    <footer class="bg-[color:var(--app-card)] backdrop-blur-xl border-t border-[color:var(--app-border)] mt-12 py-8 text-[color:var(--app-text)]">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-[color:var(--app-text)]">
           <div>
-            <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white tracking-wider uppercase">Shop</h3>
+            <h3 class="text-sm font-semibold text-[color:var(--app-text)] tracking-wider uppercase">Shop</h3>
             <ul class="mt-4 space-y-2">
-              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">All Products</a></li>
+              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]">All Products</a></li>
             </ul>
           </div>
           <div>
-            <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white tracking-wider uppercase">Support</h3>
+            <h3 class="text-sm font-semibold text-[color:var(--app-text)] tracking-wider uppercase">Support</h3>
             <ul class="mt-4 space-y-2">
-              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">Contact Us</a></li>
+              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]">Contact Us</a></li>
             </ul>
           </div>
           <div>
-            <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white tracking-wider uppercase">Company</h3>
+            <h3 class="text-sm font-semibold text-[color:var(--app-text)] tracking-wider uppercase">Company</h3>
             <ul class="mt-4 space-y-2">
-              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">About Us</a></li>
+              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]">About Us</a></li>
             </ul>
           </div>
           <div>
-            <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white tracking-wider uppercase">Legal</h3>
+            <h3 class="text-sm font-semibold text-[color:var(--app-text)] tracking-wider uppercase">Legal</h3>
             <ul class="mt-4 space-y-2">
-              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">Privacy Policy</a></li>
+              <li><a href="#" class="text-sm text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]">Privacy Policy</a></li>
             </ul>
           </div>
         </div>
       -->
-        <div class="mt-12 border-t border-[color:var(--app-border)] dark:border-slate-700/50 pt-8 flex flex-col md:flex-row justify-between items-center">
-          <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-400">&copy; {{ now.year }} Buxin Electronics. All rights reserved.</p>
+        <div class="mt-12 border-t border-[color:var(--app-border)] pt-8 flex flex-col md:flex-row justify-between items-center">
+          <p class="text-sm text-[color:var(--app-muted)]">&copy; {{ now.year }} Buxin Electronics. All rights reserved.</p>
           <div class="mt-4 md:mt-0 flex space-x-6">
-            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]">
               <span class="sr-only">Facebook</span>
               <i data-lucide="facebook" class="w-5 h-5"></i>
             </a>
-            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]">
               <span class="sr-only">Twitter</span>
               <i data-lucide="twitter" class="w-5 h-5"></i>
             </a>
-            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]">
               <span class="sr-only">Instagram</span>
               <i data-lucide="instagram" class="w-5 h-5"></i>
             </a>
-            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)] dark:text-slate-400 dark:hover:text-white">
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]">
               <span class="sr-only">YouTube</span>
               <i data-lucide="youtube" class="w-5 h-5"></i>
             </a>
@@ -689,6 +694,18 @@
           }
         }
         updateButtonState(targetTheme);
+        
+        // Force CSS variable recalculation on mobile browsers
+        if (window.innerWidth <= 768) {
+          // Trigger a reflow to force CSS variable recalculation
+          const body = document.body;
+          if (body) {
+            const originalTransition = body.style.transition;
+            body.style.transition = 'none';
+            void body.offsetHeight; // Force reflow
+            body.style.transition = originalTransition;
+          }
+        }
       };
 
       const toggleTheme = () => {
@@ -763,7 +780,7 @@
         const avatarWrapper = document.querySelector('#navbar-profile span.relative');
         if (avatarWrapper) {
           const badge = document.createElement('span');
-          badge.className = 'absolute -bottom-1 -right-0.5 h-4 w-4 rounded-full bg-[color:var(--app-card)] dark:bg-slate-900 flex items-center justify-center shadow ring-1 ring-[color:var(--app-border)] dark:ring-slate-700';
+          badge.className = 'absolute -bottom-1 -right-0.5 h-4 w-4 rounded-full bg-[color:var(--app-card)] flex items-center justify-center shadow ring-1 ring-[color:var(--app-border)]';
           badge.innerHTML = '<i class="fab fa-google text-[0.65rem] text-orange-500"></i>';
           avatarWrapper.appendChild(badge);
         }
@@ -844,8 +861,8 @@
       function showAlert(message, type = 'error') {
         alertDiv.className = `mb-4 p-3 rounded-lg text-sm ${
           type === 'success' 
-            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
-            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+            ? 'bg-green-100 text-green-800' 
+            : 'bg-red-100 text-red-800'
         }`;
         alertDiv.textContent = message;
         alertDiv.classList.remove('hidden');
