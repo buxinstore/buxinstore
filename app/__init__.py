@@ -5355,9 +5355,21 @@ def admin_orders():
     per_page = 20  # Number of orders per page
     
     # Base query - ONLY fully paid orders (status = 'paid' or 'completed')
+    # Also include orders with completed payments via Payment table
     # Payment-only logic: no shipping_status logic
+    from sqlalchemy import or_
+    from app.payments.models import Payment
+    
+    # Subquery for orders with completed payments
+    completed_payments_subquery = db.session.query(Payment.order_id).filter(
+        Payment.status == 'completed'
+    ).distinct()
+    
     query = Order.query.filter(
-        Order.status.in_(['paid', 'completed'])
+        or_(
+            Order.status.in_(['paid', 'completed']),
+            Order.id.in_(completed_payments_subquery)
+        )
     )
     
     # Date filtering
@@ -5457,8 +5469,12 @@ def admin_orders():
     
     # Calculate totals for the filtered date range - Payment-only logic
     # Use optimized queries with COALESCE to avoid NULL
+    # Include orders with status='paid'/'completed' OR orders with completed payments
     totals_query = Order.query.filter(
-        Order.status.in_(['paid', 'completed'])
+        or_(
+            Order.status.in_(['paid', 'completed']),
+            Order.id.in_(completed_payments_subquery)
+        )
     )
     
     # Always apply date range to totals
@@ -5479,7 +5495,10 @@ def admin_orders():
     quantity_query = db.session.query(db.func.coalesce(db.func.sum(OrderItem.quantity), 0)).join(
         Order, OrderItem.order_id == Order.id
     ).filter(
-        Order.status.in_(['paid', 'completed'])
+        or_(
+            Order.status.in_(['paid', 'completed']),
+            Order.id.in_(completed_payments_subquery)
+        )
     )
     if date_start and date_end:
         quantity_query = quantity_query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
