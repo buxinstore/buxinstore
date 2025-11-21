@@ -674,6 +674,11 @@
 
       const applyTheme = (theme) => {
         const targetTheme = resolveTheme(theme);
+        
+        // Step 1: Add theme-changing class to disable transitions
+        html.classList.add('theme-changing');
+        
+        // Step 2: Apply theme class changes
         if (controller && typeof controller.apply === 'function') {
           controller.apply(targetTheme);
         } else {
@@ -685,27 +690,45 @@
           } catch (err) {
             /* noop */
           }
-          try {
-            html.dispatchEvent(new CustomEvent('theme:change', {
-              detail: { theme: targetTheme, resolvedTheme: targetTheme }
-            }));
-          } catch (err) {
-            /* noop */
-          }
         }
-        updateButtonState(targetTheme);
         
-        // Force CSS variable recalculation on mobile browsers
-        if (window.innerWidth <= 768) {
-          // Trigger a reflow to force CSS variable recalculation
-          const body = document.body;
-          if (body) {
-            const originalTransition = body.style.transition;
-            body.style.transition = 'none';
-            void body.offsetHeight; // Force reflow
-            body.style.transition = originalTransition;
-          }
-        }
+        // Step 3: Force immediate reflow to apply CSS variable changes
+        const body = document.body;
+        void html.offsetHeight;
+        void (body ? body.offsetHeight : 0);
+        
+        // Step 4: Use double requestAnimationFrame to ensure paint completes
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // Step 5: Remove theme-changing class to re-enable transitions
+            html.classList.remove('theme-changing');
+            
+            // Step 6: Force Lucide icons to re-render with new theme colors
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+              try {
+                // Re-render all Lucide icons
+                window.lucide.createIcons();
+                
+                // Force a repaint after icon re-render
+                void html.offsetHeight;
+              } catch (err) {
+                console.warn('Failed to re-render Lucide icons:', err);
+              }
+            }
+            
+            // Step 7: Dispatch theme change event after everything is updated
+            try {
+              html.dispatchEvent(new CustomEvent('theme:change', {
+                detail: { theme: targetTheme, resolvedTheme: targetTheme }
+              }));
+            } catch (err) {
+              /* noop */
+            }
+          });
+        });
+        
+        // Step 8: Update button state immediately
+        updateButtonState(targetTheme);
       };
 
       const toggleTheme = () => {

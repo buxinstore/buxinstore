@@ -228,3 +228,52 @@ html.dark input::placeholder,
 html.dark textarea::placeholder {
   color: var(--app-muted) !important;
 }
+
+/* ============================================
+   Lucide Icons - Ensure they inherit theme colors
+   ============================================ */
+i[data-lucide],
+svg[data-lucide-icon] {
+  color: inherit !important;
+  stroke: currentColor !important;
+  fill: none !important;
+}
+
+/* Ensure Lucide icons in buttons and links inherit parent color */
+button i[data-lucide],
+a i[data-lucide],
+[class*="text-"] i[data-lucide] {
+  color: inherit !important;
+  stroke: currentColor !important;
+}
+
+/* All other Lucide icons should inherit from parent */
+/* Note: text-cyan-400 and text-yellow-400 are allowed for theme toggle icons */
+i[data-lucide]:not(.text-cyan-400):not(.text-yellow-400) {
+  color: inherit !important;
+}
+
+/* ============================================
+   Button text colors - Ensure they use CSS variables
+   ============================================ */
+button:not([class*="bg-gradient"]):not([class*="text-white"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-blue"]):not([class*="text-cyan"]):not([class*="text-yellow"]),
+a:not([class*="bg-gradient"]):not([class*="text-white"]):not([class*="text-red"]):not([class*="text-green"]):not([class*="text-blue"]):not([class*="text-cyan"]):not([class*="text-yellow"]) {
+  color: var(--app-text) !important;
+}
+
+/* Add to Cart buttons and similar action buttons */
+.add-to-cart-btn,
+.add-to-cart-text {
+  color: inherit !important;
+}
+
+/* ============================================
+   Force immediate theme application (no transition delay)
+   ============================================ */
+html.theme-changing * {
+  transition: none !important;
+}
+
+html.theme-changing {
+  transition: none !important;
+}
