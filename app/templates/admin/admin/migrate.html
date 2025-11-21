@@ -1,26 +1,92 @@
 {% extends 'admin/admin/base.html' %}
 
-{% block header %}Database Migration{% endblock %}
+{% block header %}Database Migration Manager{% endblock %}
 
 {% block content %}
 <div class="py-6">
-    <div class="max-w-3xl mx-auto">
+    <div class="max-w-4xl mx-auto space-y-6">
+        <!-- Header -->
         <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
             <div class="px-6 py-5">
-                <div class="mb-6">
-                    <h2 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Database Migration</h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                        Run database migrations to update your database schema.
-                    </p>
+                <h2 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Database Migration Manager</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Run latest Alembic migrations to update your database schema.
+                </p>
+            </div>
+        </div>
+
+        <!-- Migration Status -->
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div class="px-6 py-5">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-white mb-4">Migration Status</h3>
+                
+                <div class="grid md:grid-cols-2 gap-4 mb-4">
+                    <div class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Revision:</p>
+                        <p class="text-sm text-gray-900 dark:text-white font-mono">{{ current_revision or 'Checking...' }}</p>
+                    </div>
+                    <div class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Revision:</p>
+                        <p class="text-sm text-gray-900 dark:text-white font-mono">{{ target_revision or 'Checking...' }}</p>
+                    </div>
                 </div>
 
-                <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Migration Revision:</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 font-mono">{{ current_revision }}</p>
+                {% if is_up_to_date %}
+                <div class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-green-800 dark:text-green-200">All Migrations Applied</h3>
+                            <div class="mt-2 text-sm text-green-700 dark:text-green-300">
+                                <p>Your database is up to date. No migrations needed.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+                {% endif %}
 
+                {% if error_message %}
+                <div class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg mt-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Error</h3>
+                            <div class="mt-2 text-sm text-red-700 dark:text-red-300">
+                                <p class="font-mono">{{ error_message }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Migration Output -->
+        {% if migration_output %}
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div class="px-6 py-5">
+                <h3 class="text-md font-semibold text-gray-900 dark:text-white mb-4">Migration Output</h3>
+                <div class="p-4 bg-gray-900 dark:bg-black rounded-lg overflow-x-auto">
+                    <pre class="text-sm text-green-400 font-mono whitespace-pre-wrap">{{ migration_output }}</pre>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Run Migration Form -->
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div class="px-6 py-5">
                 <form method="POST" onsubmit="return confirm('Are you sure you want to run the migration? This will update your database schema.');">
                     {{ form.hidden_tag() }}
+                    
                     <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
                         <div class="flex">
                             <div class="flex-shrink-0">
@@ -41,12 +107,26 @@
                         <a href="{{ url_for('admin_dashboard') }}" class="rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 py-2 px-4 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                             Cancel
                         </a>
-                        {{ form.submit(class="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2") }}
+                        <button type="submit" 
+                                {% if is_up_to_date %}disabled{% endif %}
+                                class="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-database mr-2"></i>
+                            Run Migration
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
+<script>
+// Auto-refresh page after migration if needed
+{% if migration_output and not error_message %}
+setTimeout(function() {
+    // Optional: You can add auto-refresh here if needed
+    // window.location.reload();
+}, 2000);
+{% endif %}
+</script>
+{% endblock %}

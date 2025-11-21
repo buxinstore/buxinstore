@@ -2782,29 +2782,175 @@ class MigrationForm(FlaskForm):
 @login_required
 @admin_required
 def admin_run_migration():
-    """Admin endpoint to run database migrations"""
+    """
+    Admin endpoint to run database migrations safely.
+    Only accessible to admin users.
+    """
+    import os
+    import io
+    import sys
+    from alembic import command
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+    from flask import current_app
+    
+    # Get base directory (project root where alembic.ini is located)
+    basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    alembic_ini_path = os.path.join(basedir, 'alembic.ini')
+    migrations_path = os.path.join(basedir, 'migrations')
+    
     form = MigrationForm()
+    migration_output = None
+    current_revision = None
+    target_revision = None
+    is_up_to_date = False
+    error_message = None
+    alembic_cfg = None
+    script_dir = None
+    head_revision = None
     
-    if form.validate_on_submit():
-        try:
-            from flask_migrate import upgrade
-            with app.app_context():
-                upgrade()
-            flash('Database migration completed successfully!', 'success')
-            current_app.logger.info("✅ Database migration completed via admin endpoint")
-        except Exception as e:
-            flash(f'Migration failed: {str(e)}', 'error')
-            current_app.logger.error(f"❌ Migration failed: {str(e)}", exc_info=True)
-        return redirect(url_for('admin_dashboard'))
-    
-    # GET request - show migration status
+    # Setup Alembic configuration
     try:
-        from flask_migrate import current
-        current_revision = current()
+        alembic_cfg = Config(alembic_ini_path)
+        alembic_cfg.set_main_option("script_location", migrations_path)
+        
+        # Set database URL if not already set
+        if not alembic_cfg.get_main_option('sqlalchemy.url'):
+            database_url = os.getenv('DATABASE_URL') or current_app.config.get('SQLALCHEMY_DATABASE_URI')
+            if database_url:
+                alembic_cfg.set_main_option('sqlalchemy.url', database_url)
+        
+        # Get script directory to find head revision
+        script_dir = ScriptDirectory.from_config(alembic_cfg)
+        head_revision = script_dir.get_current_head()
+        
+        # Get current revision from database
+        with current_app.app_context():
+            conn = db.engine.connect()
+            try:
+                context = MigrationContext.configure(conn)
+                current_rev = context.get_current_revision()
+                
+                if current_rev:
+                    try:
+                        current_script = script_dir.get_revision(current_rev)
+                        current_revision = f"{current_rev[:12]} - {current_script.doc or 'No description'}"
+                    except:
+                        current_revision = current_rev[:12]
+                else:
+                    current_revision = "None (no migrations applied yet)"
+                
+                # Check if already at head
+                if current_rev == head_revision:
+                    is_up_to_date = True
+                
+                # Get target revision info
+                try:
+                    head_script = script_dir.get_revision(head_revision)
+                    target_revision = f"{head_revision[:12]} - {head_script.doc or 'No description'}"
+                except:
+                    target_revision = head_revision[:12] if head_revision else "Unknown"
+                    
+            finally:
+                conn.close()
+                
     except Exception as e:
-        current_revision = f"Error: {str(e)}"
+        error_message = f"Error checking migration status: {str(e)}"
+        current_app.logger.error(f"Migration status check failed: {error_message}", exc_info=True)
     
-    return render_template('admin/admin/migrate.html', form=form, current_revision=current_revision)
+    # Handle POST request - Run migration
+    if form.validate_on_submit():
+        if is_up_to_date:
+            flash('All migrations already applied. Database is up to date.', 'info')
+            return redirect(url_for('admin_run_migration'))
+        
+        # Ensure Alembic config is available (in case initial setup failed)
+        if not alembic_cfg:
+            try:
+                alembic_cfg = Config(alembic_ini_path)
+                alembic_cfg.set_main_option("script_location", migrations_path)
+                if not alembic_cfg.get_main_option('sqlalchemy.url'):
+                    database_url = os.getenv('DATABASE_URL') or current_app.config.get('SQLALCHEMY_DATABASE_URI')
+                    if database_url:
+                        alembic_cfg.set_main_option('sqlalchemy.url', database_url)
+            except Exception as e:
+                error_message = f"Failed to initialize Alembic config: {str(e)}"
+                flash(error_message, 'error')
+                current_app.logger.error(f"Failed to initialize Alembic: {error_message}", exc_info=True)
+                return render_template('admin/admin/migrate.html',
+                                     form=form,
+                                     current_revision=current_revision,
+                                     target_revision=target_revision,
+                                     is_up_to_date=is_up_to_date,
+                                     migration_output=migration_output,
+                                     error_message=error_message)
+        
+        try:
+            # Capture Alembic output
+            output_buffer = io.StringIO()
+            old_stdout = sys.stdout
+            sys.stdout = output_buffer
+            
+            try:
+                # Run the upgrade command within app context
+                with current_app.app_context():
+                    command.upgrade(alembic_cfg, "head")
+                    
+                migration_output = output_buffer.getvalue()
+                
+                # Log success
+                current_app.logger.info(f"✅ Database migration completed via admin endpoint by {current_user.username}")
+                
+                flash('Database migration completed successfully!', 'success')
+                
+            finally:
+                sys.stdout = old_stdout
+                output_buffer.close()
+                
+        except Exception as e:
+            error_msg = str(e)
+            error_message = error_msg
+            migration_output = output_buffer.getvalue() if 'output_buffer' in locals() else None
+            sys.stdout = old_stdout if 'old_stdout' in locals() else sys.stdout
+            
+            current_app.logger.error(f"❌ Migration failed: {error_msg}", exc_info=True)
+            flash(f'Migration failed: {error_msg}', 'error')
+        
+        # After POST, show results on the same page (don't redirect immediately)
+        # Refresh migration status after running (only if we have the config)
+        if not error_message and alembic_cfg and script_dir:
+            try:
+                with current_app.app_context():
+                    conn = db.engine.connect()
+                    try:
+                        context = MigrationContext.configure(conn)
+                        current_rev = context.get_current_revision()
+                        if current_rev:
+                            try:
+                                current_script = script_dir.get_revision(current_rev)
+                                current_revision = f"{current_rev[:12]} - {current_script.doc or 'No description'}"
+                            except:
+                                current_revision = current_rev[:12]
+                        else:
+                            current_revision = "None (no migrations applied yet)"
+                        
+                        # Check if now up to date
+                        is_up_to_date = (current_rev == head_revision) if head_revision else False
+                    finally:
+                        conn.close()
+            except Exception as e:
+                if not error_message:
+                    error_message = f"Error refreshing status: {str(e)}"
+    
+    # Render template with migration status and results
+    return render_template('admin/admin/migrate.html',
+                         form=form,
+                         current_revision=current_revision,
+                         target_revision=target_revision,
+                         is_up_to_date=is_up_to_date,
+                         migration_output=migration_output,
+                         error_message=error_message)
 
 @app.route('/admin')
 @login_required
@@ -5204,18 +5350,10 @@ def admin_orders():
     page = request.args.get('page', 1, type=int)
     per_page = 20  # Number of orders per page
     
-    # Base query - only paid/confirmed orders
-    # Paid orders are: status in ['paid', 'completed', 'processing'] OR shipping_status in ['shipped', 'delivered']
-    # Exclude: 'Pending', 'Cancelled', 'failed'
-    from sqlalchemy import or_
+    # Base query - ONLY fully paid orders (status = 'paid' or 'completed')
+    # Payment-only logic: no shipping_status logic
     query = Order.query.filter(
-        Order.status != 'Pending',
-        Order.status != 'Cancelled',
-        Order.status != 'failed',
-        or_(
-            Order.status.in_(['paid', 'completed', 'processing']),
-            Order.shipping_status.in_(['shipped', 'delivered'])
-        )
+        Order.status.in_(['paid', 'completed'])
     )
     
     # Date filtering
@@ -5257,7 +5395,12 @@ def admin_orders():
             date_end = datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999)
         except ValueError:
             pass
+    elif date_filter == 'all':
+        # Default to last 30 days when 'all' is selected
+        date_start = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        date_end = now
     
+    # Always apply date range to query
     if date_start and date_end:
         query = query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
     
@@ -5273,8 +5416,8 @@ def admin_orders():
         output = StringIO()
         writer = csv.writer(output)
         
-        # Write header
-        writer.writerow(['Order ID', 'Date', 'Customer', 'Email', 'Phone', 'Total', 'Status', 'Shipping Status', 'Payment Method', 'Items'])
+        # Write header (removed Shipping Status)
+        writer.writerow(['Order ID', 'Date', 'Customer', 'Email', 'Phone', 'Total', 'Status', 'Payment Method', 'Items'])
         
         # Write data
         for order in export_orders:
@@ -5289,7 +5432,6 @@ def admin_orders():
                 customer_phone,
                 f"D{order.total:.2f}",
                 order.status,
-                order.shipping_status,
                 order.payment_method or 'N/A',
                 items_str
             ])
@@ -5309,47 +5451,37 @@ def admin_orders():
     ).order_by(Order.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False)
     
-    # Calculate totals for the filtered date range
+    # Calculate totals for the filtered date range - Payment-only logic
+    # Use optimized queries with COALESCE to avoid NULL
     totals_query = Order.query.filter(
-        Order.status != 'Pending',
-        Order.status != 'Cancelled',
-        Order.status != 'failed',
-        or_(
-            Order.status.in_(['paid', 'completed', 'processing']),
-            Order.shipping_status.in_(['shipped', 'delivered'])
-        )
+        Order.status.in_(['paid', 'completed'])
     )
     
+    # Always apply date range to totals
     if date_start and date_end:
         totals_query = totals_query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
     
-    # Total Sales
-    total_sales_result = totals_query.with_entities(db.func.sum(Order.total)).scalar()
+    # Total Sales - optimized using COALESCE
+    total_sales_result = totals_query.with_entities(db.func.coalesce(db.func.sum(Order.total), 0)).scalar()
     total_sales = float(total_sales_result) if total_sales_result else 0.0
     
-    # Total Paid Orders
+    # Total Paid Orders - optimized using COUNT
     total_orders_count = totals_query.count()
     
     # Average Order Value
     avg_order_value = (total_sales / total_orders_count) if total_orders_count > 0 else 0.0
     
-    # Total Quantity Sold
-    quantity_query = db.session.query(db.func.sum(OrderItem.quantity)).join(
+    # Total Quantity Sold - optimized query
+    quantity_query = db.session.query(db.func.coalesce(db.func.sum(OrderItem.quantity), 0)).join(
         Order, OrderItem.order_id == Order.id
     ).filter(
-        Order.status != 'Pending',
-        Order.status != 'Cancelled',
-        Order.status != 'failed',
-        or_(
-            Order.status.in_(['paid', 'completed', 'processing']),
-            Order.shipping_status.in_(['shipped', 'delivered'])
-        )
+        Order.status.in_(['paid', 'completed'])
     )
     if date_start and date_end:
         quantity_query = quantity_query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
     total_quantity = int(quantity_query.scalar() or 0)
     
-    # Total Unique Customers
+    # Total Unique Customers - optimized
     unique_customers_query = totals_query.with_entities(db.func.count(db.distinct(Order.user_id)))
     unique_customers = int(unique_customers_query.scalar() or 0)
     
@@ -5398,34 +5530,22 @@ def admin_orders():
     
     if daily_sales_data is None:
         if use_monthly_aggregation:
-            # Monthly aggregation for large ranges
+            # Monthly aggregation for large ranges - Payment-only logic
             daily_sales_query = db.session.query(
                 db.func.date_trunc('month', Order.created_at).label('period'),
-                db.func.sum(Order.total).label('total')
+                db.func.coalesce(db.func.sum(Order.total), 0).label('total')
             ).filter(
-                Order.status != 'Pending',
-                Order.status != 'Cancelled',
-                Order.status != 'failed',
-                or_(
-                    Order.status.in_(['paid', 'completed', 'processing']),
-                    Order.shipping_status.in_(['shipped', 'delivered'])
-                ),
+                Order.status.in_(['paid', 'completed']),
                 Order.created_at >= chart_date_start,
                 Order.created_at <= chart_date_end
             ).group_by(db.func.date_trunc('month', Order.created_at)).order_by(db.func.date_trunc('month', Order.created_at))
         else:
-            # Daily aggregation (max 30 days)
+            # Daily aggregation (max 30 days) - Payment-only logic
             daily_sales_query = db.session.query(
                 db.func.date(Order.created_at).label('date'),
-                db.func.sum(Order.total).label('total')
+                db.func.coalesce(db.func.sum(Order.total), 0).label('total')
             ).filter(
-                Order.status != 'Pending',
-                Order.status != 'Cancelled',
-                Order.status != 'failed',
-                or_(
-                    Order.status.in_(['paid', 'completed', 'processing']),
-                    Order.shipping_status.in_(['shipped', 'delivered'])
-                ),
+                Order.status.in_(['paid', 'completed']),
                 Order.created_at >= chart_date_start,
                 Order.created_at <= chart_date_end
             ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
@@ -5498,34 +5618,22 @@ def admin_orders():
     
     if orders_count_data is None:
         if use_monthly_aggregation:
-            # Monthly aggregation for large ranges
+            # Monthly aggregation for large ranges - Payment-only logic
             orders_count_query = db.session.query(
                 db.func.date_trunc('month', Order.created_at).label('period'),
                 db.func.count(Order.id).label('count')
             ).filter(
-                Order.status != 'Pending',
-                Order.status != 'Cancelled',
-                Order.status != 'failed',
-                or_(
-                    Order.status.in_(['paid', 'completed', 'processing']),
-                    Order.shipping_status.in_(['shipped', 'delivered'])
-                ),
+                Order.status.in_(['paid', 'completed']),
                 Order.created_at >= chart_date_start,
                 Order.created_at <= chart_date_end
             ).group_by(db.func.date_trunc('month', Order.created_at)).order_by(db.func.date_trunc('month', Order.created_at))
         else:
-            # Daily aggregation (max 30 days)
+            # Daily aggregation (max 30 days) - Payment-only logic
             orders_count_query = db.session.query(
                 db.func.date(Order.created_at).label('date'),
                 db.func.count(Order.id).label('count')
             ).filter(
-                Order.status != 'Pending',
-                Order.status != 'Cancelled',
-                Order.status != 'failed',
-                or_(
-                    Order.status.in_(['paid', 'completed', 'processing']),
-                    Order.shipping_status.in_(['shipped', 'delivered'])
-                ),
+                Order.status.in_(['paid', 'completed']),
                 Order.created_at >= chart_date_start,
                 Order.created_at <= chart_date_end
             ).group_by(db.func.date(Order.created_at)).order_by(db.func.date(Order.created_at))
@@ -5592,24 +5700,18 @@ def admin_orders():
         # Cache the result
         set_cached_chart_data(cache_key_orders, orders_count_data)
     
-    # Top Products Chart Data
+    # Top Products Chart Data - Payment-only logic
     top_products_query = db.session.query(
         Product.id,
         Product.name,
-        db.func.sum(OrderItem.quantity).label('total_quantity'),
-        db.func.sum(OrderItem.quantity * OrderItem.price).label('total_revenue')
+        db.func.coalesce(db.func.sum(OrderItem.quantity), 0).label('total_quantity'),
+        db.func.coalesce(db.func.sum(OrderItem.quantity * OrderItem.price), 0).label('total_revenue')
     ).join(
         OrderItem, Product.id == OrderItem.product_id
     ).join(
         Order, OrderItem.order_id == Order.id
     ).filter(
-        Order.status != 'Pending',
-        Order.status != 'Cancelled',
-        Order.status != 'failed',
-        or_(
-            Order.status.in_(['paid', 'completed', 'processing']),
-            Order.shipping_status.in_(['shipped', 'delivered'])
-        )
+        Order.status.in_(['paid', 'completed'])
     )
     if date_start and date_end:
         top_products_query = top_products_query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
