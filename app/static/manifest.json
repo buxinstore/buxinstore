@@ -1,7 +1,7 @@
 {
-  "name": "Tech Buxin",
-  "short_name": "Tech Buxin",
-  "description": "Tech Buxin - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.",
+  "name": "buxin store",
+  "short_name": "buxin store",
+  "description": "buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -275,7 +275,7 @@ MODEM_PAY_PUBLIC_KEY = os.getenv("MODEM_PAY_PUBLIC_KEY")
 # SDK is not used. All ModemPay calls are done via form-data to the test checkout endpoint.
 
 # Initialize payment system
-DEFAULT_LOGO_URL = "https://res.cloudinary.com/dfizb64hx/image/upload/v1762457701/Bux_n_1_a0ypnj.png"
+DEFAULT_LOGO_URL = "https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png"
 
 @app.template_filter('product_image_url')
 def product_image_url_filter(image_path):
@@ -342,6 +342,12 @@ def inject_site_settings():
         else:
             logo_url = url_for('static', filename=settings.logo_path)
     else:
+        # Set default logo in database if not set
+        settings.logo_path = DEFAULT_LOGO_URL
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         logo_url = DEFAULT_LOGO_URL
     
     # Handle hero image URL - check if it's Cloudinary or local
@@ -364,6 +370,20 @@ def inject_site_settings():
             google_connected = bool(current_user.google_id or (profile and profile.google_avatar_url))
         except Exception as exc:
             current_app.logger.debug(f"Unable to inject user profile context: {exc}")
+    
+    # Get AppSettings for floating contact widget and other app-wide settings
+    app_settings = AppSettings.query.first()
+    if not app_settings:
+        app_settings = AppSettings()
+        db.session.add(app_settings)
+        db.session.commit()
+    
+    # Extract floating contact widget settings
+    floating_whatsapp = app_settings.floating_whatsapp_number if hasattr(app_settings, 'floating_whatsapp_number') else None
+    floating_email = app_settings.floating_support_email if hasattr(app_settings, 'floating_support_email') else None
+    floating_email_subject = app_settings.floating_email_subject if hasattr(app_settings, 'floating_email_subject') else 'Support Request'
+    floating_email_body = app_settings.floating_email_body if hasattr(app_settings, 'floating_email_body') else 'Hello, I need help with ...'
+    
     return {
         'site_settings': settings,
         'site_logo_url': logo_url,
@@ -372,7 +392,12 @@ def inject_site_settings():
         'current_user_avatar_url': avatar_url,
         'current_user_display_name': display_name,
         'current_user_google_connected': google_connected,
-        'product_image_url': product_image_url_filter
+        'product_image_url': product_image_url_filter,
+        'app_settings': app_settings,
+        'floating_whatsapp': floating_whatsapp,
+        'floating_email': floating_email,
+        'floating_email_subject': floating_email_subject,
+        'floating_email_body': floating_email_body,
     }
 
 # Test route to check if the application is running
@@ -998,7 +1023,7 @@ def _format_email_subject(subject: str) -> str:
         subject: The base subject line
         
     Returns:
-        Formatted subject with prefix (e.g., "BuXin Store - Reset Your Password")
+        Formatted subject with prefix (e.g., "buxin store - Reset Your Password")
     """
     try:
         settings = AppSettings.query.first()
@@ -1075,7 +1100,7 @@ def _send_form_submission_notifications(
                         <p><strong>WhatsApp Number:</strong> {whatsapp_number}</p>
                         <p><strong>Submitted At:</strong> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
                     </div>
-                    <p style="color: #666; font-size: 12px;">This is an automated notification from your BuXin store.</p>
+                    <p style="color: #666; font-size: 12px;">This is an automated notification from your buxin store.</p>
                 </body>
                 </html>
                 """
@@ -1215,7 +1240,7 @@ class AppSettings(db.Model):
     resend_default_recipient = db.Column(db.String(255))  # Default recipient for admin emails
     resend_enabled = db.Column(db.Boolean, default=True)  # Enable/disable Resend email sending
     contact_email = db.Column(db.String(255))  # Contact email for support
-    default_subject_prefix = db.Column(db.String(100), default='BuXin Store')  # Default subject prefix
+    default_subject_prefix = db.Column(db.String(100), default='buxin store')  # Default subject prefix
     # AI Settings (Optional)
     ai_api_key = db.Column(db.String(255))
     ai_auto_prompt_improvements = db.Column(db.Boolean, default=False)
@@ -1227,6 +1252,11 @@ class AppSettings(db.Model):
     backup_last_run = db.Column(db.DateTime, nullable=True)
     backup_last_status = db.Column(db.String(20), nullable=True)
     backup_last_message = db.Column(db.Text, nullable=True)
+    # Floating Contact Widget Settings
+    floating_whatsapp_number = db.Column(db.String(50), nullable=True)  # WhatsApp number for floating widget
+    floating_support_email = db.Column(db.String(255), nullable=True)  # Support email for floating widget
+    floating_email_subject = db.Column(db.String(255), nullable=True, default='Support Request')  # Default email subject
+    floating_email_body = db.Column(db.Text, nullable=True, default='Hello, I need help with ...')  # Default email body
     # Timestamps
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1448,7 +1478,7 @@ def forgot_password():
                     <html>
                     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                            <h2 style="color: #06b6d4;">BuXin Store</h2>
+                            <h2 style="color: #06b6d4;">buxin store</h2>
                             <p>Hi {user_name},</p>
                             <p>Click the link below to reset your password. This link will expire in 30 minutes.</p>
                             <p style="margin: 30px 0;">
@@ -1758,7 +1788,7 @@ def register():
         if normalized_whatsapp:
             try:
                 user_name = user.display_name
-                welcome_message = f"Hi {user_name} 👋\nWelcome to BuXin! You'll now receive updates about our robotics and AI innovations. 🚀"
+                welcome_message = f"Hi {user_name} 👋\nWelcome to buxin store! You'll now receive updates about our robotics and AI innovations. 🚀"
                 
                 success, error_msg, log_id = send_whatsapp_message_with_logging(
                     whatsapp_number=normalized_whatsapp,
@@ -3309,6 +3339,16 @@ def admin_settings():
                     current_app.logger.warning("New receiver columns don't exist yet - migration needs to run")
                     pass
                 
+                # Floating Contact Widget Settings
+                if hasattr(settings, 'floating_whatsapp_number'):
+                    settings.floating_whatsapp_number = request.form.get('floating_whatsapp_number', '').strip()
+                if hasattr(settings, 'floating_support_email'):
+                    settings.floating_support_email = request.form.get('floating_support_email', '').strip()
+                if hasattr(settings, 'floating_email_subject'):
+                    settings.floating_email_subject = request.form.get('floating_email_subject', 'Support Request').strip()
+                if hasattr(settings, 'floating_email_body'):
+                    settings.floating_email_body = request.form.get('floating_email_body', 'Hello, I need help with ...').strip()
+                
                 # Handle logo upload
                 logo_file = request.files.get('company_logo')
                 if logo_file and logo_file.filename:
@@ -3371,7 +3411,7 @@ def admin_settings():
                 settings.resend_default_recipient = request.form.get('resend_default_recipient', '').strip()
                 settings.resend_enabled = request.form.get('resend_enabled') == 'on'
                 settings.contact_email = request.form.get('contact_email', '').strip()
-                settings.default_subject_prefix = request.form.get('default_subject_prefix', 'BuXin Store').strip()
+                settings.default_subject_prefix = request.form.get('default_subject_prefix', 'buxin store').strip()
                 
                 db.session.commit()
                 flash('Email settings updated successfully.', 'success')
@@ -3435,7 +3475,7 @@ def admin_settings():
     if not settings.contact_email:
         settings.contact_email = os.getenv('SUPPORT_EMAIL', '')
     if not settings.default_subject_prefix:
-        settings.default_subject_prefix = os.getenv('EMAIL_SUBJECT_PREFIX', 'BuXin Store')
+        settings.default_subject_prefix = os.getenv('EMAIL_SUBJECT_PREFIX', 'buxin store')
     # Default communication receivers (load from environment if not set)
     if not settings.whatsapp_receiver:
         settings.whatsapp_receiver = os.getenv('WHATSAPP_RECEIVER', '+2200000000')
@@ -3609,7 +3649,7 @@ def admin_settings_test_whatsapp():
             "to": test_number,
             "type": "text",
             "text": {
-                "body": "Hello from BuXin Admin! ✅ Your WhatsApp configuration is working correctly."
+                "body": "Hello from buxin store Admin! ✅ Your WhatsApp configuration is working correctly."
             }
         }
         
@@ -3665,13 +3705,13 @@ def admin_settings_test_email():
         resend.api_key = api_key
         # Get from_email from database settings
         from_email = settings.resend_from_email or os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
-        subject_prefix = settings.default_subject_prefix or "BuXin Store"
+        subject_prefix = settings.default_subject_prefix or "buxin store"
 
         subject = f"{subject_prefix} - Test Email"
         html_body = f"""
             <html>
             <body>
-                <p>This is a test email from your BuXin Admin settings page via Resend.</p>
+                <p>This is a test email from your buxin store Admin settings page via Resend.</p>
                 <p><strong>Recipient:</strong> {test_email}</p>
                 <p><strong>From Email:</strong> {from_email}</p>
                 <p><strong>Subject Prefix:</strong> {subject_prefix}</p>
@@ -4333,7 +4373,7 @@ def api_whatsapp_submit():
                 
                 # Send welcome message
                 user_name = current_user.display_name
-                welcome_message = f"Hi {user_name} 👋\nWelcome to BuXin! You'll now receive updates about our robotics and AI innovations. 🚀"
+                welcome_message = f"Hi {user_name} 👋\nWelcome to buxin store! You'll now receive updates about our robotics and AI innovations. 🚀"
                 
                 success, error_msg, log_id = send_whatsapp_message_with_logging(
                     whatsapp_number=normalized_number,

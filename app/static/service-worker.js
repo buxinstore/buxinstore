@@ -1,8 +1,8 @@
-// Service Worker for Tech Buxin PWA
+// Service Worker for buxin store PWA
 // Version 1.0.0
 
-const CACHE_NAME = 'tech-buxin-v1.0.0';
-const RUNTIME_CACHE = 'tech-buxin-runtime-v1.0.0';
+const CACHE_NAME = 'buxin-store-v1.0.0';
+const RUNTIME_CACHE = 'buxin-store-runtime-v1.0.0';
 
 // Assets to cache on install
 const STATIC_ASSETS = [

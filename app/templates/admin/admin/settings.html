@@ -96,8 +96,62 @@
           </div>
         </div>
       </div>
+      
+      <div class="mt-6 border-t border-gray-200 dark:border-gray-700 pt-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+          <i class="fas fa-comments mr-2 text-cyan-500"></i>
+          Floating Contact Widget Settings
+        </h3>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Configure the floating contact buttons displayed on your website. If a field is empty, that button will not be shown.
+        </p>
+        <div class="grid md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              WhatsApp Phone Number
+            </label>
+            <input type="text" name="floating_whatsapp_number" 
+                   value="{{ settings.floating_whatsapp_number or '' }}" 
+                   placeholder="2207741187 or +2207741187"
+                   class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Phone number for WhatsApp contact button (without country code prefix is OK, e.g., 2207741187)</p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Support Email
+            </label>
+            <input type="email" name="floating_support_email" 
+                   value="{{ settings.floating_support_email or '' }}" 
+                   placeholder="buxinstore9@gmail.com"
+                   class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Email address for support contact button</p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Default Email Subject
+            </label>
+            <input type="text" name="floating_email_subject" 
+                   value="{{ settings.floating_email_subject or 'Support Request' }}" 
+                   placeholder="Support Request"
+                   class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Default subject line for email contact button</p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Default Email Message
+            </label>
+            <textarea name="floating_email_body" rows="3"
+                      placeholder="Hello, I need help with ..."
+                      class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">{{ settings.floating_email_body or 'Hello, I need help with ...' }}</textarea>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Default message body for email contact button</p>
+          </div>
+        </div>
+      </div>
         
-        <div class="md:col-span-2">
+        <div class="md:col-span-2 mt-6">
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Company Logo</label>
           <div class="flex items-center gap-4">
             {% if settings.company_logo_url %}
@@ -340,10 +394,10 @@
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Default Subject Prefix
           </label>
-          <input type="text" name="default_subject_prefix" value="{{ settings.default_subject_prefix or 'BuXin Store' }}" 
-                 placeholder="BuXin Store"
+          <input type="text" name="default_subject_prefix" value="{{ settings.default_subject_prefix or 'buxin store' }}" 
+                 placeholder="buxin store"
                  class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Default prefix added to email subjects (e.g., "BuXin Store - Order Confirmation")</p>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Default prefix added to email subjects (e.g., "buxin store - Order Confirmation")</p>
         </div>
         
         <div class="flex items-center">

@@ -12,8 +12,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Tech Buxin">
-  <meta name="description" content="Tech Buxin - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.">
+  <meta name="apple-mobile-web-app-title" content="buxin store">
+  <meta name="description" content="buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.">
   
   <!-- PWA Manifest -->
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
@@ -27,7 +27,7 @@
   <link rel="apple-touch-icon" sizes="256x256" href="{{ url_for('static', filename='icons/icon-256.png') }}">
   <link rel="apple-touch-icon" sizes="512x512" href="{{ url_for('static', filename='icons/icon-512.png') }}">
   
-  <title>{% block title %}Tech Buxin{% endblock %}</title>
+  <title>{% block title %}buxin store{% endblock %}</title>
   <script>
     (function() {
       const storageKey = 'theme';
@@ -391,7 +391,7 @@
         <div class="flex items-center justify-between mb-4">
           <!-- Logo (moved to left) -->
           <a href="{{ url_for('home') }}" class="flex items-center">
-            <img src="{{ site_logo_url }}" alt="Buxin Electronics" class="h-12 w-auto">
+            <img src="{{ site_logo_url }}" alt="buxin store" class="h-12 w-auto">
           </a>
           
           <div class="flex items-center gap-2">
@@ -553,7 +553,7 @@
         </div>
       -->
         <div class="mt-12 border-t border-[color:var(--app-border)] pt-8 flex flex-col md:flex-row justify-between items-center">
-          <p class="text-sm text-[color:var(--app-muted)]">&copy; {{ now.year }} Buxin Electronics. All rights reserved.</p>
+          <p class="text-sm text-[color:var(--app-muted)]">&copy; {{ now.year }} buxin store. All rights reserved.</p>
           <div class="mt-4 md:mt-0 flex space-x-6">
             <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]">
               <span class="sr-only">Facebook</span>
@@ -577,20 +577,29 @@
     </footer>
   </div>
 
+  {% if floating_whatsapp or floating_email %}
   <div class="floating-contact" role="complementary" aria-label="Contact options">
-    <a href="https://wa.me/2207741187"
+    {% if floating_whatsapp %}
+    {% set whatsapp_number = floating_whatsapp|replace('+', '')|replace(' ', '')|replace('-', '') %}
+    <a href="https://wa.me/{{ whatsapp_number }}"
        class="floating-contact__button floating-contact__button--whatsapp"
        target="_blank"
        rel="noopener"
        aria-label="Chat on WhatsApp">
       <i class="fab fa-whatsapp"></i>
     </a>
-    <a href="mailto:buxinstore9@gmail.com?subject=Support%20Request&body=Hello,%20I%20need%20help%20with%20..."
+    {% endif %}
+    {% if floating_email %}
+    {% set email_subject = (floating_email_subject or 'Support Request')|urlencode %}
+    {% set email_body = (floating_email_body or 'Hello, I need help with ...')|urlencode %}
+    <a href="mailto:{{ floating_email|e }}?subject={{ email_subject }}&body={{ email_body }}"
        class="floating-contact__button floating-contact__button--email"
        aria-label="Send support email">
       <i class="fas fa-envelope"></i>
     </a>
+    {% endif %}
   </div>
+  {% endif %}
 
   <!-- WhatsApp Number Popup Modal -->
   <div id="whatsapp-popup-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm" style="display: none;">
@@ -605,7 +614,7 @@
         </button>
       </div>
       <p class="text-sm text-[color:var(--app-muted)] mb-4">
-        📱 Add your WhatsApp number to receive robotics updates and new BuXin products.
+        📱 Add your WhatsApp number to receive robotics updates and new buxin store products.
       </p>
       <form id="whatsapp-popup-form">
         <div id="whatsapp-email-field" class="mb-4 hidden">
@@ -1047,7 +1056,7 @@
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   // New service worker available, prompt user to refresh
-                  if (confirm('A new version of Tech Buxin is available. Would you like to refresh?')) {
+                  if (confirm('A new version of buxin store is available. Would you like to refresh?')) {
                     window.location.reload();
                   }
                 }
