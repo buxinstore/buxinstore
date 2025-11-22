@@ -373,26 +373,55 @@ def inject_site_settings():
     
     # Get AppSettings for floating contact widget and other app-wide settings
     # Use try-except to handle case where columns don't exist yet (before migration runs)
+    app_settings = None
+    floating_whatsapp = None
+    floating_email = None
+    floating_email_subject = 'Support Request'
+    floating_email_body = 'Hello, I need help with ...'
+    
     try:
-        app_settings = AppSettings.query.first()
-        if not app_settings:
-            app_settings = AppSettings()
-            db.session.add(app_settings)
-            db.session.commit()
+        # Check if floating_whatsapp_number column exists before querying AppSettings
+        # SQLAlchemy will try to SELECT all columns in the model, which will fail if new columns don't exist
+        from sqlalchemy import text
         
-        # Extract floating contact widget settings with safe attribute access
-        floating_whatsapp = getattr(app_settings, 'floating_whatsapp_number', None)
-        floating_email = getattr(app_settings, 'floating_support_email', None)
-        floating_email_subject = getattr(app_settings, 'floating_email_subject', 'Support Request')
-        floating_email_body = getattr(app_settings, 'floating_email_body', 'Hello, I need help with ...')
+        # First, check if the migration has been run by checking if the column exists
+        check_query = text("""
+            SELECT 1 
+            FROM information_schema.columns 
+            WHERE table_name = 'app_settings' 
+            AND column_name = 'floating_whatsapp_number'
+            LIMIT 1
+        """)
+        
+        migration_complete = False
+        try:
+            result = db.session.execute(check_query)
+            migration_complete = result.fetchone() is not None
+        except Exception:
+            # If we can't check, assume migration hasn't run
+            migration_complete = False
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+        
+        if migration_complete:
+            # Migration has run, safe to query AppSettings normally
+            app_settings = AppSettings.query.first()
+            if app_settings:
+                floating_whatsapp = getattr(app_settings, 'floating_whatsapp_number', None)
+                floating_email = getattr(app_settings, 'floating_support_email', None)
+                floating_email_subject = getattr(app_settings, 'floating_email_subject', 'Support Request') or 'Support Request'
+                floating_email_body = getattr(app_settings, 'floating_email_body', 'Hello, I need help with ...') or 'Hello, I need help with ...'
+        # else: Migration hasn't run yet, use defaults (already set above)
     except Exception as e:
-        # If query fails (e.g., columns don't exist yet), use defaults
-        current_app.logger.warning(f"Could not load AppSettings for floating contact widget: {e}")
+        # If anything fails, rollback and use defaults
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        current_app.logger.warning(f"Could not load AppSettings for floating contact widget (migration may be pending): {e}")
         app_settings = None
-        floating_whatsapp = None
-        floating_email = None
-        floating_email_subject = 'Support Request'
-        floating_email_body = 'Hello, I need help with ...'
     
     return {
         'site_settings': settings,
