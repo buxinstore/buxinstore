@@ -1,7 +1,7 @@
 """add_floating_contact_widget_fields
 
 Revision ID: f44a5b6789c0
-Revises: e33f4a5b6789
+Revises: c775b243d625
 Create Date: 2025-11-22 03:45:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'f44a5b6789c0'
-down_revision: Union[str, None] = 'e33f4a5b6789'
+down_revision: Union[str, None] = 'c775b243d625'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
