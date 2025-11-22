@@ -372,17 +372,27 @@ def inject_site_settings():
             current_app.logger.debug(f"Unable to inject user profile context: {exc}")
     
     # Get AppSettings for floating contact widget and other app-wide settings
-    app_settings = AppSettings.query.first()
-    if not app_settings:
-        app_settings = AppSettings()
-        db.session.add(app_settings)
-        db.session.commit()
-    
-    # Extract floating contact widget settings
-    floating_whatsapp = app_settings.floating_whatsapp_number if hasattr(app_settings, 'floating_whatsapp_number') else None
-    floating_email = app_settings.floating_support_email if hasattr(app_settings, 'floating_support_email') else None
-    floating_email_subject = app_settings.floating_email_subject if hasattr(app_settings, 'floating_email_subject') else 'Support Request'
-    floating_email_body = app_settings.floating_email_body if hasattr(app_settings, 'floating_email_body') else 'Hello, I need help with ...'
+    # Use try-except to handle case where columns don't exist yet (before migration runs)
+    try:
+        app_settings = AppSettings.query.first()
+        if not app_settings:
+            app_settings = AppSettings()
+            db.session.add(app_settings)
+            db.session.commit()
+        
+        # Extract floating contact widget settings with safe attribute access
+        floating_whatsapp = getattr(app_settings, 'floating_whatsapp_number', None)
+        floating_email = getattr(app_settings, 'floating_support_email', None)
+        floating_email_subject = getattr(app_settings, 'floating_email_subject', 'Support Request')
+        floating_email_body = getattr(app_settings, 'floating_email_body', 'Hello, I need help with ...')
+    except Exception as e:
+        # If query fails (e.g., columns don't exist yet), use defaults
+        current_app.logger.warning(f"Could not load AppSettings for floating contact widget: {e}")
+        app_settings = None
+        floating_whatsapp = None
+        floating_email = None
+        floating_email_subject = 'Support Request'
+        floating_email_body = 'Hello, I need help with ...'
     
     return {
         'site_settings': settings,
