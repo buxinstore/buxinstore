@@ -413,15 +413,57 @@ def inject_site_settings():
                 floating_email = getattr(app_settings, 'floating_support_email', None)
                 floating_email_subject = getattr(app_settings, 'floating_email_subject', 'Support Request') or 'Support Request'
                 floating_email_body = getattr(app_settings, 'floating_email_body', 'Hello, I need help with ...') or 'Hello, I need help with ...'
-        # else: Migration hasn't run yet, use defaults (already set above)
+                
+                # Extract PWA settings with safe attribute access and defaults
+                pwa_app_name = getattr(app_settings, 'pwa_app_name', None) or 'buxin store'
+                pwa_short_name = getattr(app_settings, 'pwa_short_name', None) or 'buxin store'
+                pwa_theme_color = getattr(app_settings, 'pwa_theme_color', None) or '#ffffff'
+                pwa_background_color = getattr(app_settings, 'pwa_background_color', None) or '#ffffff'
+                pwa_start_url = getattr(app_settings, 'pwa_start_url', None) or '/'
+                pwa_display = getattr(app_settings, 'pwa_display', None) or 'standalone'
+                pwa_description = getattr(app_settings, 'pwa_description', None) or 'buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.'
+                pwa_logo_path = getattr(app_settings, 'pwa_logo_path', None)
+                pwa_favicon_path = getattr(app_settings, 'pwa_favicon_path', None)
+            else:
+                # No app settings - use defaults
+                pwa_app_name = 'buxin store'
+                pwa_short_name = 'buxin store'
+                pwa_theme_color = '#ffffff'
+                pwa_background_color = '#ffffff'
+                pwa_start_url = '/'
+                pwa_display = 'standalone'
+                pwa_description = 'buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.'
+                pwa_logo_path = None
+                pwa_favicon_path = None
+        else:
+            # Migration hasn't run yet, use defaults
+            pwa_app_name = 'buxin store'
+            pwa_short_name = 'buxin store'
+            pwa_theme_color = '#ffffff'
+            pwa_background_color = '#ffffff'
+            pwa_start_url = '/'
+            pwa_display = 'standalone'
+            pwa_description = 'buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.'
+            pwa_logo_path = None
+            pwa_favicon_path = None
     except Exception as e:
         # If anything fails, rollback and use defaults
         try:
             db.session.rollback()
         except Exception:
             pass
-        current_app.logger.warning(f"Could not load AppSettings for floating contact widget (migration may be pending): {e}")
+        current_app.logger.warning(f"Could not load AppSettings for floating contact widget and PWA settings (migration may be pending): {e}")
         app_settings = None
+        # Use defaults for PWA settings
+        pwa_app_name = 'buxin store'
+        pwa_short_name = 'buxin store'
+        pwa_theme_color = '#ffffff'
+        pwa_background_color = '#ffffff'
+        pwa_start_url = '/'
+        pwa_display = 'standalone'
+        pwa_description = 'buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.'
+        pwa_logo_path = None
+        pwa_favicon_path = None
     
     return {
         'site_settings': settings,
@@ -437,6 +479,16 @@ def inject_site_settings():
         'floating_email': floating_email,
         'floating_email_subject': floating_email_subject,
         'floating_email_body': floating_email_body,
+        # PWA Settings (with fallback defaults)
+        'pwa_app_name': pwa_app_name if 'pwa_app_name' in locals() else 'buxin store',
+        'pwa_short_name': pwa_short_name if 'pwa_short_name' in locals() else 'buxin store',
+        'pwa_theme_color': pwa_theme_color if 'pwa_theme_color' in locals() else '#ffffff',
+        'pwa_background_color': pwa_background_color if 'pwa_background_color' in locals() else '#ffffff',
+        'pwa_start_url': pwa_start_url if 'pwa_start_url' in locals() else '/',
+        'pwa_display': pwa_display if 'pwa_display' in locals() else 'standalone',
+        'pwa_description': pwa_description if 'pwa_description' in locals() else 'buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.',
+        'pwa_logo_path': pwa_logo_path if 'pwa_logo_path' in locals() else None,
+        'pwa_favicon_path': pwa_favicon_path if 'pwa_favicon_path' in locals() else None,
     }
 
 # Test route to check if the application is running
@@ -1296,6 +1348,16 @@ class AppSettings(db.Model):
     floating_support_email = db.Column(db.String(255), nullable=True)  # Support email for floating widget
     floating_email_subject = db.Column(db.String(255), nullable=True, default='Support Request')  # Default email subject
     floating_email_body = db.Column(db.Text, nullable=True, default='Hello, I need help with ...')  # Default email body
+    # PWA Settings
+    pwa_app_name = db.Column(db.String(255), nullable=True)  # PWA app name
+    pwa_short_name = db.Column(db.String(100), nullable=True)  # PWA short name
+    pwa_theme_color = db.Column(db.String(20), nullable=True, default='#ffffff')  # PWA theme color
+    pwa_background_color = db.Column(db.String(20), nullable=True, default='#ffffff')  # PWA background color
+    pwa_start_url = db.Column(db.String(255), nullable=True, default='/')  # PWA start URL
+    pwa_display = db.Column(db.String(50), nullable=True, default='standalone')  # PWA display mode (standalone/fullscreen/minimal-ui)
+    pwa_description = db.Column(db.Text, nullable=True)  # PWA description
+    pwa_logo_path = db.Column(db.String(500), nullable=True)  # PWA logo path (512x512)
+    pwa_favicon_path = db.Column(db.String(500), nullable=True)  # PWA favicon path (32x32 or 64x64)
     # Timestamps
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -3462,6 +3524,97 @@ def admin_settings():
                 db.session.commit()
                 flash('AI settings updated successfully.', 'success')
             
+            elif section == 'pwa':
+                # Save PWA text settings
+                if hasattr(settings, 'pwa_app_name'):
+                    settings.pwa_app_name = request.form.get('pwa_app_name', 'buxin store').strip()
+                if hasattr(settings, 'pwa_short_name'):
+                    settings.pwa_short_name = request.form.get('pwa_short_name', 'buxin store').strip()
+                if hasattr(settings, 'pwa_theme_color'):
+                    settings.pwa_theme_color = request.form.get('pwa_theme_color', '#ffffff').strip()
+                if hasattr(settings, 'pwa_background_color'):
+                    settings.pwa_background_color = request.form.get('pwa_background_color', '#ffffff').strip()
+                if hasattr(settings, 'pwa_start_url'):
+                    settings.pwa_start_url = request.form.get('pwa_start_url', '/').strip()
+                if hasattr(settings, 'pwa_display'):
+                    settings.pwa_display = request.form.get('pwa_display', 'standalone').strip()
+                if hasattr(settings, 'pwa_description'):
+                    settings.pwa_description = request.form.get('pwa_description', '').strip()
+                
+                # Handle PWA logo upload (512x512)
+                pwa_logo_file = request.files.get('pwa_logo')
+                if pwa_logo_file and pwa_logo_file.filename:
+                    if allowed_file(pwa_logo_file.filename):
+                        try:
+                            # Create pwa directory if it doesn't exist
+                            pwa_dir = os.path.join(app.static_folder, 'pwa')
+                            os.makedirs(pwa_dir, exist_ok=True)
+                            
+                            # Delete old logo if exists
+                            if hasattr(settings, 'pwa_logo_path') and settings.pwa_logo_path:
+                                old_path = os.path.join(app.static_folder, settings.pwa_logo_path.lstrip('/static/'))
+                                if os.path.exists(old_path):
+                                    try:
+                                        os.remove(old_path)
+                                    except Exception as e:
+                                        current_app.logger.warning(f"Could not delete old PWA logo: {e}")
+                            
+                            # Save new logo
+                            from werkzeug.utils import secure_filename
+                            filename = f"pwa_logo_{uuid.uuid4().hex[:8]}.{pwa_logo_file.filename.rsplit('.', 1)[1].lower()}"
+                            filepath = os.path.join(pwa_dir, filename)
+                            pwa_logo_file.save(filepath)
+                            
+                            # Store relative path in database
+                            if hasattr(settings, 'pwa_logo_path'):
+                                settings.pwa_logo_path = f"pwa/{filename}"
+                            current_app.logger.info(f"✅ PWA logo saved: {filepath}")
+                        except Exception as e:
+                            current_app.logger.error(f"Error saving PWA logo: {str(e)}")
+                            flash(f'Failed to upload PWA logo: {str(e)}', 'error')
+                    else:
+                        flash('Invalid PWA logo file type. Please upload PNG or JPG.', 'error')
+                        return redirect(url_for('admin_settings'))
+                
+                # Handle PWA favicon upload (32x32 or 64x64)
+                pwa_favicon_file = request.files.get('pwa_favicon')
+                if pwa_favicon_file and pwa_favicon_file.filename:
+                    if allowed_file(pwa_favicon_file.filename, {'png', 'jpg', 'jpeg', 'ico'}):
+                        try:
+                            # Create pwa directory if it doesn't exist
+                            pwa_dir = os.path.join(app.static_folder, 'pwa')
+                            os.makedirs(pwa_dir, exist_ok=True)
+                            
+                            # Delete old favicon if exists
+                            if hasattr(settings, 'pwa_favicon_path') and settings.pwa_favicon_path:
+                                old_path = os.path.join(app.static_folder, settings.pwa_favicon_path.lstrip('/static/'))
+                                if os.path.exists(old_path):
+                                    try:
+                                        os.remove(old_path)
+                                    except Exception as e:
+                                        current_app.logger.warning(f"Could not delete old PWA favicon: {e}")
+                            
+                            # Save new favicon
+                            from werkzeug.utils import secure_filename
+                            ext = pwa_favicon_file.filename.rsplit('.', 1)[1].lower()
+                            filename = f"pwa_favicon_{uuid.uuid4().hex[:8]}.{ext}"
+                            filepath = os.path.join(pwa_dir, filename)
+                            pwa_favicon_file.save(filepath)
+                            
+                            # Store relative path in database
+                            if hasattr(settings, 'pwa_favicon_path'):
+                                settings.pwa_favicon_path = f"pwa/{filename}"
+                            current_app.logger.info(f"✅ PWA favicon saved: {filepath}")
+                        except Exception as e:
+                            current_app.logger.error(f"Error saving PWA favicon: {str(e)}")
+                            flash(f'Failed to upload PWA favicon: {str(e)}', 'error')
+                    else:
+                        flash('Invalid PWA favicon file type. Please upload PNG, JPG, or ICO.', 'error')
+                        return redirect(url_for('admin_settings'))
+                
+                db.session.commit()
+                flash('PWA settings updated successfully.', 'success')
+            
             return redirect(url_for('admin_settings'))
             
         except Exception as e:
@@ -3507,6 +3660,22 @@ def admin_settings():
         settings.resend_api_key = os.getenv('RESEND_API_KEY', '')
     if not settings.resend_from_email:
         settings.resend_from_email = os.getenv('RESEND_FROM_EMAIL', 'onboarding@resend.dev')
+    
+    # PWA Settings - initialize defaults if not set
+    if hasattr(settings, 'pwa_app_name') and not settings.pwa_app_name:
+        settings.pwa_app_name = 'buxin store'
+    if hasattr(settings, 'pwa_short_name') and not settings.pwa_short_name:
+        settings.pwa_short_name = 'buxin store'
+    if hasattr(settings, 'pwa_theme_color') and not settings.pwa_theme_color:
+        settings.pwa_theme_color = '#ffffff'
+    if hasattr(settings, 'pwa_background_color') and not settings.pwa_background_color:
+        settings.pwa_background_color = '#ffffff'
+    if hasattr(settings, 'pwa_start_url') and not settings.pwa_start_url:
+        settings.pwa_start_url = '/'
+    if hasattr(settings, 'pwa_display') and not settings.pwa_display:
+        settings.pwa_display = 'standalone'
+    if hasattr(settings, 'pwa_description') and not settings.pwa_description:
+        settings.pwa_description = 'buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.'
     if not settings.resend_default_recipient:
         settings.resend_default_recipient = os.getenv('RESEND_DEFAULT_RECIPIENT', '')
     if settings.resend_enabled is None:
@@ -7739,10 +7908,135 @@ def all_products():
 
 @app.route('/favicon.ico')
 def favicon():
-    """Serve favicon.ico - redirect to Cloudinary logo"""
-    from flask import redirect
+    """Serve favicon.ico - use dynamic PWA favicon or fallback to Cloudinary logo"""
+    from flask import redirect, send_file
+    import os
+    
+    # Try to use PWA favicon from settings
+    try:
+        app_settings = AppSettings.query.first()
+        if app_settings and hasattr(app_settings, 'pwa_favicon_path') and app_settings.pwa_favicon_path:
+            favicon_path = os.path.join(app.static_folder, app_settings.pwa_favicon_path.lstrip('/static/'))
+            if os.path.exists(favicon_path):
+                return send_file(favicon_path, mimetype='image/x-icon'), 200, {'Cache-Control': 'public, max-age=31536000'}
+    except Exception:
+        pass
+    
+    # Fallback to Cloudinary logo
     return redirect('https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png', code=302)
-    return '', 204
+
+@app.route('/manifest.json')
+def manifest_json():
+    """Serve dynamic PWA manifest from database settings"""
+    from flask import jsonify, url_for
+    import os
+    
+    try:
+        # Get AppSettings for PWA configuration
+        app_settings = AppSettings.query.first()
+        if not app_settings:
+            app_settings = AppSettings()
+            db.session.add(app_settings)
+            db.session.commit()
+        
+        # Get PWA settings with fallback defaults
+        pwa_app_name = getattr(app_settings, 'pwa_app_name', None) or 'buxin store'
+        pwa_short_name = getattr(app_settings, 'pwa_short_name', None) or 'buxin store'
+        pwa_description = getattr(app_settings, 'pwa_description', None) or 'buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.'
+        pwa_start_url = getattr(app_settings, 'pwa_start_url', None) or '/'
+        pwa_display = getattr(app_settings, 'pwa_display', None) or 'standalone'
+        pwa_theme_color = getattr(app_settings, 'pwa_theme_color', None) or '#ffffff'
+        pwa_background_color = getattr(app_settings, 'pwa_background_color', None) or '#ffffff'
+        pwa_logo_path = getattr(app_settings, 'pwa_logo_path', None)
+        
+        # Build icons array
+        icons = []
+        
+        # Add PWA logo if available
+        if pwa_logo_path:
+            # Check if it's a Cloudinary URL or local file
+            if pwa_logo_path.startswith('http://') or pwa_logo_path.startswith('https://'):
+                logo_url = pwa_logo_path
+            else:
+                # Local file - use url_for to generate URL
+                logo_url = url_for('static', filename=pwa_logo_path)
+            
+            # Check if file exists
+            if not pwa_logo_path.startswith('http'):
+                logo_full_path = os.path.join(app.static_folder, pwa_logo_path.lstrip('/static/'))
+                if os.path.exists(logo_full_path):
+                    icons.append({
+                        "src": logo_url,
+                        "sizes": "512x512",
+                        "type": "image/png",
+                        "purpose": "any maskable"
+                    })
+        else:
+            # Fallback to Cloudinary logo
+            icons.append({
+                "src": "https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+            })
+        
+        # Build manifest JSON
+        manifest = {
+            "name": pwa_app_name,
+            "short_name": pwa_short_name,
+            "description": pwa_description,
+            "start_url": pwa_start_url,
+            "display": pwa_display,
+            "background_color": pwa_background_color,
+            "theme_color": pwa_theme_color,
+            "orientation": "portrait-primary",
+            "scope": "/",
+            "icons": icons,
+            "categories": ["shopping", "education", "technology"],
+            "screenshots": [],
+            "shortcuts": [
+                {
+                    "name": "Shop",
+                    "short_name": "Shop",
+                    "description": "Browse products",
+                    "url": "/products",
+                    "icons": icons[:1] if icons else []
+                },
+                {
+                    "name": "Cart",
+                    "short_name": "Cart",
+                    "description": "View cart",
+                    "url": "/cart",
+                    "icons": icons[:1] if icons else []
+                }
+            ]
+        }
+        
+        return jsonify(manifest), 200, {
+            'Content-Type': 'application/manifest+json',
+            'Cache-Control': 'public, max-age=3600'
+        }
+    except Exception as e:
+        current_app.logger.error(f"Error generating manifest.json: {str(e)}")
+        # Return fallback manifest on error
+        fallback_manifest = {
+            "name": "buxin store",
+            "short_name": "buxin store",
+            "description": "buxin store - Your gateway to the future of technology.",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#ffffff",
+            "theme_color": "#ffffff",
+            "icons": [{
+                "src": "https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png",
+                "sizes": "512x512",
+                "type": "image/png"
+            }]
+        }
+        return jsonify(fallback_manifest), 200, {
+            'Content-Type': 'application/manifest+json',
+            'Cache-Control': 'public, max-age=3600'
+        }
 
 @app.route('/service-worker.js')
 def service_worker():

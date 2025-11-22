@@ -96,7 +96,7 @@
           </div>
         </div>
       </div>
-      
+        
       <div class="mt-6 border-t border-gray-200 dark:border-gray-700 pt-6">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
           <i class="fas fa-comments mr-2 text-cyan-500"></i>
@@ -421,7 +421,185 @@
     </form>
   </div>
 
-  <!-- 6. Data & Security -->
+  <!-- 6. PWA Settings -->
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+      <i class="fas fa-mobile-alt mr-2 text-indigo-500"></i>
+      PWA Settings (Progressive Web App)
+    </h2>
+    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+      <p class="text-sm text-blue-800 dark:text-blue-200">
+        <i class="fas fa-info-circle mr-2"></i>
+        Configure your Progressive Web App settings. These settings control how your app appears when installed on mobile devices and desktops.
+      </p>
+    </div>
+    <form method="POST" id="pwa-form" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="section" value="pwa">
+      
+      <div class="space-y-6">
+        <div class="grid md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              App Name <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="pwa_app_name" 
+                   value="{{ settings.pwa_app_name or 'buxin store' }}" 
+                   placeholder="buxin store"
+                   class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                   required>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Full name shown in app launcher</p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Short Name <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="pwa_short_name" 
+                   value="{{ settings.pwa_short_name or 'buxin store' }}" 
+                   placeholder="buxin store"
+                   maxlength="12"
+                   class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                   required>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Short name for home screen (max 12 characters)</p>
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Description
+          </label>
+          <textarea name="pwa_description" rows="3"
+                    placeholder="buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence."
+                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">{{ settings.pwa_description or 'buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.' }}</textarea>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">App description shown in app stores and install prompts</p>
+        </div>
+        
+        <div class="grid md:grid-cols-3 gap-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Theme Color <span class="text-red-500">*</span>
+            </label>
+            <div class="flex items-center gap-2">
+              <input type="color" name="pwa_theme_color" 
+                     id="pwa_theme_color"
+                     value="{{ settings.pwa_theme_color or '#ffffff' }}"
+                     class="h-10 w-20 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                     onchange="document.getElementById('pwa_theme_color_text').value=this.value"
+                     required>
+              <input type="text" 
+                     id="pwa_theme_color_text"
+                     value="{{ settings.pwa_theme_color or '#ffffff' }}"
+                     onchange="if(this.value.match(/^#[0-9A-Fa-f]{6}$/)){document.getElementById('pwa_theme_color').value=this.value}"
+                     pattern="^#[0-9A-Fa-f]{6}$"
+                     placeholder="#ffffff"
+                     class="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Toolbar color on mobile browsers</p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Background Color <span class="text-red-500">*</span>
+            </label>
+            <div class="flex items-center gap-2">
+              <input type="color" name="pwa_background_color" 
+                     id="pwa_background_color"
+                     value="{{ settings.pwa_background_color or '#ffffff' }}"
+                     class="h-10 w-20 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                     onchange="document.getElementById('pwa_background_color_text').value=this.value"
+                     required>
+              <input type="text" 
+                     id="pwa_background_color_text"
+                     value="{{ settings.pwa_background_color or '#ffffff' }}"
+                     onchange="if(this.value.match(/^#[0-9A-Fa-f]{6}$/)){document.getElementById('pwa_background_color').value=this.value}"
+                     pattern="^#[0-9A-Fa-f]{6}$"
+                     placeholder="#ffffff"
+                     class="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Splash screen background color</p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Display Mode <span class="text-red-500">*</span>
+            </label>
+            <select name="pwa_display" 
+                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                    required>
+              <option value="standalone" {% if settings.pwa_display == 'standalone' or not settings.pwa_display %}selected{% endif %}>Standalone</option>
+              <option value="fullscreen" {% if settings.pwa_display == 'fullscreen' %}selected{% endif %}>Fullscreen</option>
+              <option value="minimal-ui" {% if settings.pwa_display == 'minimal-ui' %}selected{% endif %}>Minimal UI</option>
+              <option value="browser" {% if settings.pwa_display == 'browser' %}selected{% endif %}>Browser</option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">How app appears when launched</p>
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Start URL
+          </label>
+          <input type="text" name="pwa_start_url" 
+                 value="{{ settings.pwa_start_url or '/' }}" 
+                 placeholder="/"
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">URL to open when app is launched (default: /)</p>
+        </div>
+        
+        <div class="grid md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              PWA Logo (512×512) <span class="text-red-500">*</span>
+            </label>
+            <div class="flex items-center gap-4">
+              {% if settings.pwa_logo_path %}
+              <div class="w-24 h-24 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-700">
+                <img src="{{ url_for('static', filename=settings.pwa_logo_path) }}" alt="PWA Logo" class="w-full h-full object-cover">
+              </div>
+              {% endif %}
+              <label class="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i class="fas fa-upload mr-2"></i>
+                Upload Logo
+                <input type="file" name="pwa_logo" accept="image/png,image/jpeg,image/jpg" class="hidden">
+              </label>
+            </div>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">PNG or JPG, recommended size 512×512px. Will be used for app icons.</p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Favicon / Head Icon (32×32 or 64×64)
+            </label>
+            <div class="flex items-center gap-4">
+              {% if settings.pwa_favicon_path %}
+              <div class="w-16 h-16 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-700">
+                <img src="{{ url_for('static', filename=settings.pwa_favicon_path) }}" alt="Favicon" class="w-full h-full object-cover">
+              </div>
+              {% endif %}
+              <label class="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i class="fas fa-upload mr-2"></i>
+                Upload Favicon
+                <input type="file" name="pwa_favicon" accept="image/png,image/x-icon,image/jpeg,image/jpg" class="hidden">
+              </label>
+            </div>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">PNG or ICO, recommended sizes 32×32 or 64×64px. Shown in browser tabs.</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-6 flex gap-3">
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500">
+          <i class="fas fa-save mr-2"></i>Save PWA Settings
+        </button>
+        <button type="button" onclick="window.open('/manifest.json', '_blank')" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500">
+          <i class="fas fa-eye mr-2"></i>Preview Manifest
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- 7. Data & Security -->
   <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
     <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
       <i class="fas fa-database mr-2 text-yellow-500"></i>

@@ -7,25 +7,41 @@
   <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com;">
   
   <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#ffffff" id="theme-color-meta">
+  {% set pwa_theme_color = pwa_theme_color or '#ffffff' %}
+  {% set pwa_app_name = pwa_app_name or 'buxin store' %}
+  {% set pwa_description = pwa_description or 'buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.' %}
+  {% set default_logo_url = 'https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png' %}
+  
+  <meta name="theme-color" content="{{ pwa_theme_color }}" id="theme-color-meta">
   <meta name="color-scheme" content="light dark">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="buxin store">
-  <meta name="description" content="buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.">
+  <meta name="apple-mobile-web-app-title" content="{{ pwa_short_name or pwa_app_name }}">
+  <meta name="description" content="{{ pwa_description }}">
   
   <!-- PWA Manifest -->
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <link rel="manifest" href="/manifest.json">
   
   <!-- Favicon and App Icons -->
-  <link rel="icon" type="image/x-icon" href="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png">
-  <link rel="apple-touch-icon" sizes="72x72" href="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png">
-  <link rel="apple-touch-icon" sizes="96x96" href="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png">
-  <link rel="apple-touch-icon" sizes="128x128" href="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png">
-  <link rel="apple-touch-icon" sizes="192x192" href="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png">
-  <link rel="apple-touch-icon" sizes="256x256" href="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png">
-  <link rel="apple-touch-icon" sizes="512x512" href="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png">
+  {% if pwa_favicon_path %}
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename=pwa_favicon_path) }}">
+  {% else %}
+  <link rel="icon" type="image/x-icon" href="{{ url_for('favicon') }}">
+  {% endif %}
+  
+  {% if pwa_logo_path %}
+    {% set logo_url = url_for('static', filename=pwa_logo_path) if not pwa_logo_path.startswith('http') else pwa_logo_path %}
+  {% else %}
+    {% set logo_url = default_logo_url %}
+  {% endif %}
+  
+  <link rel="apple-touch-icon" sizes="72x72" href="{{ logo_url }}">
+  <link rel="apple-touch-icon" sizes="96x96" href="{{ logo_url }}">
+  <link rel="apple-touch-icon" sizes="128x128" href="{{ logo_url }}">
+  <link rel="apple-touch-icon" sizes="192x192" href="{{ logo_url }}">
+  <link rel="apple-touch-icon" sizes="256x256" href="{{ logo_url }}">
+  <link rel="apple-touch-icon" sizes="512x512" href="{{ logo_url }}">
   
   <title>{% block title %}buxin store{% endblock %}</title>
   <script>
@@ -580,23 +596,25 @@
   {% if floating_whatsapp or floating_email %}
   <div class="floating-contact" role="complementary" aria-label="Contact options">
     {% if floating_whatsapp %}
-    {% set whatsapp_number = floating_whatsapp|replace('+', '')|replace(' ', '')|replace('-', '') %}
-    <a href="https://wa.me/{{ whatsapp_number }}"
-       class="floating-contact__button floating-contact__button--whatsapp"
-       target="_blank"
-       rel="noopener"
-       aria-label="Chat on WhatsApp">
-      <i class="fab fa-whatsapp"></i>
-    </a>
+      {% set whatsapp_number = floating_whatsapp|replace('+', '')|replace(' ', '')|replace('-', '') %}
+      <a href="https://wa.me/{{ whatsapp_number }}"
+         class="floating-contact__button floating-contact__button--whatsapp"
+         target="_blank"
+         rel="noopener noreferrer"
+         aria-label="Chat on WhatsApp">
+        <i class="fab fa-whatsapp"></i>
+      </a>
     {% endif %}
     {% if floating_email %}
-    {% set email_subject = (floating_email_subject or 'Support Request')|urlencode %}
-    {% set email_body = (floating_email_body or 'Hello, I need help with ...')|urlencode %}
-    <a href="mailto:{{ floating_email|e }}?subject={{ email_subject }}&body={{ email_body }}"
-       class="floating-contact__button floating-contact__button--email"
-       aria-label="Send support email">
-      <i class="fas fa-envelope"></i>
-    </a>
+      {% set email_subject = (floating_email_subject or 'Support Request')|urlencode %}
+      {% set email_body = (floating_email_body or 'Hello, I need help with ...')|urlencode %}
+      <a href="mailto:{{ floating_email|e }}?subject={{ email_subject }}&body={{ email_body }}"
+         class="floating-contact__button floating-contact__button--email"
+         target="_blank"
+         rel="noopener noreferrer"
+         aria-label="Send support email">
+        <i class="fas fa-envelope"></i>
+      </a>
     {% endif %}
   </div>
   {% endif %}
