@@ -103,7 +103,7 @@
                             </div>
 
                             <!-- Order ID (hidden) -->
-                            <input type="hidden" id="order_id" name="order_id" value="{{ order_id }}">
+                            <input type="hidden" id="pending_payment_id" name="pending_payment_id" value="{{ pending_payment_id or '' }}">
 
                             <!-- Pay Now Button -->
                             <div class="pt-2">
@@ -416,7 +416,7 @@
         const messageContent = document.getElementById('message-content');
         
         // Get form values
-        const orderId = document.getElementById('order_id').value;
+        const pendingPaymentId = document.getElementById('pending_payment_id').value;
         const amount = parseFloat(document.getElementById('amount').value);
         const provider = 'modempay';
         
@@ -424,6 +424,15 @@
         const MIN_AMOUNT = 10.0;
         if (isNaN(amount) || amount < MIN_AMOUNT) {
             showMessage(`Payment amount must be at least D${MIN_AMOUNT}. Current amount: D${amount.toFixed(2)}`, 'error');
+            payButton.disabled = false;
+            buttonText.classList.remove('hidden');
+            buttonLoading.classList.add('hidden');
+            return;
+        }
+        
+        // Validate pending_payment_id
+        if (!pendingPaymentId) {
+            showMessage('Pending payment ID is missing. Please refresh the page and try again.', 'error');
             payButton.disabled = false;
             buttonText.classList.remove('hidden');
             buttonLoading.classList.add('hidden');
@@ -438,11 +447,9 @@
         messageDiv.classList.add('hidden');
         
         try {
-            // Prepare payment data
+            // Prepare payment data - use pending_payment_id (new flow)
             const paymentData = {
-                order_id: parseInt(orderId),
-                amount: amount,
-                // phone omitted; server derives from current user if needed
+                pending_payment_id: parseInt(pendingPaymentId),
                 provider: provider
             };
             

@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from flask import current_app, render_template
 from app.extensions import db
-from app.payments.models import Payment, PaymentTransaction
+from app.payments.models import Payment, PaymentTransaction, PendingPayment
 from app.payments.gateways import get_gateway
 from app.payments.utils import (
     generate_payment_reference,
@@ -296,17 +296,19 @@ class PaymentService:
         return payment
     
     @staticmethod
-    def start_modempay_payment(order_id: int, amount: float, phone: str, 
+    def start_modempay_payment(pending_payment_id: Optional[int] = None, order_id: Optional[int] = None, 
+                              amount: float = None, phone: str = None, 
                               provider: str = 'wave',
                               customer_name: Optional[str] = None,
                               customer_email: Optional[str] = None) -> Dict[str, Any]:
         """
         Start a ModemPay payment transaction.
-        Convenience method specifically for ModemPay unified gateway.
+        Works with either pending_payment_id (new flow) or order_id (legacy flow).
         
         Args:
-            order_id: Order ID
-            amount: Payment amount
+            pending_payment_id: PendingPayment ID (new flow - preferred)
+            order_id: Order ID (legacy flow - for backward compatibility)
+            amount: Payment amount (required if pending_payment_id not provided)
             phone: Customer phone number
             provider: Payment provider (wave, qmoney, afrimoney, ecobank, card)
             
@@ -325,10 +327,41 @@ class PaymentService:
                 f"Invalid provider '{provider}'. Valid providers: {', '.join(valid_providers)}"
             )
         
+        # Get pending payment if provided
+        pending_payment = None
+        reference_id = None
+        payment_amount = amount
+        
+        if pending_payment_id:
+            pending_payment = PendingPayment.query.get(pending_payment_id)
+            if not pending_payment:
+                raise PaymentValidationException(f"PendingPayment {pending_payment_id} not found")
+            reference_id = pending_payment_id
+            payment_amount = pending_payment.amount
+            if not phone:
+                phone = pending_payment.customer_phone or '+2200000000'
+            if not customer_name:
+                customer_name = pending_payment.customer_name
+            if not customer_email:
+                customer_email = pending_payment.customer_email
+        elif order_id:
+            from app import Order
+            order = Order.query.get(order_id)
+            if not order:
+                raise PaymentValidationException(f"Order {order_id} not found")
+            reference_id = order_id
+            if not payment_amount:
+                payment_amount = order.total
+            if not phone:
+                phone = getattr(order, 'customer_phone', None) or '+2200000000'
+        else:
+            if not payment_amount:
+                raise PaymentValidationException("Either pending_payment_id, order_id, or amount must be provided")
+        
         # Validate payment amount
-        if not validate_payment_amount(amount, 'modempay'):
+        if not validate_payment_amount(payment_amount, 'modempay'):
             min_amount = 10.0  # ModemPay minimum
-            raise PaymentValidationException(f"Payment amount must be at least D{min_amount}. Current amount: D{amount:.2f}")
+            raise PaymentValidationException(f"Payment amount must be at least D{min_amount}. Current amount: D{payment_amount:.2f}")
         
         # Check if ModemPay is configured
         from app.payments.config import PaymentConfig
@@ -339,14 +372,14 @@ class PaymentService:
         
         try:
             # Generate payment reference
-            reference = generate_payment_reference(order_id, 'modempay')
+            reference = generate_payment_reference(reference_id, 'modempay')
             
             # Get ModemPay gateway
             gateway = get_gateway('modempay')
             
             # Prepare customer info with provider
             customer_info = {
-                'phone': phone,
+                'phone': phone or '+2200000000',
                 'provider': provider.lower(),
             }
             if customer_name:
@@ -356,16 +389,22 @@ class PaymentService:
             
             # Initiate payment with ModemPay
             gateway_response = gateway.initiate_payment(
-                amount=amount,
+                amount=payment_amount,
                 reference=reference,
-                order_id=order_id,
+                order_id=reference_id,  # Can be pending_payment_id or order_id
                 customer_info=customer_info
             )
             
-            # Create payment record
+            # Update pending payment with transaction ID if exists
+            if pending_payment:
+                pending_payment.modempay_transaction_id = gateway_response.get('transaction_id')
+                db.session.add(pending_payment)
+            
+            # Create payment record (order_id will be set later after order creation)
             payment = Payment(
-                order_id=order_id,
-                amount=amount,
+                order_id=order_id,  # Will be None for pending payments
+                pending_payment_id=pending_payment_id,
+                amount=payment_amount,
                 method='modempay',
                 reference=reference,
                 status='pending',
@@ -406,6 +445,117 @@ class PaymentService:
             db.session.rollback()
             current_app.logger.error(f"Error starting ModemPay payment: {str(e)}")
             raise PaymentException(f"Failed to start ModemPay payment: {str(e)}")
+    
+    @staticmethod
+    def convert_pending_payment_to_order(pending_payment_id: int) -> Dict[str, Any]:
+        """
+        Convert a PendingPayment to an Order after successful payment confirmation.
+        This should only be called after payment is verified as successful.
+        
+        Args:
+            pending_payment_id: ID of the PendingPayment to convert
+            
+        Returns:
+            Dictionary with order_id and success status
+            
+        Raises:
+            PaymentValidationException: If pending payment not found or already converted
+        """
+        from app import Order, OrderItem, Product, CartItem
+        
+        pending_payment = PendingPayment.query.get(pending_payment_id)
+        if not pending_payment:
+            raise PaymentValidationException(f"PendingPayment {pending_payment_id} not found")
+        
+        if pending_payment.status == 'completed':
+            # Already converted - find the order
+            payment = Payment.query.filter_by(pending_payment_id=pending_payment_id, status='completed').first()
+            if payment and payment.order_id:
+                return {
+                    'success': True,
+                    'order_id': payment.order_id,
+                    'message': 'Order already exists for this pending payment'
+                }
+            raise PaymentValidationException(f"PendingPayment {pending_payment_id} already processed but order not found")
+        
+        try:
+            import json
+            
+            # Parse cart items from JSON
+            cart_items = json.loads(pending_payment.cart_items_json) if pending_payment.cart_items_json else []
+            
+            # Create Order
+            order = Order(
+                user_id=pending_payment.user_id,
+                total=pending_payment.amount,
+                payment_method=pending_payment.payment_method or 'modempay',
+                delivery_address=pending_payment.delivery_address or '',
+                status='paid',  # Order is created only after successful payment
+                shipping_status='pending',
+                shipping_price=pending_payment.shipping_price,
+                total_cost=pending_payment.total_cost,
+                customer_name=pending_payment.customer_name,
+                customer_address=pending_payment.delivery_address,
+                customer_phone=pending_payment.customer_phone,
+                location=pending_payment.location or 'China'
+            )
+            
+            db.session.add(order)
+            db.session.flush()  # Get order.id without committing
+            
+            # Add order items and update stock
+            for item in cart_items:
+                product = Product.query.get(item['id'])
+                if not product:
+                    current_app.logger.warning(f"Product {item['id']} not found for pending payment {pending_payment_id}")
+                    continue
+                
+                # Check stock availability
+                if product.stock is not None and product.stock < item['quantity']:
+                    current_app.logger.warning(
+                        f"Insufficient stock for product {product.id}. "
+                        f"Required: {item['quantity']}, Available: {product.stock}"
+                    )
+                    # Still create order item but log the issue
+                
+                # Create order item
+                order_item = OrderItem(
+                    order_id=order.id,
+                    product_id=item['id'],
+                    quantity=item['quantity'],
+                    price=item.get('price', product.price)
+                )
+                db.session.add(order_item)
+                
+                # Update product stock (only if payment confirmed)
+                if product.stock is not None:
+                    product.stock -= item['quantity']
+            
+            # Update payment to link to order
+            payment = Payment.query.filter_by(pending_payment_id=pending_payment_id).order_by(Payment.id.desc()).first()
+            if payment:
+                payment.order_id = order.id
+            
+            # Mark pending payment as completed
+            pending_payment.status = 'completed'
+            
+            # Clear user's cart
+            CartItem.query.filter_by(user_id=pending_payment.user_id).delete()
+            
+            db.session.commit()
+            
+            current_app.logger.info(f"✅ Converted PendingPayment {pending_payment_id} to Order {order.id}")
+            
+            return {
+                'success': True,
+                'order_id': order.id,
+                'message': 'Order created successfully'
+            }
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error converting PendingPayment {pending_payment_id} to Order: {str(e)}")
+            raise PaymentException(f"Failed to convert pending payment to order: {str(e)}")
     
     @staticmethod
     def handle_modempay_webhook(payload: Dict[str, Any], 
@@ -459,15 +609,34 @@ class PaymentService:
                 payment.paid_at = datetime.utcnow()
                 payment.transaction_id = transaction_id or payment.transaction_id
                 
-                # Update order status
-                if payment.order:
+                # If payment is linked to a PendingPayment, convert it to Order
+                if payment.pending_payment_id:
+                    try:
+                        result = PaymentService.convert_pending_payment_to_order(payment.pending_payment_id)
+                        current_app.logger.info(
+                            f"✅ Webhook: Converted PendingPayment {payment.pending_payment_id} to Order {result.get('order_id')}"
+                        )
+                        # Payment.order_id will be set by convert_pending_payment_to_order
+                    except Exception as e:
+                        current_app.logger.error(
+                            f"❌ Webhook: Failed to convert PendingPayment {payment.pending_payment_id} to Order: {str(e)}"
+                        )
+                # Update order status if order exists (legacy flow)
+                elif payment.order:
                     payment.order.status = 'paid'
                     
             elif webhook_status == 'failed' and payment.status != 'failed':
                 payment.status = 'failed'
                 payment.failure_reason = webhook_data.get('message', 'Payment failed')
                 
-                # Update order status if needed
+                # Update pending payment status if exists
+                if payment.pending_payment_id:
+                    pending_payment = PendingPayment.query.get(payment.pending_payment_id)
+                    if pending_payment:
+                        pending_payment.status = 'failed'
+                        db.session.add(pending_payment)
+                
+                # Update order status if needed (legacy flow)
                 if payment.order and payment.order.status not in ['cancelled', 'failed']:
                     payment.order.status = 'failed'
             

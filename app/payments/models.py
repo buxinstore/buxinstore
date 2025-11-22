@@ -10,11 +10,13 @@ from app.extensions import db
 class Payment(db.Model):
     """
     Payment model to track all payment transactions.
+    Can be linked to either an Order (after payment confirmation) or PendingPayment (before confirmation).
     """
     __tablename__ = 'payments'
     
     id = db.Column(db.Integer, primary_key=True)
-    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=False)
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=True)  # Now nullable - set after order creation
+    pending_payment_id = db.Column(db.Integer, db.ForeignKey('pending_payments.id'), nullable=True)  # Link to pending payment
     amount = db.Column(db.Float, nullable=False)
     method = db.Column(db.String(50), nullable=False)  # wave, qmoney, afrimoney, ecobank
     reference = db.Column(db.String(100), unique=True, nullable=False)
@@ -28,8 +30,9 @@ class Payment(db.Model):
     payment_provider_response = db.Column(db.Text, nullable=True)  # Store raw response from provider
     failure_reason = db.Column(db.String(255), nullable=True)
     
-    # Relationship
+    # Relationships
     order = db.relationship('Order', backref='payments', lazy=True)
+    pending_payment = db.relationship('PendingPayment', backref='payments', lazy=True)
     
     def __repr__(self):
         return f'<Payment {self.id} - {self.method} - {self.status}>'
@@ -94,3 +97,51 @@ class PaymentTransaction(db.Model):
     def __repr__(self):
         return f'<PaymentTransaction {self.id} - {self.action} - {self.status}>'
 
+
+class PendingPayment(db.Model):
+    """
+    Pending payment model to track incomplete payment attempts.
+    Orders are only created after successful payment confirmation.
+    """
+    __tablename__ = 'pending_payments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default='waiting')  # waiting, failed, completed
+    modempay_transaction_id = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Additional fields to store checkout info for order creation
+    payment_method = db.Column(db.String(50), nullable=True)
+    delivery_address = db.Column(db.Text, nullable=True)
+    customer_name = db.Column(db.String(255), nullable=True)
+    customer_phone = db.Column(db.String(50), nullable=True)
+    customer_email = db.Column(db.String(255), nullable=True)
+    shipping_price = db.Column(db.Float, nullable=True)
+    total_cost = db.Column(db.Float, nullable=True)
+    location = db.Column(db.String(50), nullable=True)
+    
+    # Store cart items as JSON for simplicity (will be converted to OrderItems on success)
+    cart_items_json = db.Column(db.Text, nullable=True)  # JSON string of cart items
+    
+    # Relationships
+    user = db.relationship('User', backref='pending_payments', lazy=True)
+    
+    def __repr__(self):
+        return f'<PendingPayment {self.id} - User {self.user_id} - {self.status}>'
+    
+    def to_dict(self):
+        """Convert pending payment to dictionary for JSON responses."""
+        import json
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'amount': self.amount,
+            'status': self.status,
+            'modempay_transaction_id': self.modempay_transaction_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'cart_items': json.loads(self.cart_items_json) if self.cart_items_json else []
+        }

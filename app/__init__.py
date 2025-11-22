@@ -2796,9 +2796,23 @@ def checkout():
     # Handle GET request - show checkout page
     if request.method == 'GET':
         try:
+            from app.payments.models import PendingPayment
+            import json
+            
             # Pre-fill user data
             user_phone = getattr(current_user, 'phone', '')
             user_email = current_user.email
+            
+            # Create a PendingPayment for this checkout session
+            # It will be used when user clicks "Pay Now" via JavaScript
+            pending_payment = PendingPayment(
+                user_id=current_user.id,
+                amount=checkout_summary['total'],
+                status='waiting',
+                cart_items_json=json.dumps(cart_items)
+            )
+            db.session.add(pending_payment)
+            db.session.commit()
             
             # The form is needed for the GET request to render the fields
             form = CheckoutForm(
@@ -2815,7 +2829,7 @@ def checkout():
                                  form=form,
                                  user_phone=user_phone,
                                  user_email=user_email,
-                                 order_id=0)  # Placeholder, order is created on POST
+                                 pending_payment_id=pending_payment.id)  # Pass pending_payment_id instead of order_id
             
         except Exception as e:
             db.session.rollback()
@@ -2829,51 +2843,44 @@ def checkout():
     if form.validate_on_submit():
         try:
             from app.payments.services import PaymentService
+            from app.payments.models import PendingPayment
+            import json
+            
             # Calculate shipping price and total cost
             shipping_price = calculate_delivery_price(checkout_summary['total'])
             total_cost = checkout_summary['total'] + shipping_price
             
-            # Create order
-            order = Order(
-                user_id=current_user.id,
-                total=checkout_summary['total'],
-                payment_method=form.payment_method.data,
-                delivery_address=form.delivery_address.data,
-                status='pending',
-                shipping_status='pending',  # New field for order management
-                shipping_price=shipping_price,
-                total_cost=total_cost,
-                customer_name=form.full_name.data if hasattr(form, 'full_name') else current_user.username,
-                customer_address=form.delivery_address.data,
-                customer_phone=form.phone.data if hasattr(form, 'phone') else None,
-                location='China'  # Default location, can be updated later
-            )
-            
-            db.session.add(order)
-            
-            # Add order items and update stock
+            # Validate stock before creating pending payment
             for item in cart_items:
                 product = Product.query.get(item['id'])
-                if not product or product.stock < item['quantity']:
+                if not product or (product.stock is not None and product.stock < item['quantity']):
                     flash(f'Sorry, {item["name"]} is out of stock or the quantity is not available', 'error')
                     return redirect(url_for('cart'))
-                
-                order_item = OrderItem(
-                    order=order,
-                    product_id=item['id'],
-                    quantity=item['quantity'],
-                    price=item['price']
-                )
-                
-                # Update product stock
-                product.stock -= item['quantity']
-                db.session.add(order_item)
             
-            db.session.commit() # Commit to get the order.id
+            # Create PendingPayment instead of Order
+            # Orders will only be created AFTER successful payment confirmation
+            pending_payment = PendingPayment(
+                user_id=current_user.id,
+                amount=checkout_summary['total'],
+                status='waiting',
+                payment_method=form.payment_method.data,
+                delivery_address=form.delivery_address.data,
+                customer_name=form.full_name.data if hasattr(form, 'full_name') else current_user.username,
+                customer_phone=form.phone.data if hasattr(form, 'phone') else None,
+                customer_email=form.email.data if hasattr(form, 'email') else None,
+                shipping_price=shipping_price,
+                total_cost=total_cost,
+                location='China',  # Default location, can be updated later
+                cart_items_json=json.dumps(cart_items)  # Store cart items as JSON
+            )
             
-            # Initiate ModemPay payment
+            db.session.add(pending_payment)
+            db.session.commit()  # Commit to get the pending_payment.id
+            
+            # Initiate ModemPay payment using pending_payment_id
+            # Payment service will be updated to work with pending_payment_id
             payment_result = PaymentService.start_modempay_payment(
-                order_id=order.id,
+                pending_payment_id=pending_payment.id,  # Changed from order_id
                 amount=checkout_summary['total'],
                 phone=form.phone.data,
                 provider=form.payment_method.data,
@@ -2884,15 +2891,15 @@ def checkout():
             if payment_result.get('success'):
                 payment_url = payment_result.get('data', {}).get('payment_url')
                 if payment_url:
-                    # Clear the cart after successful payment initiation
-                    if current_user.is_authenticated:
-                        CartItem.query.filter_by(user_id=current_user.id).delete()
-                    else:
-                        session.pop('cart', None)
-                    db.session.commit()
+                    # DON'T clear cart yet - wait for payment confirmation
+                    # Cart will be cleared when payment is confirmed and Order is created
                     
                     # Redirect user to the payment gateway
                     return redirect(payment_url)
+            
+            # If payment initiation fails, mark pending payment as failed
+            pending_payment.status = 'failed'
+            db.session.commit()
             
             # If payment initiation fails, flash a message
             flash(payment_result.get('message', 'Failed to initiate payment. Please try again.'), 'error')
@@ -6023,6 +6030,67 @@ def admin_order_detail(order_id):
         return redirect(url_for('admin_order_detail', order_id=order.id))
     
     return render_template('admin/admin/order_detail.html', order=order)
+
+@app.route('/admin/pending-payments')
+@login_required
+@admin_required
+def admin_pending_payments():
+    """Admin page to view pending or failed payment attempts"""
+    try:
+        from app.payments.models import PendingPayment
+        import json
+        
+        # Get filter parameters
+        status_filter = request.args.get('status', 'all')  # all, waiting, failed
+        page = request.args.get('page', 1, type=int)
+        per_page = 20
+        
+        # Base query - only waiting or failed pending payments
+        query = PendingPayment.query.filter(
+            PendingPayment.status.in_(['waiting', 'failed'])
+        )
+        
+        # Filter by status if specified
+        if status_filter == 'waiting':
+            query = query.filter(PendingPayment.status == 'waiting')
+        elif status_filter == 'failed':
+            query = query.filter(PendingPayment.status == 'failed')
+        
+        # Get paginated results with eager loading
+        pending_payments = query.options(
+            joinedload(PendingPayment.user)
+        ).order_by(PendingPayment.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        # Parse cart items for each pending payment
+        for pp in pending_payments.items:
+            try:
+                pp.parsed_cart_items = json.loads(pp.cart_items_json) if pp.cart_items_json else []
+            except:
+                pp.parsed_cart_items = []
+        
+        # Get totals
+        total_waiting = PendingPayment.query.filter_by(status='waiting').count()
+        total_failed = PendingPayment.query.filter_by(status='failed').count()
+        total_amount_waiting = db.session.query(db.func.coalesce(db.func.sum(PendingPayment.amount), 0)).filter(
+            PendingPayment.status == 'waiting'
+        ).scalar() or 0.0
+        total_amount_failed = db.session.query(db.func.coalesce(db.func.sum(PendingPayment.amount), 0)).filter(
+            PendingPayment.status == 'failed'
+        ).scalar() or 0.0
+        
+        return render_template('admin/admin/pending_payments.html',
+                             pending_payments=pending_payments,
+                             status_filter=status_filter,
+                             total_waiting=total_waiting,
+                             total_failed=total_failed,
+                             total_amount_waiting=float(total_amount_waiting),
+                             total_amount_failed=float(total_amount_failed))
+    except Exception as e:
+        current_app.logger.error(f"Error in admin_pending_payments: {str(e)}")
+        flash('An error occurred while loading pending payments.', 'error')
+        return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/users')
 @login_required

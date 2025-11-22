@@ -104,15 +104,16 @@ def initiate_payment():
 
 
 @payment_bp.route('/verify', methods=['POST'])
-@login_required
 def verify_payment():
     """
-    Verify a payment transaction.
+    Verify a payment transaction (can be called by webhook or user).
+    If payment is successful and linked to PendingPayment, converts it to Order.
     
     Expected JSON payload:
     {
         "payment_id": 123,
-        "reference": "WAVE123456789"
+        "reference": "WAVE123456789",
+        "transaction_id": "TXN123"
     }
     """
     try:
@@ -120,18 +121,48 @@ def verify_payment():
         
         payment_id = data.get('payment_id')
         reference = data.get('reference')
+        transaction_id = data.get('transaction_id')
         
-        if not payment_id and not reference:
+        if not payment_id and not reference and not transaction_id:
             return jsonify(format_payment_response(
                 success=False,
-                message='Either payment_id or reference must be provided'
+                message='Either payment_id, reference, or transaction_id must be provided'
             )), 400
         
-        # Verify payment
+        # Find payment
+        from app.payments.models import Payment
+        payment = None
+        if payment_id:
+            payment = Payment.query.get(payment_id)
+        elif reference:
+            payment = Payment.query.filter_by(reference=reference).first()
+        elif transaction_id:
+            payment = Payment.query.filter_by(transaction_id=transaction_id).first()
+        
+        if not payment:
+            return jsonify(format_payment_response(
+                success=False,
+                message='Payment not found'
+            )), 404
+        
+        # Verify payment with gateway
         result = PaymentService.verify_payment(
-            payment_id=payment_id,
-            reference=reference
+            payment_id=payment.id,
+            reference=payment.reference
         )
+        
+        # If payment is verified as successful and linked to PendingPayment, convert to Order
+        if result.get('success') and payment.pending_payment_id:
+            try:
+                conversion_result = PaymentService.convert_pending_payment_to_order(payment.pending_payment_id)
+                result['order_id'] = conversion_result.get('order_id')
+                result['message'] = f"Payment verified and order created: Order #{conversion_result.get('order_id')}"
+                current_app.logger.info(
+                    f"✅ Payment verification: Converted PendingPayment {payment.pending_payment_id} to Order {conversion_result.get('order_id')}"
+                )
+            except Exception as e:
+                current_app.logger.error(f"Error converting PendingPayment to Order during verification: {str(e)}")
+                # Don't fail the verification, just log the error
         
         return jsonify(result), 200
         
@@ -436,111 +467,110 @@ def modempay_pay():
     """
     Initiate a ModemPay payment.
     
-    Expected JSON payload:
+    Expected JSON payload (new flow - preferred):
+    {
+        "pending_payment_id": 123,
+        "provider": "wave"  // optional
+    }
+    
+    Or legacy flow (backward compatibility):
     {
         "order_id": 123,
         "amount": 100.00,
         "phone": "+2201234567",
-        "provider": "wave"  // wave, qmoney, afrimoney, ecobank, or card
+        "provider": "wave"
     }
     """
     try:
         data = request.get_json()
         
-        # Validate required fields (phone/provider optional; derived server-side)
-        required_fields = ['order_id', 'amount']
-        if not all(field in data for field in required_fields):
-            return jsonify(format_payment_response(
-                success=False,
-                message='Missing required fields',
-                data={'required': required_fields}
-            )), 400
-        
         # Normalize provider (not strictly required for ModemPay unified flow)
         provider_value = (data.get('provider') or 'modempay').lower()
         
-        # Validate order (import here to avoid circular imports)
-        from app import Order, OrderItem
+        # Check for pending_payment_id (new flow)
+        pending_payment_id = data.get('pending_payment_id')
         
-        order_id = data.get('order_id')
-        order = None
-
-        if order_id:
-            order = Order.query.get(order_id)
-
-        if not order:
-            current_app.logger.info(f"Order ID {order_id} not found or not provided. Creating a new order.")
-            # Create a new order since one was not found/provided
-            order = Order(
-                user_id=current_user.id,
-                total=float(data['amount']),
-                payment_method='modempay',
-                delivery_address="To be confirmed", # Placeholder address
-                status='pending'
+        if pending_payment_id:
+            # New flow: work with PendingPayment
+            from app.payments.models import PendingPayment
+            pending_payment = PendingPayment.query.get(pending_payment_id)
+            
+            if not pending_payment:
+                return jsonify(format_payment_response(
+                    success=False,
+                    message=f'PendingPayment {pending_payment_id} not found'
+                )), 404
+            
+            # Verify pending payment belongs to user or user is admin
+            if pending_payment.user_id != current_user.id and not current_user.is_admin:
+                return jsonify(format_payment_response(
+                    success=False,
+                    message='Unauthorized access to this pending payment'
+                )), 403
+            
+            # Start ModemPay payment with pending_payment_id
+            result = PaymentService.start_modempay_payment(
+                pending_payment_id=pending_payment.id,
+                provider=provider_value
             )
-            db.session.add(order)
-            db.session.commit()  # get order.id
-
-            # Populate order items from user's cart so receipt shows products
-            try:
-                from app import CartItem, Product, OrderItem as _OrderItem
-                user_cart_items = CartItem.query.filter_by(user_id=current_user.id).all()
-                order_total = 0.0
-                for ci in user_cart_items:
-                    product = Product.query.get(ci.product_id)
-                    if not product or ci.quantity <= 0:
-                        continue
-                    # Create order item
-                    oi = _OrderItem(
-                        order_id=order.id,
-                        product_id=product.id,
-                        quantity=ci.quantity,
-                        price=product.price
-                    )
-                    db.session.add(oi)
-                    order_total += float(product.price) * int(ci.quantity)
-                # Update order total if we built it from cart
-                if order_total > 0:
-                    order.total = order_total
-                db.session.commit()
-            except Exception as _e:
-                current_app.logger.error(f"Failed to attach cart items to order {order.id}: {_e}")
-            current_app.logger.info(f"New order created with ID: {order.id}")
-        
-        # Verify order belongs to user or user is admin
-        if order.user_id != current_user.id and not current_user.is_admin:
-            return jsonify(format_payment_response(
-                success=False,
-                message='Unauthorized access to this order'
-            )), 403
-        
-        # Start ModemPay payment
-        result = PaymentService.start_modempay_payment(
-            order_id=order.id,
-            amount=float(data['amount']),
-            phone=(data.get('phone') or getattr(current_user, 'phone', None) or '+2200000000'),
-            provider=provider_value,
-            customer_name=(current_user.username if hasattr(current_user, 'username') else None),
-            customer_email=(current_user.email if hasattr(current_user, 'email') else None)
-        )
+        else:
+            # Legacy flow: work with order_id (backward compatibility)
+            order_id = data.get('order_id')
+            amount = data.get('amount')
+            
+            if not order_id or not amount:
+                return jsonify(format_payment_response(
+                    success=False,
+                    message='Missing required fields. Provide either pending_payment_id or (order_id and amount)',
+                    data={'required': ['pending_payment_id']}
+                )), 400
+            
+            # Validate order (import here to avoid circular imports)
+            from app import Order
+            order = Order.query.get(order_id)
+            
+            if not order:
+                return jsonify(format_payment_response(
+                    success=False,
+                    message=f'Order {order_id} not found'
+                )), 404
+            
+            # Verify order belongs to user or user is admin
+            if order.user_id != current_user.id and not current_user.is_admin:
+                return jsonify(format_payment_response(
+                    success=False,
+                    message='Unauthorized access to this order'
+                )), 403
+            
+            # Start ModemPay payment with order_id (legacy)
+            result = PaymentService.start_modempay_payment(
+                order_id=order.id,
+                amount=float(amount),
+                phone=(data.get('phone') or getattr(current_user, 'phone', None) or '+2200000000'),
+                provider=provider_value,
+                customer_name=(current_user.username if hasattr(current_user, 'username') else None),
+                customer_email=(current_user.email if hasattr(current_user, 'email') else None)
+            )
         
         # Normalize response to match required schema
         success = bool(result.get('success'))
-        payment_url = result.get('payment_url')
+        data_dict = result.get('data', {})
+        payment_url = data_dict.get('payment_url')
+        
         if success and payment_url:
             return jsonify({'success': True, 'payment_url': payment_url}), 200
         current_app.logger.error(f"ModemPay returned success={success} but payment_url={payment_url}")
-        return jsonify({'success': False}), 500
+        return jsonify({'success': False, 'message': result.get('message', 'Payment initiation failed')}), 500
         
     except PaymentValidationException as e:
         current_app.logger.error(f"Error in modempay_pay (validation): {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 400
     except PaymentMethodNotSupportedException as e:
         current_app.logger.error(f"Error in modempay_pay (provider): {str(e)}")
-        return jsonify({'success': False}), 400
+        return jsonify({'success': False, 'message': str(e)}), 400
     except PaymentGatewayNotConfiguredException as e:
         current_app.logger.error(f"Error in modempay_pay (config): {str(e)}")
-        return jsonify({'success': False}), 503
+        return jsonify({'success': False, 'message': str(e)}), 503
     except PaymentException as e:
         current_app.logger.error(f"Error in modempay_pay (payment): {str(e)}")
         # Extract error message from exception
@@ -552,7 +582,7 @@ def modempay_pay():
         return jsonify({'success': False, 'message': error_message}), 400
     except Exception as e:
         current_app.logger.error(f"Error in modempay_pay: {str(e)}")
-        return jsonify({'success': False}), 500
+        return jsonify({'success': False, 'message': 'An error occurred while initiating payment'}), 500
 
 
 @payment_bp.route('/modempay/webhook', methods=['POST'])
