@@ -6700,7 +6700,10 @@ def admin_sales_dashboard_export(section):
 @login_required
 @admin_required
 def admin_order_management():
-    """Admin panel for full order management"""
+    """Admin panel for full order management - Only shows orders with completed payments"""
+    from app.payments.models import Payment
+    from sqlalchemy import or_
+    
     status = request.args.get('status', 'all')
     page = request.args.get('page', 1, type=int)
     per_page = 20
@@ -6709,7 +6712,20 @@ def admin_order_management():
     customer_filter = request.args.get('customer', 'all')
     search_query = request.args.get('search', '')
     
-    query = Order.query
+    # Base query - ONLY orders with completed payments
+    # Subquery for orders with completed payments
+    completed_payments_subquery = db.session.query(Payment.order_id).filter(
+        Payment.status == 'completed',
+        Payment.order_id.isnot(None)
+    ).distinct()
+    
+    # Only show orders that have completed payments OR have status='paid'/'completed'
+    query = Order.query.filter(
+        or_(
+            Order.id.in_(completed_payments_subquery),
+            Order.status.in_(['paid', 'completed'])
+        )
+    )
     
     # Status filter
     if status == 'pending':
@@ -6766,11 +6782,22 @@ def admin_order_management():
     
     orders = query.paginate(page=page, per_page=per_page, error_out=False)
     
-    # Dashboard stats
-    pending_count = Order.query.filter_by(shipping_status='pending').count()
-    shipped_count = Order.query.filter_by(shipping_status='shipped').count()
-    delivered_count = Order.query.filter_by(shipping_status='delivered').count()
-    total_count = Order.query.count()
+    # Dashboard stats - Only count orders with completed payments
+    from app.payments.models import Payment
+    from sqlalchemy import or_
+    
+    # Base query for stats - only orders with completed payments
+    stats_base_query = Order.query.filter(
+        or_(
+            Order.id.in_(completed_payments_subquery),
+            Order.status.in_(['paid', 'completed'])
+        )
+    )
+    
+    pending_count = stats_base_query.filter_by(shipping_status='pending').count()
+    shipped_count = stats_base_query.filter_by(shipping_status='shipped').count()
+    delivered_count = stats_base_query.filter_by(shipping_status='delivered').count()
+    total_count = stats_base_query.count()
     
     # Get all customers for filter dropdown
     customers = User.query.filter(User.role == 'customer').order_by(User.username).all()
@@ -7346,7 +7373,10 @@ def china_login():
 @login_required
 @china_partner_required
 def china_orders():
-    """China Partner orders page - shows only non-shipped orders (Pending tab removed)"""
+    """China Partner orders page - shows only non-shipped orders with completed payments"""
+    from app.payments.models import Payment
+    from sqlalchemy import or_
+    
     status = request.args.get('status', 'all')
     page = request.args.get('page', 1, type=int)
     per_page = 20
@@ -7355,9 +7385,24 @@ def china_orders():
     if status == 'pending':
         return redirect(url_for('china_orders', status='all', page=page))
     
-    # Only show orders that are not yet shipped (exclude "Shipped" status)
-    # This ensures submitted orders don't appear after page refresh
-    orders = Order.query.filter(Order.status != "Shipped").order_by(Order.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    # Base query - ONLY orders with completed payments
+    # Subquery for orders with completed payments
+    completed_payments_subquery = db.session.query(Payment.order_id).filter(
+        Payment.status == 'completed',
+        Payment.order_id.isnot(None)
+    ).distinct()
+    
+    # Only show orders that:
+    # 1. Have completed payments (via Payment table)
+    # 2. Have status='paid' or 'completed' (legacy support)
+    # 3. Are not yet shipped (exclude "Shipped" status)
+    orders = Order.query.filter(
+        or_(
+            Order.id.in_(completed_payments_subquery),
+            Order.status.in_(['paid', 'completed'])
+        ),
+        Order.status != "Shipped"
+    ).order_by(Order.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
     return render_template('china/orders.html', 
                          orders=orders,
