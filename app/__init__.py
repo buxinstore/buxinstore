@@ -7739,11 +7739,9 @@ def all_products():
 
 @app.route('/favicon.ico')
 def favicon():
-    """Serve favicon.ico to prevent 404 errors"""
-    favicon_path = os.path.join(app.static_folder, 'images', 'favicon.ico')
-    if os.path.exists(favicon_path):
-        return send_file(favicon_path, mimetype='image/vnd.microsoft.icon'), 200, {'Cache-Control': 'public, max-age=31536000'}
-    # Return 204 No Content if favicon doesn't exist (standard way to handle missing favicons)
+    """Serve favicon.ico - redirect to Cloudinary logo"""
+    from flask import redirect
+    return redirect('https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png', code=302)
     return '', 204
 
 @app.route('/service-worker.js')

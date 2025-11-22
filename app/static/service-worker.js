@@ -8,8 +8,7 @@ const RUNTIME_CACHE = 'buxin-store-runtime-v1.0.0';
 const STATIC_ASSETS = [
   '/',
   '/static/css/theme.css',
-  '/static/icons/icon-192.png',
-  '/static/icons/icon-512.png',
+  'https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png',
   // Add other critical static assets here
 ];
 
