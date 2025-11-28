@@ -5447,7 +5447,7 @@ def admin_categories():
             'category': category,
             'product_count': count
         })
-    return render_template('admin/admin/categories.html', categories_with_counts=categories_with_counts)
+    return render_template('admin/admin/categories.html', categories_with_counts=categories_with_counts, all_categories=categories)
 
 @app.route('/admin/categories/add', methods=['GET', 'POST'])
 @login_required
@@ -5549,6 +5549,133 @@ def admin_edit_category(category_id):
         return redirect(url_for('admin_categories'))
     
     return render_template('admin/admin/category_form.html', category=category)
+
+@app.route('/admin/categories/bulk-update', methods=['POST'])
+@login_required
+@admin_required
+def admin_bulk_update_categories():
+    """Bulk update multiple categories"""
+    try:
+        if not request.is_json:
+            return jsonify({
+                'success': False,
+                'message': 'Request must be JSON'
+            }), 400
+        
+        data = request.get_json()
+        updates = data.get('updates', [])
+        
+        if not updates:
+            return jsonify({
+                'success': False,
+                'message': 'No updates provided'
+            }), 400
+        
+        updated_count = 0
+        merged_count = 0
+        errors = []
+        
+        for update in updates:
+            category_id = update.get('category_id')
+            if not category_id:
+                errors.append(f'Missing category_id in update: {update}')
+                continue
+            
+            try:
+                category = Category.query.get(category_id)
+                if not category:
+                    errors.append(f'Category {category_id} not found')
+                    continue
+                
+                # Update name if provided
+                if 'name' in update:
+                    name = update['name'].strip()
+                    if name:
+                        category.name = name
+                    else:
+                        errors.append(f'Category {category_id}: Name cannot be empty')
+                        continue
+                
+                # Update image URL if provided
+                if 'image_url' in update:
+                    image_url = update['image_url'].strip() if update['image_url'] else None
+                    if image_url:
+                        # Validate URL
+                        if image_url.startswith('https://'):
+                            category.image = image_url
+                        else:
+                            errors.append(f'Category {category_id}: Image URL must be a valid HTTPS URL')
+                            continue
+                    else:
+                        category.image = None
+                
+                # Handle merge if provided
+                merge_to_category_id = update.get('merge_to_category_id')
+                if merge_to_category_id:
+                    merge_to_category = Category.query.get(merge_to_category_id)
+                    if not merge_to_category:
+                        errors.append(f'Category {category_id}: Target category {merge_to_category_id} not found')
+                        continue
+                    
+                    if merge_to_category_id == category_id:
+                        errors.append(f'Category {category_id}: Cannot merge category into itself')
+                        continue
+                    
+                    # Move all products from this category to the target category
+                    products = Product.query.filter_by(category_id=category_id).all()
+                    for product in products:
+                        product.category_id = merge_to_category_id
+                    
+                    merged_count += 1
+                    app.logger.info(f'Merged category {category_id} into {merge_to_category_id}, moved {len(products)} products')
+                
+                updated_count += 1
+                
+            except ValueError as e:
+                errors.append(f'Category {category_id}: Invalid value - {str(e)}')
+                continue
+            except Exception as e:
+                errors.append(f'Category {category_id}: Error - {str(e)}')
+                app.logger.error(f"Error updating category {category_id}: {e}")
+                continue
+        
+        if errors and updated_count == 0:
+            # All updates failed
+            db.session.rollback()
+            return jsonify({
+                'success': False,
+                'message': 'All updates failed',
+                'errors': errors
+            }), 400
+        
+        # Commit all successful updates
+        db.session.commit()
+        
+        response = {
+            'success': True,
+            'updated_count': updated_count,
+            'merged_count': merged_count,
+            'message': f'Successfully updated {updated_count} category(ies)'
+        }
+        
+        if merged_count > 0:
+            response['message'] += f', merged {merged_count} category(ies)'
+        
+        if errors:
+            response['errors'] = errors
+            response['message'] += f' ({len(errors)} error(s))'
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error in bulk category update: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': f'Unexpected error: {str(e)}'
+        }), 500
 
 @app.route('/admin/categories/<int:category_id>/delete', methods=['POST'])
 @login_required

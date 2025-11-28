@@ -3,13 +3,57 @@
 {% block header %}Categories{% endblock %}
 
 {% block content %}
+<style>
+    /* Bulk Edit Styles - Subtle, matches existing design */
+    .bulk-edit-field {
+        transition: all 0.2s ease;
+    }
+    
+    .bulk-edit-field:not(:focus):not(.edited) {
+        border-color: transparent !important;
+        background-color: transparent !important;
+    }
+    
+    .bulk-edit-field.edited {
+        background-color: #fef3c7 !important; /* Light yellow */
+        border-color: #f59e0b !important;
+    }
+
+    .dark .bulk-edit-field.edited {
+        background-color: #78350f !important; /* Dark yellow */
+        border-color: #f59e0b !important;
+    }
+
+    .bulk-edit-row.has-changes {
+        background-color: #fffbeb !important;
+    }
+
+    .dark .bulk-edit-row.has-changes {
+        background-color: #451a03 !important;
+    }
+    
+    .category-thumbnail {
+        width: 50px;
+        height: 50px;
+        min-width: 50px;
+        min-height: 50px;
+        object-fit: cover;
+    }
+</style>
+
 <div class="py-4">
     <div class="flex justify-between items-center mb-4">
         <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Categories</h2>
-        <a href="{{ url_for('admin_add_category') }}" 
-           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-            <i class="fas fa-plus mr-2"></i> Add Category
-        </a>
+        <div class="flex items-center space-x-2">
+            <button id="save-all-changes-btn" 
+                    class="hidden inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="fas fa-save mr-2"></i> Save All Changes
+            </button>
+            <a href="{{ url_for('admin_add_category') }}" 
+               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <i class="fas fa-plus mr-2"></i> Add Category
+            </a>
+        </div>
     </div>
 
     <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
@@ -17,28 +61,46 @@
             {% for item in categories_with_counts %}
             {% set category = item.category %}
             {% set product_count = item.product_count %}
-            <li data-category-id="{{ category.id }}">
+            <li class="bulk-edit-row" data-category-id="{{ category.id }}">
                 <div class="px-4 py-4 sm:px-6 flex items-center justify-between">
-                    <div class="flex items-center">
-                        {% if category.image %}
-                        <img src="{{ category.image|category_image_url }}" 
-                             alt="{{ category.name }}" 
-                             class="h-12 w-12 rounded-lg object-cover mr-4">
-                        {% else %}
-                        <div class="h-12 w-12 rounded-lg bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center mr-4">
-                            <i class="fas fa-folder text-white text-xl"></i>
+                    <div class="flex items-center flex-1 min-w-0">
+                        <div class="flex-shrink-0 mr-4">
+                            <img class="category-thumbnail rounded-lg object-cover border border-gray-300 dark:border-gray-600" 
+                                 src="{{ category.image|category_image_url if category.image else '/static/img/placeholder.png' }}" 
+                                 alt="{{ category.name }}"
+                                 data-category-id="{{ category.id }}">
                         </div>
-                        {% endif %}
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
-                                {{ category.name }}
-                            </h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                        <div class="flex-1 min-w-0">
+                            <input type="text" 
+                                   class="bulk-edit-field category-name-input w-full px-2 py-1 text-lg font-medium text-gray-900 dark:text-white bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700" 
+                                   value="{{ category.name }}"
+                                   data-field="name"
+                                   data-original="{{ category.name }}"
+                                   data-category-id="{{ category.id }}">
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                 {{ product_count }} {{ 'product' if product_count == 1 else 'products' }}
                             </p>
+                            <input type="url" 
+                                   placeholder="Image URL"
+                                   class="bulk-edit-field image-url-input w-full mt-2 px-2 py-1 text-xs text-gray-900 dark:text-white bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700" 
+                                   value="{{ category.image if category.image else '' }}"
+                                   data-field="image_url"
+                                   data-original="{{ category.image if category.image else '' }}"
+                                   data-category-id="{{ category.id }}">
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2">
+                    <div class="flex items-center space-x-2 ml-4">
+                        <select class="bulk-edit-field merge-select px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+                                data-field="merge_to"
+                                data-original=""
+                                data-category-id="{{ category.id }}">
+                            <option value="">Move to category...</option>
+                            {% for other_category in all_categories %}
+                            {% if other_category.id != category.id %}
+                            <option value="{{ other_category.id }}">{{ other_category.name }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
                         <a href="{{ url_for('admin_edit_category', category_id=category.id) }}" 
                            class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600">
                             <i class="fas fa-edit mr-2"></i> Edit
@@ -74,6 +136,242 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const saveBtn = document.getElementById('save-all-changes-btn');
+    const changedCategories = new Map(); // categoryId -> {field: value}
+
+    // Show toast notification
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-md shadow-lg ${
+            type === 'success' ? 'bg-green-500' : 'bg-red-500'
+        } text-white`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
+
+    // Get CSRF token
+    function getCSRFToken() {
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        return metaTag ? metaTag.getAttribute('content') : '';
+    }
+
+    // Check if field value has changed
+    function hasChanged(field) {
+        const original = field.dataset.original || '';
+        const current = field.value || '';
+        return original !== current;
+    }
+
+    // Mark field as edited
+    function markFieldAsEdited(field, isEdited) {
+        if (isEdited) {
+            field.classList.add('edited');
+        } else {
+            field.classList.remove('edited');
+        }
+    }
+
+    // Update row highlight
+    function updateRowHighlight(categoryId) {
+        const row = document.querySelector(`li[data-category-id="${categoryId}"]`);
+        if (!row) return;
+        
+        const fields = row.querySelectorAll('.bulk-edit-field');
+        let hasChanges = false;
+        
+        fields.forEach(field => {
+            if (hasChanged(field)) {
+                hasChanges = true;
+                markFieldAsEdited(field, true);
+            } else {
+                markFieldAsEdited(field, false);
+            }
+        });
+        
+        if (hasChanges) {
+            row.classList.add('has-changes');
+        } else {
+            row.classList.remove('has-changes');
+            changedCategories.delete(categoryId);
+        }
+    }
+
+    // Update save button visibility
+    function updateSaveButton() {
+        if (changedCategories.size > 0) {
+            saveBtn.classList.remove('hidden');
+        } else {
+            saveBtn.classList.add('hidden');
+        }
+    }
+
+    // Track changes for a field
+    function trackChange(field) {
+        const categoryId = parseInt(field.dataset.categoryId);
+        const fieldName = field.dataset.field;
+        
+        if (!hasChanged(field)) {
+            // Field reverted to original
+            if (changedCategories.has(categoryId)) {
+                const categoryChanges = changedCategories.get(categoryId);
+                delete categoryChanges[fieldName];
+                if (Object.keys(categoryChanges).length === 0) {
+                    changedCategories.delete(categoryId);
+                }
+            }
+        } else {
+            // Field has changed
+            if (!changedCategories.has(categoryId)) {
+                changedCategories.set(categoryId, {});
+            }
+            const categoryChanges = changedCategories.get(categoryId);
+            categoryChanges[fieldName] = field.value || '';
+        }
+        
+        updateRowHighlight(categoryId);
+        updateSaveButton();
+    }
+
+    // Image URL change handler - update preview
+    function handleImageUrlChange(field) {
+        const categoryId = field.dataset.categoryId;
+        const imageUrl = field.value.trim();
+        const thumbnail = document.querySelector(`.category-thumbnail[data-category-id="${categoryId}"]`);
+        
+        // Validate URL and update thumbnail
+        if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+            if (thumbnail) {
+                thumbnail.src = imageUrl;
+                thumbnail.onerror = function() {
+                    this.src = '/static/img/placeholder.png';
+                };
+            }
+        } else if (!imageUrl) {
+            if (thumbnail) thumbnail.src = '/static/img/placeholder.png';
+        }
+        
+        trackChange(field);
+    }
+
+    // Setup bulk edit handlers
+    function setupBulkEditHandlers() {
+        // Handle all editable fields
+        document.querySelectorAll('.bulk-edit-field').forEach(function(field) {
+            // Remove existing listeners
+            const newField = field.cloneNode(true);
+            field.parentNode.replaceChild(newField, field);
+            
+            if (newField.classList.contains('image-url-input')) {
+                newField.addEventListener('input', function() {
+                    handleImageUrlChange(this);
+                });
+            } else {
+                newField.addEventListener('input', function() {
+                    trackChange(this);
+                });
+                newField.addEventListener('change', function() {
+                    trackChange(this);
+                });
+            }
+        });
+    }
+
+    // Bulk save function
+    function saveAllChanges() {
+        if (changedCategories.size === 0) {
+            showToast('No changes to save', 'error');
+            return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
+
+        const updates = [];
+        changedCategories.forEach((changes, categoryId) => {
+            const update = {
+                category_id: parseInt(categoryId)
+            };
+            
+            // Add changed fields
+            Object.keys(changes).forEach(key => {
+                if (key === 'merge_to') {
+                    // Rename merge_to to match backend expectation
+                    if (changes[key]) {
+                        update.merge_to_category_id = parseInt(changes[key]);
+                    }
+                } else {
+                    update[key] = changes[key];
+                }
+            });
+            
+            updates.push(update);
+        });
+
+        fetch('/admin/categories/bulk-update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ updates: updates })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showToast(`Successfully updated ${data.updated_count || updates.length} category(ies)`, 'success');
+                changedCategories.clear();
+                updateSaveButton();
+                
+                // Update original values to reflect saved state (no page reload)
+                updates.forEach(update => {
+                    const row = document.querySelector(`li[data-category-id="${update.category_id}"]`);
+                    if (row) {
+                        row.querySelectorAll('.bulk-edit-field').forEach(field => {
+                            const fieldName = field.dataset.field;
+                            if (fieldName === 'merge_to' && update.merge_to_category_id) {
+                                field.value = update.merge_to_category_id;
+                                field.dataset.original = update.merge_to_category_id.toString();
+                                markFieldAsEdited(field, false);
+                            } else if (update[fieldName] !== undefined) {
+                                field.value = update[fieldName];
+                                field.dataset.original = update[fieldName] || '';
+                                markFieldAsEdited(field, false);
+                            }
+                        });
+                        row.classList.remove('has-changes');
+                    }
+                });
+                
+                // If categories were merged, reload to show updated list
+                if (data.merged_count > 0) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                }
+            } else {
+                showToast(data.message || 'Failed to save changes', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Failed to save changes. Please try again.', 'error');
+        })
+        .finally(() => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i> Save All Changes';
+        });
+    }
+
+    // Setup save button
+    saveBtn.addEventListener('click', saveAllChanges);
+
+    // Setup handlers on page load
+    setupBulkEditHandlers();
+
+    // Delete category functionality (existing)
     const deleteButtons = document.querySelectorAll('.delete-category-btn');
     
     deleteButtons.forEach(button => {
@@ -98,8 +396,7 @@ document.addEventListener('DOMContentLoaded', function() {
             this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Deleting...';
             
             // Get CSRF token
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
-                             '{{ csrf_token() }}';
+            const csrfToken = getCSRFToken();
             
             // Create form data
             const formData = new FormData();
@@ -141,17 +438,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         }, 300);
                     }
                     
-                    // Show success message (if you have a flash message system)
-                    if (typeof showFlashMessage === 'function') {
-                        showFlashMessage(data.message, 'success');
-                    } else {
-                        alert(data.message);
-                    }
+                    // Show success message
+                    showToast(data.message, 'success');
                 } else {
                     // Re-enable button on error
                     this.disabled = false;
                     this.innerHTML = originalText;
-                    alert('Error: ' + (data.message || 'Unknown error occurred'));
+                    showToast('Error: ' + (data.message || 'Unknown error occurred'), 'error');
                 }
             })
             .catch(error => {
@@ -159,7 +452,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.disabled = false;
                 this.innerHTML = originalText;
                 console.error('Error:', error);
-                alert('An error occurred while deleting the category. Please try again.');
+                showToast('An error occurred while deleting the category. Please try again.', 'error');
             });
         });
     });
