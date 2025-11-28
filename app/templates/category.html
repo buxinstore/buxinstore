@@ -52,18 +52,14 @@
         </div>
         {% endif %}
 
-        <section aria-labelledby="products-heading" class="pt-6 pb-24">
-            <h2 id="products-heading" class="sr-only">Products</h2>
-
-            {% if is_fullwidth %}
-            <!-- Full-width layout for category 121 -->
-            <div class="w-full">
-                {% if products %}
-                    <div id="products-container" class="grid grid-cols-2 xl:grid-cols-7 2xl:grid-cols-10 gap-3">
-                        {% for product in products %}
-                        <div class="product-card cursor-pointer bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-hidden hover:border-cyan-500/50 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/10"
-                             data-wishlist-card
-                             data-product-id="{{ product.id }}">
+        {% if is_fullwidth %}
+        <!-- Full-width layout for category 121 -->
+        {% if products %}
+            <div id="products-container" class="grid grid-cols-2 xl:grid-cols-7 2xl:grid-cols-10 gap-3">
+                {% for product in products %}
+                <div class="product-card cursor-pointer bg-[color:var(--app-card)] dark:bg-slate-900/60 border border-[color:var(--app-border)] dark:border-slate-700/60 rounded-xl overflow-hidden hover:border-cyan-500/50 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/10 text-[color:var(--app-text)]"
+                     data-wishlist-card
+                     data-product-id="{{ product.id }}">
                             <div class="relative">
                                 <a href="{{ url_for('product', product_id=product.id) }}" class="block h-40 overflow-hidden">
                                     {% if product.image %}
@@ -128,22 +124,23 @@
                                 </div>
                             </div>
                         </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="text-center py-12">
-                        <i class="fas fa-box-open text-4xl text-slate-400 mb-4"></i>
-                        <h3 class="text-lg font-medium text-slate-900 dark:text-white">No products found</h3>
-                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">There are no products available in this category at the moment.</p>
-                        <div class="mt-6">
-                            <a href="{{ url_for('home') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                Continue Shopping
-                            </a>
-                        </div>
-                    </div>
-                {% endif %}
+                {% endfor %}
             </div>
-            {% else %}
+        {% else %}
+            <div class="text-center py-12">
+                <i class="fas fa-box-open text-4xl text-slate-400 mb-4"></i>
+                <h3 class="text-lg font-medium text-slate-900 dark:text-white">No products found</h3>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">There are no products available in this category at the moment.</p>
+                <div class="mt-6">
+                    <a href="{{ url_for('home') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Continue Shopping
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+        {% else %}
+        <section aria-labelledby="products-heading" class="pt-6 pb-24">
+            <h2 id="products-heading" class="sr-only">Products</h2>
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-x-8 gap-y-10">
                 <!-- Filters -->
                 <form class="hidden lg:block">
