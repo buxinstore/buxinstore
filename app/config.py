@@ -54,6 +54,15 @@ class Config:
     CLOUDINARY_URL = os.environ.get("CLOUDINARY_URL")
 
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
+    
+    # Bulk Email System Configuration
+    BULK_EMAIL_RATE_PER_MINUTE = int(os.environ.get("BULK_EMAIL_RATE_PER_MINUTE", "10"))
+    BULK_EMAIL_RATE_PER_HOUR = int(os.environ.get("BULK_EMAIL_RATE_PER_HOUR", "1000"))
+    BULK_EMAIL_MAX_RETRIES = int(os.environ.get("BULK_EMAIL_MAX_RETRIES", "3"))
+    BULK_EMAIL_BATCH_SIZE = int(os.environ.get("BULK_EMAIL_BATCH_SIZE", "50"))
+    BULK_EMAIL_LOCK_TIMEOUT_MINUTES = int(os.environ.get("BULK_EMAIL_LOCK_TIMEOUT_MINUTES", "60"))
+    EMAIL_WORKERS = int(os.environ.get("EMAIL_WORKERS", "10"))
+    MAX_EMAILS_PER_REQUEST = int(os.environ.get("MAX_EMAILS_PER_REQUEST", "2000"))
 
 
 class DevelopmentConfig(Config):

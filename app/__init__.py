@@ -112,6 +112,8 @@ from .extensions import csrf, db, init_extensions, login_manager, mail, migrate
 
 # Import forum models so Alembic can detect them
 from .models.forum import ForumPost, ForumFile, ForumLink, ForumComment, ForumReaction, ForumBan
+# Import bulk email models so Alembic can detect them
+from .models.bulk_email import BulkEmailJob, BulkEmailRecipient, BulkEmailJobLock
 from .utils.db_backup import (
     DatabaseBackupError,
     dump_database_to_file,
@@ -4200,33 +4202,25 @@ def admin_email_customers():
                 }
             ), 500
         
-        # Validate FROM email domain (only FROM domain needs to be verified, not recipients)
-        # If API key lacks domain listing permissions, allow sending anyway
+        # Check FROM email domain (non-blocking - only warns, never blocks)
+        # This ensures the system works with restricted API keys
         from_email = settings.resend_from_email if settings else os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
         if from_email:
             from app.utils.resend_domain import is_from_email_domain_verified
             is_verified, error_msg, can_verify = is_from_email_domain_verified(from_email, resend_api_key)
             if not is_verified:
-                # If API key can't verify (restricted permissions), allow sending with warning
+                # Always allow sending - domain verification is optional
                 if not can_verify:
                     log.warning(
                         f"admin_email_customers[POST]: Domain verification skipped due to API key restrictions. "
                         f"Email sending will proceed. {error_msg}"
                     )
-                    # Continue with email sending - don't block
                 else:
-                    # Domain verification was attempted but domain is not verified - block sending
-                    log.error(
-                        f"admin_email_customers[POST]: FROM email domain not verified: {from_email} - {error_msg}"
+                    log.warning(
+                        f"admin_email_customers[POST]: FROM email domain not verified: {from_email} - {error_msg}. "
+                        f"Email sending will proceed anyway."
                     )
-                    return jsonify(
-                        {
-                            "success": False,
-                            "status": "error",
-                            "message": f"The FROM email domain is not verified in Resend. {error_msg or ''} Please verify it at https://resend.com/domains.",
-                            "sent_count": 0,
-                        }
-                    ), 400
+                # Continue with email sending - never block on domain verification
 
         log.info("admin_email_customers[POST]: loading form data")
         subject = (request.form.get("subject") or "").strip()
@@ -4253,8 +4247,10 @@ def admin_email_customers():
             ), 400
 
         log.info("admin_email_customers[POST]: email configuration snapshot (Resend)")
-        from app.utils.email_queue import queue_single_email, queue_bulk_email
-        app_obj = app
+        
+        # Use new bulk email orchestrator
+        from app.services.bulk_email_orchestrator import BulkEmailOrchestrator
+        from app.utils.email_queue import queue_single_email  # Still use for test emails
 
         if test_only:
             # Use provided test email or fall back to configured email receiver
@@ -4271,6 +4267,7 @@ def admin_email_customers():
                 f"admin_email_customers[POST]: queueing single test email to {recipient_email} via email_queue/Resend"
             )
             html_body = render_template("emails/admin_broadcast_email.html", subject=subject, body_text=body)
+            app_obj = app
             queue_single_email(app_obj, recipient_email, subject, html_body)
 
             response_payload = {"success": True, "status": "queued", "recipients": 1}
@@ -4321,17 +4318,33 @@ def admin_email_customers():
             ), 400
 
         log.info(
-            f"admin_email_customers[POST]: queueing batched customer email job for {estimated_total} customers",
+            f"admin_email_customers[POST]: creating bulk email job for {estimated_total} customers",
             extra={"queued_for": estimated_total},
         )
 
-        html_body = render_template("emails/admin_broadcast_email.html", subject=subject, body_text=body)
-        job_id = queue_bulk_email(app_obj, base_query, subject, html_body)
+        # Create job using new orchestrator
+        job_id, error_message = BulkEmailOrchestrator.create_and_queue_bulk_email_job(
+            subject=subject,
+            body=body,
+            from_email=from_email,
+            recipients_query=base_query,
+            metadata={"created_by": "admin_email_customers"},
+        )
+
+        if not job_id:
+            log.error(f"admin_email_customers[POST]: Failed to create job: {error_message}")
+            return jsonify(
+                {
+                    "success": False,
+                    "status": "error",
+                    "message": f"Failed to create email job: {error_message}",
+                }
+            ), 500
 
         response_payload = {
             "success": True,
             "status": "queued",
-            "job_id": job_id,
+            "job_id": str(job_id),
             "recipients": int(estimated_total or 0),
         }
         log.info(f"admin_email_customers[POST]: returning response {response_payload}")
@@ -4353,10 +4366,21 @@ def admin_email_customers():
 @admin_required
 def admin_email_job_status(job_id):
     """Check status of a background email job."""
-    from app.utils.email_queue import email_status
-
-    status = email_status.get(job_id)
-
+    import uuid
+    
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        return jsonify({
+            "success": False,
+            "status": "error",
+            "message": "Invalid job_id format"
+        }), 400
+    
+    from app.services.bulk_email_orchestrator import BulkEmailOrchestrator
+    
+    status = BulkEmailOrchestrator.get_job_status(job_uuid)
+    
     if not status:
         return jsonify({
             "success": False,
@@ -4368,9 +4392,10 @@ def admin_email_job_status(job_id):
         "success": True,
         "job_id": job_id,
         "status": status.get("status"),
-        "sent": status.get("sent"),
-        "failed": status.get("failed"),
-        "total": status.get("total"),
+        "sent": status.get("sent_count", 0),
+        "failed": status.get("failed_count", 0),
+        "total": status.get("total_recipients", 0),
+        "current_progress": status.get("current_progress", 0),
     })
 
 @app.route('/admin/test-email-config', methods=['GET'])
