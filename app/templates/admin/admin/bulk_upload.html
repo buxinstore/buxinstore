@@ -27,7 +27,8 @@
                                 <ul class="list-disc pl-5 space-y-1">
                                     <li>File must be in XLSX or CSV format</li>
                                     <li>Required columns: <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Product Name</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Category</code></li>
-                                    <li>Optional columns: <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Price (GMD)</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Stock Quantity</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Description</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Image URL</code></li>
+                                    <li>Optional columns: <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Price</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Stock</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Description</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Image URL</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Image Filename</code></li>
+                                    <li class="mt-2 font-medium">Image Handling: If <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Image Filename</code> is provided, upload the matching image file below. Uploaded images override Image URLs.</li>
                                 </ul>
                             </div>
                             <div class="mt-4">
@@ -59,6 +60,34 @@
                             <p class="text-xs text-gray-500 dark:text-gray-400">
                                 XLSX or CSV up to 10MB
                             </p>
+                        </div>
+                    </div>
+
+                    <!-- Image Upload Section -->
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                        <label for="images-upload" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Product Images (Optional)
+                        </label>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            Upload image files that match the filenames in your <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">Image Filename</code> column. All images will be uploaded to Cloudinary automatically.
+                        </p>
+                        <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md">
+                            <div class="space-y-1 text-center">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <div class="flex text-sm text-gray-600 dark:text-gray-400">
+                                    <label for="images-upload" class="relative cursor-pointer bg-white dark:bg-gray-800 rounded-md font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                        <span>Upload images</span>
+                                        <input id="images-upload" name="images" type="file" class="sr-only" accept=".png,.jpg,.jpeg,.webp" multiple>
+                                    </label>
+                                    <p class="pl-1">or drag and drop</p>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    PNG, JPG, JPEG, or WEBP (multiple files allowed)
+                                </p>
+                                <div id="image-files-list" class="mt-2 text-sm text-gray-600 dark:text-gray-400"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -150,5 +179,61 @@
             dropZone.querySelector('.text-xs').before(fileInfo);
         }
     });
+
+    // Handle image files upload
+    const imagesInput = document.getElementById('images-upload');
+    const imagesList = document.getElementById('image-files-list');
+    const imagesDropZone = imagesInput.closest('.border-dashed');
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        imagesDropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        imagesDropZone.addEventListener(eventName, function() {
+            imagesDropZone.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        imagesDropZone.addEventListener(eventName, function() {
+            imagesDropZone.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');
+        }, false);
+    });
+
+    imagesDropZone.addEventListener('drop', function(e) {
+        const dt = e.dataTransfer;
+        const files = Array.from(dt.files).filter(file => {
+            const ext = file.name.split('.').pop().toLowerCase();
+            return ['png', 'jpg', 'jpeg', 'webp'].includes(ext);
+        });
+        
+        if (files.length) {
+            const dataTransfer = new DataTransfer();
+            // Add existing files
+            for (let file of imagesInput.files) {
+                dataTransfer.items.add(file);
+            }
+            // Add new files
+            for (let file of files) {
+                dataTransfer.items.add(file);
+            }
+            imagesInput.files = dataTransfer.files;
+            updateImagesList();
+        }
+    }, false);
+
+    imagesInput.addEventListener('change', function() {
+        updateImagesList();
+    });
+
+    function updateImagesList() {
+        if (imagesInput.files.length > 0) {
+            const fileNames = Array.from(imagesInput.files).map(f => f.name).join(', ');
+            imagesList.innerHTML = `<div class="text-green-600 dark:text-green-400 font-medium">${imagesInput.files.length} image(s) selected: ${fileNames}</div>`;
+        } else {
+            imagesList.innerHTML = '';
+        }
+    }
 </script>
 {% endblock %}
