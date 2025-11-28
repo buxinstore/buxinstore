@@ -994,12 +994,10 @@ def send_whatsapp_message_with_logging(
     Returns:
         Tuple of (success: bool, error_message: Optional[str], log_id: Optional[int])
     """
-    from dotenv import load_dotenv
-    load_dotenv(override=True)
+    from app.utils.whatsapp_token import get_whatsapp_token
     
-    # Get WhatsApp credentials
-    access_token = os.getenv('WHATSAPP_ACCESS_TOKEN')
-    phone_number_id = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
+    # Get WhatsApp credentials dynamically (DB first, then .env)
+    access_token, phone_number_id = get_whatsapp_token()
     
     if not access_token or not phone_number_id:
         error_msg = "WhatsApp is not configured"
@@ -3505,13 +3503,35 @@ def admin_settings():
                 flash('Cloudinary settings updated successfully.', 'success')
                 
             elif section == 'whatsapp':
-                settings.whatsapp_access_token = request.form.get('whatsapp_access_token', '').strip()
-                settings.whatsapp_phone_number_id = request.form.get('whatsapp_phone_number_id', '').strip()
+                new_access_token = request.form.get('whatsapp_access_token', '').strip()
+                new_phone_number_id = request.form.get('whatsapp_phone_number_id', '').strip()
                 settings.whatsapp_business_name = request.form.get('whatsapp_business_name', '').strip()
                 settings.whatsapp_bulk_messaging_enabled = request.form.get('whatsapp_bulk_messaging_enabled') == 'on'
                 
+                # Only update token if provided (don't overwrite with empty)
+                if new_access_token:
+                    settings.whatsapp_access_token = new_access_token
+                if new_phone_number_id:
+                    settings.whatsapp_phone_number_id = new_phone_number_id
+                
                 db.session.commit()
-                flash('WhatsApp settings updated successfully.', 'success')
+                
+                # Update .env file and reload environment immediately
+                if new_access_token or new_phone_number_id:
+                    from app.utils.whatsapp_token import save_whatsapp_token_to_env, get_whatsapp_token
+                    # Get the actual values (from DB or form)
+                    final_token = settings.whatsapp_access_token or new_access_token
+                    final_phone_id = settings.whatsapp_phone_number_id or new_phone_number_id
+                    
+                    if final_token and final_phone_id:
+                        if save_whatsapp_token_to_env(final_token, final_phone_id):
+                            flash('WhatsApp settings updated successfully. Token saved to .env and reloaded.', 'success')
+                        else:
+                            flash('WhatsApp settings saved to database, but .env update failed. You may need to restart the server.', 'warning')
+                    else:
+                        flash('WhatsApp settings updated successfully.', 'success')
+                else:
+                    flash('WhatsApp settings updated successfully.', 'success')
                 
             elif section == 'email':
                 # Resend email settings
@@ -3704,11 +3724,16 @@ def admin_settings():
     if not settings.backup_retention_days:
         settings.backup_retention_days = 30
     
+    # Get WhatsApp token status for display
+    from app.utils.whatsapp_token import get_token_status
+    whatsapp_token_status = get_token_status()
+    
     return render_template('admin/admin/settings.html', 
                          settings=settings,
                          total_customers=total_customers,
                          total_products=total_products,
-                         total_orders=total_orders)
+                         total_orders=total_orders,
+                         whatsapp_token_status=whatsapp_token_status)
 
 @app.route('/admin/settings/test-payment', methods=['POST'])
 @login_required
@@ -3829,14 +3854,17 @@ def admin_settings_test_cloudinary():
 @login_required
 @admin_required
 def admin_settings_test_whatsapp():
-    """Test WhatsApp message sending"""
+    """Test WhatsApp message sending with proper error handling"""
     try:
+        from app.utils.whatsapp_token import get_whatsapp_token, check_token_expiration_from_error
+        
         settings = AppSettings.query.first()
         if not settings:
             return jsonify({'success': False, 'message': 'Settings not found'}), 400
         
-        access_token = settings.whatsapp_access_token or os.getenv('WHATSAPP_ACCESS_TOKEN')
-        phone_number_id = settings.whatsapp_phone_number_id or os.getenv('WHATSAPP_PHONE_NUMBER_ID')
+        # Get token dynamically (DB first, then .env)
+        access_token, phone_number_id = get_whatsapp_token()
+        
         test_number = request.json.get('test_number', '').strip() if request.is_json else request.form.get('test_number', '').strip()
         
         if not test_number:
@@ -3844,7 +3872,11 @@ def admin_settings_test_whatsapp():
             test_number = settings.whatsapp_receiver or settings.contact_whatsapp_receiver or os.getenv('WHATSAPP_TEST_NUMBER', '+2200000000')
         
         if not access_token or not phone_number_id:
-            return jsonify({'success': False, 'message': 'WhatsApp credentials not configured'}), 400
+            return jsonify({
+                'success': False, 
+                'message': 'WhatsApp credentials not configured. Please set access token and phone number ID in Settings.',
+                'error_type': 'ConfigurationError'
+            }), 400
         
         # Normalize phone number
         if not test_number.startswith('+'):
@@ -3870,21 +3902,81 @@ def admin_settings_test_whatsapp():
         }
         
         response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
         
         if response.status_code == 200:
+            # Verify we got a valid response with message ID
+            message_id = None
+            if isinstance(response_data, dict) and 'messages' in response_data:
+                message_id = response_data.get('messages', [{}])[0].get('id', 'N/A')
+            
             return jsonify({
                 'success': True,
-                'message': f'Test message sent successfully to {test_number}!'
+                'message': f'Test message sent successfully to {test_number}!',
+                'message_id': message_id,
+                'status_code': 200
             })
         else:
+            # Parse error response for detailed information
+            error_info = response_data.get('error', {}) if isinstance(response_data, dict) else {}
+            error_code = error_info.get('code')
+            error_subcode = error_info.get('error_subcode')
+            error_message = error_info.get('message', response.text[:200])
+            error_type = error_info.get('type', 'UnknownError')
+            
+            # Check if token is expired
+            error_response_dict = {
+                'status_code': response.status_code,
+                'error_code': error_code,
+                'error_subcode': error_subcode,
+                'message': error_message,
+                'error_type': error_type
+            }
+            
+            is_expired = check_token_expiration_from_error(error_response_dict)
+            
+            if is_expired:
+                detailed_message = (
+                    f'❌ WhatsApp access token has EXPIRED (HTTP {response.status_code}).\n\n'
+                    f'Error Code: {error_code}\n'
+                    f'Error Subcode: {error_subcode}\n'
+                    f'Message: {error_message}\n\n'
+                    f'Please generate a new token from Meta Developer Console:\n'
+                    f'https://developers.facebook.com/apps → WhatsApp → API Setup → Generate Token'
+                )
+            else:
+                detailed_message = (
+                    f'Failed to send message (HTTP {response.status_code}).\n\n'
+                    f'Error Code: {error_code}\n'
+                    f'Error Subcode: {error_subcode}\n'
+                    f'Error Type: {error_type}\n'
+                    f'Message: {error_message}'
+                )
+            
             return jsonify({
                 'success': False,
-                'message': f'Failed to send message: {response.status_code} - {response.text[:200]}'
+                'message': detailed_message,
+                'status_code': response.status_code,
+                'error_code': error_code,
+                'error_subcode': error_subcode,
+                'error_type': error_type,
+                'is_expired': is_expired
             }), 400
             
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"WhatsApp test network error: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'message': f'Network error: {str(e)}',
+            'error_type': 'NetworkError'
+        }), 500
     except Exception as e:
-        current_app.logger.error(f"WhatsApp test error: {str(e)}")
-        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+        current_app.logger.error(f"WhatsApp test error: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False, 
+            'message': f'Error: {str(e)}',
+            'error_type': 'UnexpectedError'
+        }), 500
 
 @app.route('/admin/settings/test-email', methods=['POST'])
 @login_required
@@ -4236,14 +4328,17 @@ def test_email_config():
 @admin_required
 def admin_whatsapp():
     """WhatsApp Bulk Messaging admin page."""
-    # Check if WhatsApp is configured
-    whatsapp_token = os.environ.get('WHATSAPP_ACCESS_TOKEN')
-    whatsapp_phone_id = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
+    from app.utils.whatsapp_token import get_whatsapp_token, get_token_status
     
-    if not whatsapp_token or not whatsapp_phone_id:
+    # Get token status (includes validation)
+    token_status = get_token_status()
+    
+    # Check if WhatsApp is configured
+    if not token_status['configured']:
         return render_template('admin/admin/whatsapp.html',
-                               error="WhatsApp is not configured. Set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in environment.",
+                               error="WhatsApp is not configured. Set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in Settings.",
                                configured=False,
+                               token_status=token_status,
                                message_logs=[]), 200
     
     # Get previous results from session if any
@@ -4285,20 +4380,18 @@ def admin_whatsapp():
                          configured=True, 
                          results=results,
                          error_response=error_response,
-                         message_logs=formatted_logs), 200
+                         message_logs=formatted_logs,
+                         token_status=token_status), 200
 
 @app.route('/admin/send_test_whatsapp', methods=['POST'])
 @login_required
 @admin_required
 def admin_send_test_whatsapp():
     """Send a test WhatsApp message using hello_world template."""
-    # Reload .env file to pick up any changes
-    from dotenv import load_dotenv
-    load_dotenv(override=True)  # override=True forces reload
+    from app.utils.whatsapp_token import get_whatsapp_token, check_token_expiration_from_error
     
-    # Get WhatsApp credentials
-    access_token = os.getenv('WHATSAPP_ACCESS_TOKEN')
-    phone_number_id = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
+    # Get WhatsApp credentials dynamically (DB first, then .env)
+    access_token, phone_number_id = get_whatsapp_token()
     
     # Get test number from form or env
     test_number = request.form.get('test_number', '').strip()
@@ -4352,32 +4445,55 @@ def admin_send_test_whatsapp():
             # Store full response for troubleshooting
             session['whatsapp_last_response'] = response_data
         else:
-            # Check for token expiration (401 error with specific error code)
-            error_message = f'❌ Failed to send test message. HTTP {response.status_code}.'
-            if response.status_code == 401:
-                try:
-                    if isinstance(response_data, dict):
-                        error_info = response_data.get('error', {})
-                        if error_info.get('code') == 190:
-                            error_message = '❌ WhatsApp access token has EXPIRED. Please refresh your token in Meta Developer Console and update WHATSAPP_ACCESS_TOKEN in your .env file. See WHATSAPP_TOKEN_REFRESH_INSTRUCTIONS.md for detailed steps.'
-                            flash(error_message, 'error')
-                            current_app.logger.error(f"❌ WhatsApp token expired: {error_info.get('message', 'Token expired')}")
-                        else:
-                            flash(error_message + ' Check error details below.', 'error')
-                    else:
-                        flash(error_message + ' Check error details below.', 'error')
-                except (AttributeError, KeyError, TypeError):
-                    flash(error_message + ' Check error details below.', 'error')
+            # Parse error response for detailed information
+            error_info = response_data.get('error', {}) if isinstance(response_data, dict) else {}
+            error_code = error_info.get('code')
+            error_subcode = error_info.get('error_subcode')
+            error_message_text = error_info.get('message', str(response_data)[:200])
+            error_type = error_info.get('type', 'UnknownError')
+            
+            # Check if token is expired
+            error_response_dict = {
+                'status_code': response.status_code,
+                'error_code': error_code,
+                'error_subcode': error_subcode,
+                'message': error_message_text,
+                'error_type': error_type
+            }
+            
+            is_expired = check_token_expiration_from_error(error_response_dict)
+            
+            if is_expired:
+                error_message = (
+                    f'❌ WhatsApp access token has EXPIRED (HTTP {response.status_code}).\n\n'
+                    f'Error Code: {error_code}\n'
+                    f'Error Subcode: {error_subcode}\n'
+                    f'Message: {error_message_text}\n\n'
+                    f'Please generate a new token from Meta Developer Console:\n'
+                    f'https://developers.facebook.com/apps → WhatsApp → API Setup → Generate Token'
+                )
             else:
-                flash(error_message + ' Check error details below.', 'error')
+                error_message = (
+                    f'❌ Failed to send test message (HTTP {response.status_code}).\n\n'
+                    f'Error Code: {error_code}\n'
+                    f'Error Subcode: {error_subcode}\n'
+                    f'Error Type: {error_type}\n'
+                    f'Message: {error_message_text}'
+                )
+            
+            flash(error_message, 'error')
+            current_app.logger.error(f"❌ Failed to send WhatsApp test message: HTTP {response.status_code} - {error_message_text}")
             
             # Store full error response for debugging
             session['whatsapp_error_response'] = {
                 'status_code': response.status_code,
                 'response': response_data,
-                'request_payload': payload
+                'request_payload': payload,
+                'error_code': error_code,
+                'error_subcode': error_subcode,
+                'error_type': error_type,
+                'is_expired': is_expired
             }
-            current_app.logger.error(f"❌ Failed to send WhatsApp test message: HTTP {response.status_code} - {response_data}")
         
         session['whatsapp_results'] = [{
             'number': test_number,
@@ -4417,9 +4533,7 @@ def admin_send_test_whatsapp():
 @admin_required
 def admin_bulk_whatsapp():
     """Send bulk WhatsApp messages to all customers with personalization."""
-    # Reload .env file to pick up any changes
-    from dotenv import load_dotenv
-    load_dotenv(override=True)  # override=True forces reload
+    from app.utils.whatsapp_token import get_whatsapp_token
     
     message = request.form.get('message', '').strip()
     
@@ -4428,12 +4542,11 @@ def admin_bulk_whatsapp():
         flash('Message text is required', 'error')
         return redirect(url_for('admin_whatsapp'))
     
-    # Get WhatsApp credentials
-    access_token = os.getenv('WHATSAPP_ACCESS_TOKEN')
-    phone_number_id = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
+    # Get WhatsApp credentials dynamically (DB first, then .env)
+    access_token, phone_number_id = get_whatsapp_token()
     
     if not access_token or not phone_number_id:
-        flash('WhatsApp is not configured. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID', 'error')
+        flash('WhatsApp is not configured. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in Settings', 'error')
         return redirect(url_for('admin_whatsapp'))
     
     # Get all customer phone numbers with customer info (users and subscribers)

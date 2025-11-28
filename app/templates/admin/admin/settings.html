@@ -286,21 +286,109 @@
       <i class="fab fa-whatsapp mr-2 text-green-500"></i>
       WhatsApp Settings
     </h2>
+    
+    <!-- Token Status Indicator -->
+    {% if whatsapp_token_status %}
+      {% if whatsapp_token_status.is_expired %}
+      <div class="mb-4 p-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+        <div class="flex items-center">
+          <i class="fas fa-exclamation-circle h-5 w-5 text-red-400 mr-3"></i>
+          <div>
+            <p class="text-sm font-semibold text-red-800 dark:text-red-200">
+              ❌ WhatsApp access token has EXPIRED
+            </p>
+            {% if whatsapp_token_status.error_info %}
+            <p class="text-xs text-red-700 dark:text-red-300 mt-1">
+              {{ whatsapp_token_status.error_info.message or 'Token expired' }}
+            </p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% elif whatsapp_token_status.is_valid %}
+      <div class="mb-4 p-4 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+        <div class="flex items-center">
+          <i class="fas fa-check-circle h-5 w-5 text-green-400 mr-3"></i>
+          <p class="text-sm font-semibold text-green-800 dark:text-green-200">
+            ✅ WhatsApp access token is valid
+          </p>
+        </div>
+      </div>
+      {% elif whatsapp_token_status.configured and not whatsapp_token_status.is_valid %}
+      <div class="mb-4 p-4 rounded-md bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
+        <div class="flex items-center">
+          <i class="fas fa-exclamation-triangle h-5 w-5 text-orange-400 mr-3"></i>
+          <div>
+            <p class="text-sm font-semibold text-orange-800 dark:text-orange-200">
+              ⚠️ WhatsApp token validation failed
+            </p>
+            {% if whatsapp_token_status.error_info %}
+            <p class="text-xs text-orange-700 dark:text-orange-300 mt-1">
+              {{ whatsapp_token_status.error_info.message or 'Unknown error' }}
+            </p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    {% endif %}
+
+    <!-- Instructions Panel -->
+    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+      <div class="flex items-start">
+        <div class="flex-shrink-0">
+          <i class="fas fa-info-circle h-5 w-5 text-blue-400 mt-0.5"></i>
+        </div>
+        <div class="ml-3 flex-1">
+          <h3 class="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">
+            How to Generate a WhatsApp Access Token
+          </h3>
+          <ol class="list-decimal list-inside space-y-1 text-xs text-blue-700 dark:text-blue-300 mb-3">
+            <li>Go to <a href="https://developers.facebook.com/apps" target="_blank" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 underline">Meta Developer Console</a></li>
+            <li>Select your WhatsApp Business App</li>
+            <li>Navigate to <strong>WhatsApp → API Setup</strong></li>
+            <li>Find the <strong>"Temporary access token"</strong> section (or generate a System User token for permanent access)</li>
+            <li>Click <strong>"Copy"</strong> to copy the token</li>
+            <li>Paste it in the <strong>"WhatsApp Access Token"</strong> field below</li>
+            <li>Click <strong>"Save WhatsApp Settings"</strong> - the token will be saved to .env and reloaded automatically</li>
+          </ol>
+          <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-2 mt-2">
+            <p class="text-xs text-yellow-800 dark:text-yellow-200">
+              <strong>Note:</strong> Temporary tokens expire after 1-24 hours. For production, create a <strong>System User token</strong> which doesn't expire. 
+              See <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" class="underline">Meta's documentation</a> for details.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
     <form method="POST" id="whatsapp-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="section" value="whatsapp">
       
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">WhatsApp Access Token</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            WhatsApp Access Token <span class="text-red-500">*</span>
+          </label>
           <input type="password" name="whatsapp_access_token" value="{{ settings.whatsapp_access_token or '' }}" 
-                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                 placeholder="EAAxxxxxxxxxxxxx">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Your WhatsApp access token from Meta Developer Console. Token is saved to .env and reloaded automatically when you save.
+          </p>
         </div>
         
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Phone Number ID</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Phone Number ID <span class="text-red-500">*</span>
+          </label>
           <input type="text" name="whatsapp_phone_number_id" value="{{ settings.whatsapp_phone_number_id or '' }}" 
-                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                 placeholder="123456789012345">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Your WhatsApp Business Phone Number ID (found in Meta Developer Console → WhatsApp → API Setup).
+          </p>
         </div>
         
         <div>

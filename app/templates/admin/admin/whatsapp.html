@@ -27,7 +27,75 @@
             </div>
             <div class="ml-3">
                 <p class="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                    WhatsApp is not configured. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in your .env file.
+                    WhatsApp is not configured. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in Settings.
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Token Expiration Warning (from token_status) -->
+    {% if configured and token_status and token_status.is_expired %}
+    <div class="mb-6 p-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-circle h-5 w-5 text-red-400"></i>
+            </div>
+            <div class="ml-3 flex-1">
+                <h3 class="text-sm font-semibold text-red-800 dark:text-red-200 mb-2">
+                    ❌ WhatsApp access token has EXPIRED
+                </h3>
+                {% if token_status.error_info %}
+                <div class="text-xs text-red-700 dark:text-red-300 mb-3">
+                    <p><strong>HTTP Status:</strong> {{ token_status.error_info.status_code }}</p>
+                    {% if token_status.error_info.error_code %}
+                    <p><strong>Error Code:</strong> {{ token_status.error_info.error_code }}</p>
+                    {% endif %}
+                    {% if token_status.error_info.error_subcode %}
+                    <p><strong>Error Subcode:</strong> {{ token_status.error_info.error_subcode }}</p>
+                    {% endif %}
+                    {% if token_status.error_info.message %}
+                    <p><strong>Message:</strong> {{ token_status.error_info.message }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div class="bg-white dark:bg-gray-900 rounded-lg p-3 mb-3">
+                    <p class="text-xs font-medium text-gray-900 dark:text-white mb-2">Fix Instructions:</p>
+                    <ol class="list-decimal list-inside space-y-1 text-xs text-gray-700 dark:text-gray-300">
+                        <li>Go to <a href="https://developers.facebook.com/apps" target="_blank" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 underline">Meta Developer Console</a></li>
+                        <li>Select your WhatsApp Business App</li>
+                        <li>Navigate to <strong>WhatsApp → API Setup</strong></li>
+                        <li>Click <strong>"Generate Token"</strong> or copy the temporary token</li>
+                        <li>Go to <a href="{{ url_for('admin_settings') }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 underline">Settings → WhatsApp Settings</a></li>
+                        <li>Paste the new token and click <strong>"Save WhatsApp Settings"</strong></li>
+                        <li>The token will be updated instantly - no server restart needed!</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% elif configured and token_status and not token_status.is_valid and token_status.error_info %}
+    <div class="mb-6 p-4 rounded-md bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-triangle h-5 w-5 text-orange-400"></i>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-medium text-orange-800 dark:text-orange-200">
+                    ⚠️ WhatsApp token validation failed. Error: {{ token_status.error_info.message or 'Unknown error' }}
+                </p>
+            </div>
+        </div>
+    </div>
+    {% elif configured and token_status and token_status.is_valid %}
+    <div class="mb-6 p-4 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-check-circle h-5 w-5 text-green-400"></i>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-medium text-green-800 dark:text-green-200">
+                    ✅ WhatsApp access token is valid and ready to use.
                 </p>
             </div>
         </div>

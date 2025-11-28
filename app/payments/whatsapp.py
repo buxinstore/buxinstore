@@ -46,9 +46,9 @@ def send_whatsapp_message(
         current_app.logger.info("WhatsApp message skipped: Not in live mode (test payment)")
         return False, "Not in live mode"
     
-    # Get credentials from environment variables
-    access_token = os.environ.get('WHATSAPP_ACCESS_TOKEN')
-    phone_number_id = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
+    # Get credentials dynamically (DB first, then .env)
+    from app.utils.whatsapp_token import get_whatsapp_token
+    access_token, phone_number_id = get_whatsapp_token()
     business_name = business_name or os.environ.get('BUSINESS_NAME', 'Our Store')
     
     # Validate required credentials
@@ -101,18 +101,34 @@ def send_whatsapp_message(
         return True, None
         
     except requests.exceptions.HTTPError as e:
-        # Check for token expiration (401 error with specific error code)
-        if e.response.status_code == 401:
-            try:
-                error_data = e.response.json()
-                if error_data.get('error', {}).get('code') == 190:
-                    error_msg = "WhatsApp access token has expired. Please refresh your token in Meta Developer Console and update WHATSAPP_ACCESS_TOKEN in your .env file. See WHATSAPP_TOKEN_REFRESH.md for instructions."
-                    current_app.logger.error(error_msg)
-                    return False, error_msg
-            except (ValueError, KeyError):
-                pass
+        # Check for token expiration with detailed error info
+        from app.utils.whatsapp_token import check_token_expiration_from_error
         
-        error_msg = f"HTTP error sending WhatsApp message: {e.response.status_code} - {e.response.text}"
+        error_data = {}
+        try:
+            error_data = e.response.json()
+        except (ValueError, KeyError):
+            pass
+        
+        error_info = error_data.get('error', {}) if isinstance(error_data, dict) else {}
+        error_response_dict = {
+            'status_code': e.response.status_code,
+            'error_code': error_info.get('code'),
+            'error_subcode': error_info.get('error_subcode'),
+            'message': error_info.get('message', e.response.text[:200]),
+            'error_type': error_info.get('type', 'UnknownError')
+        }
+        
+        if check_token_expiration_from_error(error_response_dict):
+            error_msg = (
+                "WhatsApp access token has expired. Please generate a new token from "
+                "Meta Developer Console (https://developers.facebook.com/apps → WhatsApp → API Setup) "
+                "and update it in Settings."
+            )
+            current_app.logger.error(f"❌ {error_msg} Error: {error_info.get('message', 'Token expired')}")
+            return False, error_msg
+        
+        error_msg = f"HTTP error sending WhatsApp message: {e.response.status_code} - {error_info.get('message', e.response.text[:200])}"
         current_app.logger.error(error_msg)
         return False, error_msg
         
