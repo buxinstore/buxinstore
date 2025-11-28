@@ -74,7 +74,10 @@ def run_migrations_online() -> None:
             context.run_migrations()
 
 
-if context.is_offline_mode():
-    run_migrations_offline()
-else:
-    run_migrations_online()
+# Run migrations only if context is properly initialized
+# This check prevents errors when the module is imported outside of Alembic commands
+if context is not None:
+    if context.is_offline_mode():
+        run_migrations_offline()
+    else:
+        run_migrations_online()
