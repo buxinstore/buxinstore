@@ -64,6 +64,32 @@
     .dark .gambia-toggle-switch input:checked + .slider {
         background-color: #16a34a; /* Darker green for dark mode */
     }
+
+    /* Bulk Edit Styles */
+    .bulk-edit-field.edited {
+        background-color: #fef3c7 !important; /* Light yellow */
+        border-color: #f59e0b !important;
+    }
+
+    .dark .bulk-edit-field.edited {
+        background-color: #78350f !important; /* Dark yellow */
+        border-color: #f59e0b !important;
+    }
+
+    .bulk-edit-row.has-changes {
+        background-color: #fffbeb !important;
+    }
+
+    .dark .bulk-edit-row.has-changes {
+        background-color: #451a03 !important;
+    }
+
+    .image-preview-thumbnail {
+        min-width: 50px;
+        min-height: 50px;
+        max-width: 50px;
+        max-height: 50px;
+    }
 </style>
 <div class="py-4">
     <div class="flex flex-col">
@@ -85,6 +111,10 @@
                         </div>
                     </div>
                     <div class="ml-4 flex space-x-2">
+                        <button id="save-all-changes-btn" 
+                                class="hidden inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-save mr-2"></i> Save All Changes
+                        </button>
                         <a href="{{ url_for('admin_bulk_upload') }}" 
                            class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:bg-gray-600">
                             <i class="fas fa-upload mr-2"></i> Bulk Upload
@@ -118,6 +148,9 @@
                                     </th>
                                     <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                         Gambia
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                        Image
                                     </th>
                                     <th scope="col" class="relative px-6 py-3">
                                         <span class="sr-only">Actions</span>
@@ -268,61 +301,270 @@
         return metaTag ? metaTag.getAttribute('content') : '';
     }
 
-    // Gambia toggle switch handler
-    // Use event delegation to handle dynamically loaded rows (HTMX)
+    // Bulk Edit Functionality
     document.addEventListener('DOMContentLoaded', function() {
-        function setupToggleHandlers() {
-            document.querySelectorAll('.toggle-gambia').forEach(function(toggle) {
-                // Remove existing listeners to prevent duplicates
-                const newToggle = toggle.cloneNode(true);
-                toggle.parentNode.replaceChild(newToggle, toggle);
+        const saveBtn = document.getElementById('save-all-changes-btn');
+        const changedProducts = new Map(); // productId -> {field: value}
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-md shadow-lg ${
+                type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            } text-white`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Check if field value has changed
+        function hasChanged(field) {
+            const original = field.dataset.original;
+            let current = field.value;
+            
+            // Handle checkbox
+            if (field.type === 'checkbox') {
+                current = field.checked ? 'true' : 'false';
+            }
+            
+            // Handle number fields - compare as numbers
+            if (field.type === 'number') {
+                const origNum = parseFloat(original) || 0;
+                const currNum = parseFloat(current) || 0;
+                return origNum !== currNum;
+            }
+            
+            return original !== current;
+        }
+
+        // Mark field as edited
+        function markFieldAsEdited(field, isEdited) {
+            if (isEdited) {
+                field.classList.add('edited');
+            } else {
+                field.classList.remove('edited');
+            }
+        }
+
+        // Update row highlight
+        function updateRowHighlight(productId) {
+            const row = document.querySelector(`tr[data-product-id="${productId}"]`);
+            if (!row) return;
+            
+            const fields = row.querySelectorAll('.bulk-edit-field');
+            let hasChanges = false;
+            
+            fields.forEach(field => {
+                if (hasChanged(field)) {
+                    hasChanges = true;
+                    markFieldAsEdited(field, true);
+                } else {
+                    markFieldAsEdited(field, false);
+                }
+            });
+            
+            if (hasChanges) {
+                row.classList.add('has-changes');
+            } else {
+                row.classList.remove('has-changes');
+                changedProducts.delete(productId);
+            }
+        }
+
+        // Update save button visibility
+        function updateSaveButton() {
+            if (changedProducts.size > 0) {
+                saveBtn.classList.remove('hidden');
+            } else {
+                saveBtn.classList.add('hidden');
+            }
+        }
+
+        // Track changes for a field
+        function trackChange(field) {
+            const productId = parseInt(field.dataset.productId);
+            const fieldName = field.dataset.field;
+            
+            if (!hasChanged(field)) {
+                // Field reverted to original
+                if (changedProducts.has(productId)) {
+                    const productChanges = changedProducts.get(productId);
+                    delete productChanges[fieldName];
+                    if (Object.keys(productChanges).length === 0) {
+                        changedProducts.delete(productId);
+                    }
+                }
+            } else {
+                // Field has changed
+                if (!changedProducts.has(productId)) {
+                    changedProducts.set(productId, {});
+                }
+                const productChanges = changedProducts.get(productId);
                 
-                newToggle.addEventListener('change', function() {
-                    const productId = this.dataset.productId;
-                    const checkbox = this;
-                    
-                    // Disable toggle during request
-                    checkbox.disabled = true;
-                    
-                    fetch(`/admin/products/toggle-gambia/${productId}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCSRFToken()
-                        }
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.status === 'success') {
-                            // Update checkbox state to match server response
-                            checkbox.checked = data.available_in_gambia;
-                        } else {
-                            // Revert checkbox state on error
-                            checkbox.checked = !checkbox.checked;
-                            alert('Failed to update Gambia availability: ' + (data.message || 'Unknown error'));
-                        }
-                    })
-                    .catch(error => {
-                        // Revert checkbox state on error
-                        checkbox.checked = !checkbox.checked;
-                        console.error('Error:', error);
-                        alert('Failed to update Gambia availability. Please try again.');
-                    })
-                    .finally(() => {
-                        // Re-enable toggle
-                        checkbox.disabled = false;
+                let value = field.value;
+                if (field.type === 'checkbox') {
+                    value = field.checked;
+                } else if (field.type === 'number') {
+                    value = parseFloat(value) || 0;
+                }
+                
+                productChanges[fieldName] = value;
+            }
+            
+            updateRowHighlight(productId);
+            updateSaveButton();
+        }
+
+        // Image URL change handler - update preview
+        function handleImageUrlChange(field) {
+            const productId = field.dataset.productId;
+            const imageUrl = field.value.trim();
+            const thumbnail = document.querySelector(`.image-preview-thumbnail[data-product-id="${productId}"]`);
+            const productThumbnail = document.querySelector(`.product-thumbnail[data-product-id="${productId}"]`);
+            
+            // Validate URL
+            if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+                if (thumbnail) {
+                    thumbnail.src = imageUrl;
+                    thumbnail.onerror = function() {
+                        this.src = '/static/img/placeholder.png';
+                    };
+                }
+                if (productThumbnail) {
+                    productThumbnail.src = imageUrl;
+                    productThumbnail.onerror = function() {
+                        this.src = '/static/img/placeholder.png';
+                    };
+                }
+            } else if (!imageUrl) {
+                if (thumbnail) thumbnail.src = '/static/img/placeholder.png';
+                if (productThumbnail) productThumbnail.src = '/static/img/placeholder.png';
+            }
+            
+            trackChange(field);
+        }
+
+        // Stock change handler - update status badge
+        function handleStockChange(field) {
+            trackChange(field);
+            // Status badge will update on page reload, or we could update it dynamically here
+        }
+
+        // Setup bulk edit handlers
+        function setupBulkEditHandlers() {
+            // Handle all editable fields
+            document.querySelectorAll('.bulk-edit-field').forEach(function(field) {
+                // Remove existing listeners
+                const newField = field.cloneNode(true);
+                field.parentNode.replaceChild(newField, field);
+                
+                if (newField.classList.contains('image-url-input')) {
+                    newField.addEventListener('input', function() {
+                        handleImageUrlChange(this);
                     });
-                });
+                } else if (newField.classList.contains('stock-input')) {
+                    newField.addEventListener('input', function() {
+                        handleStockChange(this);
+                    });
+                } else if (newField.type === 'checkbox') {
+                    newField.addEventListener('change', function() {
+                        trackChange(this);
+                    });
+                } else {
+                    newField.addEventListener('input', function() {
+                        trackChange(this);
+                    });
+                }
             });
         }
-        
+
+        // Bulk save function
+        function saveAllChanges() {
+            if (changedProducts.size === 0) {
+                showToast('No changes to save', 'error');
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
+
+            const updates = [];
+            changedProducts.forEach((changes, productId) => {
+                updates.push({
+                    product_id: parseInt(productId),
+                    ...changes
+                });
+            });
+
+            fetch('/admin/products/bulk-update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({ updates: updates })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Successfully updated ${data.updated_count || updates.length} product(s)`, 'success');
+                    changedProducts.clear();
+                    updateSaveButton();
+                    
+                    // Reset all fields to their new values
+                    updates.forEach(update => {
+                        const row = document.querySelector(`tr[data-product-id="${update.product_id}"]`);
+                        if (row) {
+                            row.querySelectorAll('.bulk-edit-field').forEach(field => {
+                                const fieldName = field.dataset.field;
+                                if (update[fieldName] !== undefined) {
+                                    if (field.type === 'checkbox') {
+                                        field.checked = update[fieldName];
+                                    } else {
+                                        field.value = update[fieldName];
+                                    }
+                                    field.dataset.original = field.type === 'checkbox' 
+                                        ? (update[fieldName] ? 'true' : 'false')
+                                        : update[fieldName];
+                                    markFieldAsEdited(field, false);
+                                }
+                            });
+                            row.classList.remove('has-changes');
+                        }
+                    });
+                    
+                    // Reload page after a short delay to show updated data
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showToast(data.message || 'Failed to save changes', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Failed to save changes. Please try again.', 'error');
+            })
+            .finally(() => {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i> Save All Changes';
+            });
+        }
+
+        // Setup save button
+        saveBtn.addEventListener('click', saveAllChanges);
+
         // Setup handlers on page load
-        setupToggleHandlers();
+        setupBulkEditHandlers();
         
         // Setup handlers after HTMX updates (for search functionality)
         document.body.addEventListener('htmx:afterSwap', function(event) {
             if (event.detail.target.id === 'products-table') {
-                setupToggleHandlers();
+                setupBulkEditHandlers();
+                changedProducts.clear();
+                updateSaveButton();
             }
         });
     });

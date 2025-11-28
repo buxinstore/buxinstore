@@ -183,7 +183,7 @@
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900 dark:text-white">{{ product.category_ref.name }}</div>
+                                <div class="text-sm text-gray-900 dark:text-white">{{ product.category.name if product.category else 'Uncategorized' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900 dark:text-white">{{ product.stock_quantity }} in stock</div>

@@ -1277,7 +1277,7 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     image = db.Column(db.String(200))
-    products = db.relationship('Product', backref='category_ref', lazy=True)
+    # Relationship to products is defined via backref in Product model
 
 class SiteSettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1375,7 +1375,8 @@ class Product(db.Model):
     location = db.Column(db.String(50), nullable=True)  # 'In The Gambia' or 'Outside The Gambia'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Relationship to delivery rules
+    # Relationships
+    category = db.relationship('Category', backref='products', lazy=True)
     delivery_rules = db.relationship('DeliveryRule', backref='product', lazy=True, cascade='all, delete-orphan')
 
 class DeliveryRule(db.Model):
@@ -4834,7 +4835,7 @@ def admin_products():
     categories = Category.query.all()
     
     if request.headers.get('HX-Request'):
-        return render_template('admin/admin/partials/_products_table.html', products=products)
+        return render_template('admin/admin/partials/_products_table.html', products=products, categories=categories)
         
     return render_template('admin/admin/products.html', products=products, categories=categories)
 
@@ -4851,7 +4852,8 @@ def admin_search_products():
     
     # Return paginated results to match the template structure
     products = query.order_by(Product.created_at.desc()).paginate(page=1, per_page=10, error_out=False)
-    return render_template('admin/admin/partials/_products_table.html', products=products)
+    categories = Category.query.all()
+    return render_template('admin/admin/partials/_products_table.html', products=products, categories=categories)
 
 @app.route('/admin/products/toggle-gambia/<int:product_id>', methods=['POST'])
 @login_required
@@ -4872,6 +4874,147 @@ def toggle_gambia(product_id):
         return jsonify({
             'status': 'error',
             'message': str(e)
+        }), 500
+
+@app.route('/admin/products/bulk-update', methods=['POST'])
+@login_required
+@admin_required
+def admin_bulk_update_products():
+    """Bulk update multiple products"""
+    try:
+        if not request.is_json:
+            return jsonify({
+                'success': False,
+                'message': 'Request must be JSON'
+            }), 400
+        
+        data = request.get_json()
+        updates = data.get('updates', [])
+        
+        if not updates:
+            return jsonify({
+                'success': False,
+                'message': 'No updates provided'
+            }), 400
+        
+        updated_count = 0
+        errors = []
+        
+        for update in updates:
+            product_id = update.get('product_id')
+            if not product_id:
+                errors.append(f'Missing product_id in update: {update}')
+                continue
+            
+            try:
+                product = Product.query.get(product_id)
+                if not product:
+                    errors.append(f'Product {product_id} not found')
+                    continue
+                
+                # Update fields if provided
+                if 'name' in update:
+                    name = update['name'].strip()
+                    if name:
+                        product.name = name
+                    else:
+                        errors.append(f'Product {product_id}: Name cannot be empty')
+                        continue
+                
+                if 'category_id' in update:
+                    category_id = update['category_id']
+                    category = Category.query.get(category_id)
+                    if category:
+                        product.category_id = category_id
+                    else:
+                        errors.append(f'Product {product_id}: Invalid category_id {category_id}')
+                        continue
+                
+                if 'price' in update:
+                    price = float(update['price'])
+                    if price >= 0:
+                        product.price = price
+                    else:
+                        errors.append(f'Product {product_id}: Price must be >= 0')
+                        continue
+                
+                if 'stock' in update:
+                    stock = int(update['stock'])
+                    if stock >= 0:
+                        product.stock = stock
+                    else:
+                        errors.append(f'Product {product_id}: Stock must be >= 0')
+                        continue
+                
+                if 'available_in_gambia' in update:
+                    product.available_in_gambia = bool(update['available_in_gambia'])
+                
+                if 'shipping_price' in update:
+                    shipping_price = update['shipping_price']
+                    if shipping_price is not None and shipping_price != '':
+                        shipping_price = float(shipping_price)
+                        if shipping_price >= 0:
+                            product.shipping_price = shipping_price
+                        else:
+                            errors.append(f'Product {product_id}: Shipping price must be >= 0')
+                            continue
+                    else:
+                        product.shipping_price = None
+                
+                if 'image' in update:
+                    image_url = update['image'].strip() if update['image'] else None
+                    if image_url:
+                        # Validate URL
+                        if image_url.startswith('http://') or image_url.startswith('https://'):
+                            product.image = image_url
+                        else:
+                            errors.append(f'Product {product_id}: Image URL must be a valid HTTP/HTTPS URL')
+                            continue
+                    else:
+                        product.image = None
+                
+                updated_count += 1
+                
+            except ValueError as e:
+                errors.append(f'Product {product_id}: Invalid value - {str(e)}')
+                continue
+            except Exception as e:
+                errors.append(f'Product {product_id}: Error - {str(e)}')
+                app.logger.error(f"Error updating product {product_id}: {e}")
+                continue
+        
+        if errors and updated_count == 0:
+            # All updates failed
+            db.session.rollback()
+            return jsonify({
+                'success': False,
+                'message': 'All updates failed',
+                'errors': errors
+            }), 400
+        
+        # Commit all successful updates
+        db.session.commit()
+        
+        response = {
+            'success': True,
+            'updated_count': updated_count,
+            'message': f'Successfully updated {updated_count} product(s)'
+        }
+        
+        if errors:
+            response['errors'] = errors
+            response['message'] += f' ({len(errors)} error(s))'
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error in bulk update: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': f'Unexpected error: {str(e)}'
         }), 500
 
 @app.route('/admin/products/add', methods=['GET', 'POST'])
@@ -5092,6 +5235,15 @@ def admin_bulk_upload():
             return redirect(request.url)
         
         try:
+            # Get uploaded image files and create a filename mapping (case-insensitive)
+            uploaded_images = request.files.getlist('images')
+            image_files_dict = {}
+            for img_file in uploaded_images:
+                if img_file and img_file.filename:
+                    # Store with lowercase key for case-insensitive matching
+                    filename_lower = img_file.filename.lower()
+                    image_files_dict[filename_lower] = img_file
+            
             # Read the uploaded file
             if file.filename.endswith('.xlsx'):
                 df = pd.read_excel(file)
@@ -5109,12 +5261,24 @@ def admin_bulk_upload():
                 return redirect(request.url)
             
             results = []
+            stats = {
+                'cloudinary_images': 0,
+                'url_images': 0,
+                'no_images': 0,
+                'errors': 0
+            }
+            
+            # Import Cloudinary utilities
+            from .utils.cloudinary_utils import upload_to_cloudinary, is_cloudinary_url, delete_from_cloudinary, get_public_id_from_url
             
             # Process each row
             for _, row in df.iterrows():
                 try:
                     # Get or create category
                     category_name = str(row['category']).strip()
+                    if not category_name:
+                        raise ValueError('Category cannot be empty')
+                    
                     category = Category.query.filter_by(name=category_name).first()
                     if not category:
                         category = Category(name=category_name)
@@ -5123,19 +5287,83 @@ def admin_bulk_upload():
                     
                     # Check if product exists
                     product_name = str(row['product name']).strip()
+                    if not product_name:
+                        raise ValueError('Product name cannot be empty')
+                    
                     product = Product.query.filter_by(name=product_name).first()
                     
-                    # Prepare product data
-                    price = float(row.get('price (gmd)', 0)) if pd.notna(row.get('price (gmd)')) else 0
-                    stock = int(row.get('stock quantity', 0)) if pd.notna(row.get('stock quantity')) else 0
+                    # Prepare product data - support both old and new column names
+                    price = 0
+                    if 'price' in row and pd.notna(row['price']):
+                        price = float(row['price'])
+                    elif 'price (gmd)' in row and pd.notna(row['price (gmd)']):
+                        price = float(row['price (gmd)'])
+                    
+                    stock = 0
+                    if 'stock' in row and pd.notna(row['stock']):
+                        stock = int(row['stock'])
+                    elif 'stock quantity' in row and pd.notna(row['stock quantity']):
+                        stock = int(row['stock quantity'])
+                    
                     description = str(row.get('description', '')) if pd.notna(row.get('description')) else ''
                     
-                    # Handle image
-                    image_url = row.get('image url') if 'image url' in row and pd.notna(row['image url']) else None
-                    image_path = None
+                    # Handle image with priority: Image Filename > Image URL > None
+                    final_image_url = None
+                    image_source = None
                     
-                    if image_url:
-                        image_path = save_image_from_url(image_url, product_name)
+                    # Priority 1: Check for Image Filename (uploaded file)
+                    image_filename = None
+                    if 'image filename' in row and pd.notna(row['image filename']):
+                        image_filename = str(row['image filename']).strip()
+                    
+                    if image_filename:
+                        # Try to find matching uploaded file (case-insensitive)
+                        image_filename_lower = image_filename.lower()
+                        matched_file = image_files_dict.get(image_filename_lower)
+                        
+                        if matched_file:
+                            # Upload to Cloudinary
+                            try:
+                                upload_result = upload_to_cloudinary(matched_file, folder='products')
+                                if upload_result and upload_result.get('url'):
+                                    final_image_url = upload_result['url']
+                                    image_source = 'cloudinary'
+                                    stats['cloudinary_images'] += 1
+                                    current_app.logger.info(f"✅ Uploaded image {image_filename} to Cloudinary for product {product_name}")
+                                else:
+                                    current_app.logger.warning(f"⚠️ Failed to upload {image_filename} to Cloudinary")
+                            except Exception as e:
+                                current_app.logger.error(f"❌ Error uploading {image_filename} to Cloudinary: {str(e)}")
+                                # Continue to fallback to URL if available
+                        else:
+                            current_app.logger.warning(f"⚠️ Image filename '{image_filename}' not found in uploaded files for product {product_name}")
+                    
+                    # Priority 2: Fallback to Image URL if no uploaded file was used
+                    if not final_image_url:
+                        image_url = None
+                        if 'image url' in row and pd.notna(row['image url']):
+                            image_url = str(row['image url']).strip()
+                        
+                        if image_url:
+                            # Validate URL format
+                            if image_url.startswith(('http://', 'https://')):
+                                try:
+                                    # Upload URL image to Cloudinary
+                                    final_image_url = save_image_from_url(image_url, product_name)
+                                    if final_image_url:
+                                        image_source = 'url'
+                                        stats['url_images'] += 1
+                                    else:
+                                        current_app.logger.warning(f"⚠️ Failed to save image from URL for product {product_name}")
+                                except Exception as e:
+                                    current_app.logger.error(f"❌ Error saving image from URL for product {product_name}: {str(e)}")
+                            else:
+                                current_app.logger.warning(f"⚠️ Invalid image URL format for product {product_name}: {image_url}")
+                    
+                    # Priority 3: No image
+                    if not final_image_url:
+                        image_source = 'none'
+                        stats['no_images'] += 1
                     
                     # Create or update product
                     if product:
@@ -5144,38 +5372,30 @@ def admin_bulk_upload():
                         product.price = price if price > 0 else product.price
                         product.stock = stock
                         product.description = description or product.description
-                        if image_path:
-                            # Delete old image if exists (only if local file)
+                        
+                        # Update image if we have a new one
+                        if final_image_url:
+                            # Delete old image from Cloudinary if it exists
                             if product.image:
                                 try:
-                                    from .utils.cloudinary_utils import is_cloudinary_url, delete_from_cloudinary, get_public_id_from_url
                                     if is_cloudinary_url(product.image):
                                         public_id = get_public_id_from_url(product.image)
                                         if public_id:
                                             delete_from_cloudinary(public_id)
-                                    else:
-                                        old_image_path = os.path.join(app.static_folder, product.image)
-                                        if os.path.exists(old_image_path):
-                                            os.remove(old_image_path)
-                                except:
-                                    pass
-                            product.image = image_path
+                                except Exception as e:
+                                    current_app.logger.warning(f"⚠️ Error deleting old image: {str(e)}")
+                            product.image = final_image_url
+                        
                         action = 'updated'
                     else:
                         # Create new product
-                        if not image_url:
-                            # Try to fetch image if not provided
-                            fetched_image_url = fetch_product_image(product_name)
-                            if fetched_image_url:
-                                image_path = save_image_from_url(fetched_image_url, product_name)
-                        
                         product = Product(
                             name=product_name,
                             description=description,
                             price=price,
                             stock=stock,
                             category_id=category.id,
-                            image=image_path
+                            image=final_image_url
                         )
                         db.session.add(product)
                         action = 'created'
@@ -5185,21 +5405,29 @@ def admin_bulk_upload():
                         'product': product_name,
                         'status': 'success',
                         'message': f'Successfully {action} product',
-                        'action': action
+                        'action': action,
+                        'image_source': image_source
                     })
                     
                 except Exception as e:
                     db.session.rollback()
+                    stats['errors'] += 1
+                    error_msg = str(e)
+                    current_app.logger.error(f"❌ Error processing product row: {error_msg}")
                     results.append({
                         'product': str(row.get('product name', 'Unknown')),
                         'status': 'error',
-                        'message': str(e)
+                        'message': error_msg,
+                        'image_source': None
                     })
             
             flash(f'Successfully processed {len([r for r in results if r["status"] == "success"])} products', 'success')
-            return render_template('admin/admin/bulk_upload_results.html', results=results)
+            return render_template('admin/admin/bulk_upload_results.html', results=results, stats=stats)
             
         except Exception as e:
+            current_app.logger.error(f"❌ Error processing bulk upload file: {str(e)}")
+            import traceback
+            current_app.logger.error(traceback.format_exc())
             flash(f'Error processing file: {str(e)}', 'error')
             return redirect(request.url)
     
@@ -5543,21 +5771,33 @@ def admin_reupload_missing_files():
 @login_required
 @admin_required
 def download_template():
-    # Create a sample DataFrame
+    # Create a sample DataFrame with all required and optional columns
     data = {
-        'Product Name': ['Sample Product 1', 'Sample Product 2'],
-        'Category': ['Electronics', 'Clothing'],
-        'Price (GMD)': [1000, 500],
-        'Stock Quantity': [10, 5],
-        'Description': ['Sample description', 'Another description'],
-        'Image URL': ['', 'https://example.com/image.jpg'],
-        'Recommended Accessories': ['Accessory 1, Accessory 2', '']
+        'Product Name': ['Sample Product 1', 'Sample Product 2', 'Sample Product 3'],
+        'Category': ['Electronics', 'Clothing', 'Home & Garden'],
+        'Price': [1000, 500, 750],
+        'Stock': [10, 5, 20],
+        'Description': ['Sample description for product 1', 'Another description for product 2', 'Description for product 3'],
+        'Image URL': ['https://example.com/image1.jpg', '', 'https://example.com/image3.jpg'],
+        'Image Filename': ['product1.jpg', 'product2.png', '']
     }
     
     # Create Excel file in memory
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        pd.DataFrame(data).to_excel(writer, index=False, sheet_name='Products')
+        df = pd.DataFrame(data)
+        df.to_excel(writer, index=False, sheet_name='Products')
+        
+        # Get the worksheet to format it
+        worksheet = writer.sheets['Products']
+        
+        # Auto-adjust column widths
+        for idx, col in enumerate(df.columns):
+            max_length = max(
+                df[col].astype(str).map(len).max(),
+                len(str(col))
+            )
+            worksheet.column_dimensions[chr(65 + idx)].width = min(max_length + 2, 50)
     
     output.seek(0)
     return send_file(
