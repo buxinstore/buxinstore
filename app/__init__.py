@@ -230,6 +230,39 @@ def create_app(config_class: type[Config] | None = None):
     # Register forum blueprint
     from app.routes.forum import forum_bp
     app.register_blueprint(forum_bp)
+    
+    # Auto-run pending migrations on startup (safety net if releaseCommand fails)
+    # This ensures bulk_email_job tables exist before the app starts serving requests
+    with app.app_context():
+        try:
+            from alembic import command
+            from alembic.config import Config as AlembicConfig
+            from pathlib import Path
+            from sqlalchemy.exc import ProgrammingError
+            
+            # Check if bulk_email_job table exists by trying to query it
+            try:
+                db.session.execute(text("SELECT 1 FROM bulk_email_job LIMIT 1"))
+                db.session.commit()
+                app.logger.info("✅ Bulk email job tables exist")
+            except ProgrammingError as e:
+                if 'does not exist' in str(e) or 'relation "bulk_email_job" does not exist' in str(e):
+                    app.logger.warning("bulk_email_job table not found. Attempting to run migrations...")
+                    try:
+                        alembic_cfg = AlembicConfig(str(Path(__file__).parent.parent / "alembic.ini"))
+                        command.upgrade(alembic_cfg, "head")
+                        app.logger.info("✅ Migrations completed successfully on startup")
+                    except Exception as migration_error:
+                        app.logger.error(
+                            f"❌ Failed to run migrations on startup: {migration_error}. "
+                            "Please run 'python -m alembic upgrade head' manually via Render Shell.",
+                            exc_info=True
+                        )
+                else:
+                    # Some other database error - log but don't try to migrate
+                    app.logger.warning(f"Database check error (not critical): {e}")
+        except Exception as e:
+            app.logger.warning(f"Could not check/run migrations on startup: {e}. This is not critical.")
 
     # Attach base URL helper and expose PUBLIC_URL-derived base_url to templates
     # This allows `current_app.get_base_url()` in request handlers.
@@ -4333,6 +4366,22 @@ def admin_email_customers():
 
         if not job_id:
             log.error(f"admin_email_customers[POST]: Failed to create job: {error_message}")
+            
+            # Check if this is a missing table error
+            error_msg = error_message or ""
+            if "does not exist" in error_msg or "UndefinedTable" in error_msg:
+                return jsonify(
+                    {
+                        "success": False,
+                        "status": "error",
+                        "message": (
+                            "Database tables for bulk email system are missing. "
+                            "Please run migrations: Go to Admin → Database Migration Manager "
+                            "or run 'python -m alembic upgrade head' via Render Shell."
+                        ),
+                    }
+                ), 500
+            
             return jsonify(
                 {
                     "success": False,
