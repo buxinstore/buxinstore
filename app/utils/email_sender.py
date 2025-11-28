@@ -58,13 +58,18 @@ def sendEmail(to: str, subject: str, html: str) -> bool:
                 os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
             )
             
+            # Format FROM email with business name if available
+            business_name = getattr(settings, 'business_name', None) or os.getenv("BUSINESS_NAME", "Store")
+            if business_name and '<' not in from_email:
+                from_email = f"{business_name} <{from_email}>"
+            
             # Configure Resend
             resend.api_key = api_key
             
-            # Send email
+            # Send email using official Resend API format: "to" must be a list
             r = resend.Emails.send({
                 "from": from_email,
-                "to": to,
+                "to": [to],  # Resend API requires "to" as a list
                 "subject": subject,
                 "html": html
             })

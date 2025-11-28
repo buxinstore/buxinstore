@@ -3535,12 +3535,34 @@ def admin_settings():
                 
             elif section == 'email':
                 # Resend email settings
-                settings.resend_api_key = request.form.get('resend_api_key', '').strip()
-                settings.resend_from_email = request.form.get('resend_from_email', '').strip()
+                new_resend_api_key = request.form.get('resend_api_key', '').strip()
+                new_resend_from_email = request.form.get('resend_from_email', '').strip()
                 settings.resend_default_recipient = request.form.get('resend_default_recipient', '').strip()
                 settings.resend_enabled = request.form.get('resend_enabled') == 'on'
                 settings.contact_email = request.form.get('contact_email', '').strip()
                 settings.default_subject_prefix = request.form.get('default_subject_prefix', 'buxin store').strip()
+                
+                # Validate FROM email domain if provided
+                if new_resend_from_email:
+                    from app.utils.resend_domain import is_from_email_domain_verified
+                    # Use new API key if provided, otherwise use existing one
+                    api_key_to_check = new_resend_api_key or settings.resend_api_key or os.getenv("RESEND_API_KEY")
+                    is_verified, error_msg = is_from_email_domain_verified(new_resend_from_email, api_key_to_check)
+                    
+                    if not is_verified:
+                        db.session.rollback()
+                        flash(
+                            f'The FROM email domain is not verified in Resend. {error_msg or ""} '
+                            'Please verify it at https://resend.com/domains.',
+                            'error'
+                        )
+                        return redirect(url_for('admin_settings'))
+                
+                # Save settings if validation passed
+                if new_resend_api_key:
+                    settings.resend_api_key = new_resend_api_key
+                if new_resend_from_email:
+                    settings.resend_from_email = new_resend_from_email
                 
                 db.session.commit()
                 flash('Email settings updated successfully.', 'success')
@@ -4013,6 +4035,12 @@ def admin_settings_test_email():
         resend.api_key = api_key
         # Get from_email from database settings
         from_email = settings.resend_from_email or os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+        
+        # Format FROM email with business name if available
+        business_name = getattr(settings, 'business_name', None) or os.getenv("BUSINESS_NAME", "Store")
+        if business_name and '<' not in from_email:
+            from_email = f"{business_name} <{from_email}>"
+        
         subject_prefix = settings.default_subject_prefix or "buxin store"
 
         subject = f"{subject_prefix} - Test Email"
@@ -4033,9 +4061,10 @@ def admin_settings_test_email():
             extra={"recipient": test_email, "from": from_email},
         )
 
+        # Use official Resend API format: "to" must be a list
         resend.Emails.send({
             "from": from_email,
-            "to": test_email,
+            "to": [test_email],  # Resend API requires "to" as a list
             "subject": subject,
             "html": html_body,
         })
@@ -4156,6 +4185,24 @@ def admin_email_customers():
                     "sent_count": 0,
                 }
             ), 500
+        
+        # Validate FROM email domain (only FROM domain needs to be verified, not recipients)
+        from_email = settings.resend_from_email if settings else os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+        if from_email:
+            from app.utils.resend_domain import is_from_email_domain_verified
+            is_verified, error_msg = is_from_email_domain_verified(from_email, resend_api_key)
+            if not is_verified:
+                log.error(
+                    f"admin_email_customers[POST]: FROM email domain not verified: {from_email} - {error_msg}"
+                )
+                return jsonify(
+                    {
+                        "success": False,
+                        "status": "error",
+                        "message": f"The FROM email domain is not verified in Resend. {error_msg or ''} Please verify it at https://resend.com/domains.",
+                        "sent_count": 0,
+                    }
+                ), 400
 
         log.info("admin_email_customers[POST]: loading form data")
         subject = (request.form.get("subject") or "").strip()
