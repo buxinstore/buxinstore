@@ -28,7 +28,7 @@ def extract_domain_from_email(email: str) -> Optional[str]:
         return None
 
 
-def is_domain_verified_in_resend(domain: str, api_key: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+def is_domain_verified_in_resend(domain: str, api_key: Optional[str] = None) -> Tuple[bool, Optional[str], bool]:
     """
     Check if a domain is verified in Resend using the /domains API.
     
@@ -37,13 +37,14 @@ def is_domain_verified_in_resend(domain: str, api_key: Optional[str] = None) -> 
         api_key: Optional Resend API key. If not provided, will try to get from settings.
         
     Returns:
-        Tuple of (is_verified: bool, error_message: Optional[str])
-        - If verified: (True, None)
-        - If not verified: (False, "Domain not verified")
-        - If error: (False, error_message)
+        Tuple of (is_verified: bool, error_message: Optional[str], can_verify: bool)
+        - If verified: (True, None, True)
+        - If not verified: (False, "Domain not verified", True)
+        - If API key lacks permissions: (False, error_message, False) - allows sending anyway
+        - If other error: (False, error_message, False)
     """
     if not domain:
-        return False, "Domain is required"
+        return False, "Domain is required", False
     
     # Get API key if not provided
     if not api_key:
@@ -58,7 +59,7 @@ def is_domain_verified_in_resend(domain: str, api_key: Optional[str] = None) -> 
             api_key = os.getenv("RESEND_API_KEY")
     
     if not api_key:
-        return False, "Resend API key is not configured"
+        return False, "Resend API key is not configured", False
     
     try:
         # Configure Resend
@@ -97,25 +98,35 @@ def is_domain_verified_in_resend(domain: str, api_key: Optional[str] = None) -> 
                 if domain_name and domain_name.lower() == domain.lower():
                     # Check verification status - Resend uses 'verified' or 'success' status
                     if status in ['verified', 'success']:
-                        return True, None
+                        return True, None, True
                     else:
-                        return False, f"Domain {domain} exists but is not verified (status: {status or 'unknown'})"
+                        return False, f"Domain {domain} exists but is not verified (status: {status or 'unknown'})", True
         
         # Domain not found in verified domains
-        return False, f"Domain {domain} is not verified in Resend"
+        return False, f"Domain {domain} is not verified in Resend", True
         
     except Exception as e:
         error_msg = str(e)
-        current_app.logger.error(
-            f"Error checking Resend domain verification for {domain}: {error_msg}",
+        current_app.logger.warning(
+            f"Could not verify domain {domain} via Resend API: {error_msg}",
             exc_info=True
         )
-        # If API call fails, we can't verify, but don't block the user
-        # Return False with error message
-        return False, f"Could not verify domain: {error_msg}"
+        
+        # Check if error is due to API key restrictions (can't list domains)
+        # In this case, we allow email sending to proceed - domain verification is optional
+        if "restricted" in error_msg.lower() or "only send" in error_msg.lower() or "permission" in error_msg.lower():
+            current_app.logger.info(
+                f"API key does not have domain listing permissions. "
+                f"Email sending will proceed without domain verification for {domain}."
+            )
+            # Return (False, error_msg, False) - False at end means "can't verify but allow sending"
+            return False, f"API key cannot verify domains (restricted to sending only). Email sending will proceed.", False
+        
+        # For other errors, also allow sending but log the issue
+        return False, f"Could not verify domain: {error_msg}. Email sending will proceed.", False
 
 
-def is_from_email_domain_verified(from_email: str, api_key: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+def is_from_email_domain_verified(from_email: str, api_key: Optional[str] = None) -> Tuple[bool, Optional[str], bool]:
     """
     Check if the FROM email's domain is verified in Resend.
     
@@ -124,11 +135,12 @@ def is_from_email_domain_verified(from_email: str, api_key: Optional[str] = None
         api_key: Optional Resend API key
         
     Returns:
-        Tuple of (is_verified: bool, error_message: Optional[str])
+        Tuple of (is_verified: bool, error_message: Optional[str], can_verify: bool)
+        - can_verify=False means API key can't verify but email sending is allowed
     """
     domain = extract_domain_from_email(from_email)
     if not domain:
-        return False, f"Invalid FROM email address: {from_email}"
+        return False, f"Invalid FROM email address: {from_email}", False
     
     return is_domain_verified_in_resend(domain, api_key)
 

@@ -3542,21 +3542,35 @@ def admin_settings():
                 settings.contact_email = request.form.get('contact_email', '').strip()
                 settings.default_subject_prefix = request.form.get('default_subject_prefix', 'buxin store').strip()
                 
-                # Validate FROM email domain if provided
+                # Validate FROM email domain if provided (non-blocking if API key lacks permissions)
                 if new_resend_from_email:
                     from app.utils.resend_domain import is_from_email_domain_verified
                     # Use new API key if provided, otherwise use existing one
                     api_key_to_check = new_resend_api_key or settings.resend_api_key or os.getenv("RESEND_API_KEY")
-                    is_verified, error_msg = is_from_email_domain_verified(new_resend_from_email, api_key_to_check)
+                    is_verified, error_msg, can_verify = is_from_email_domain_verified(new_resend_from_email, api_key_to_check)
                     
                     if not is_verified:
-                        db.session.rollback()
-                        flash(
-                            f'The FROM email domain is not verified in Resend. {error_msg or ""} '
-                            'Please verify it at https://resend.com/domains.',
-                            'error'
-                        )
-                        return redirect(url_for('admin_settings'))
+                        # If API key can't verify domains (restricted permissions), allow saving with warning
+                        if not can_verify:
+                            # API key doesn't have domain listing permissions - allow saving but warn
+                            current_app.logger.warning(
+                                f"Domain verification skipped due to API key restrictions. "
+                                f"Settings will be saved. {error_msg}"
+                            )
+                            flash(
+                                f'Email settings saved. Note: {error_msg or "Domain verification could not be performed."} '
+                                'Email sending will work, but please verify your domain at https://resend.com/domains.',
+                                'warning'
+                            )
+                        else:
+                            # Domain verification was attempted but domain is not verified
+                            db.session.rollback()
+                            flash(
+                                f'The FROM email domain is not verified in Resend. {error_msg or ""} '
+                                'Please verify it at https://resend.com/domains.',
+                                'error'
+                            )
+                            return redirect(url_for('admin_settings'))
                 
                 # Save settings if validation passed
                 if new_resend_api_key:
@@ -4187,22 +4201,32 @@ def admin_email_customers():
             ), 500
         
         # Validate FROM email domain (only FROM domain needs to be verified, not recipients)
+        # If API key lacks domain listing permissions, allow sending anyway
         from_email = settings.resend_from_email if settings else os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
         if from_email:
             from app.utils.resend_domain import is_from_email_domain_verified
-            is_verified, error_msg = is_from_email_domain_verified(from_email, resend_api_key)
+            is_verified, error_msg, can_verify = is_from_email_domain_verified(from_email, resend_api_key)
             if not is_verified:
-                log.error(
-                    f"admin_email_customers[POST]: FROM email domain not verified: {from_email} - {error_msg}"
-                )
-                return jsonify(
-                    {
-                        "success": False,
-                        "status": "error",
-                        "message": f"The FROM email domain is not verified in Resend. {error_msg or ''} Please verify it at https://resend.com/domains.",
-                        "sent_count": 0,
-                    }
-                ), 400
+                # If API key can't verify (restricted permissions), allow sending with warning
+                if not can_verify:
+                    log.warning(
+                        f"admin_email_customers[POST]: Domain verification skipped due to API key restrictions. "
+                        f"Email sending will proceed. {error_msg}"
+                    )
+                    # Continue with email sending - don't block
+                else:
+                    # Domain verification was attempted but domain is not verified - block sending
+                    log.error(
+                        f"admin_email_customers[POST]: FROM email domain not verified: {from_email} - {error_msg}"
+                    )
+                    return jsonify(
+                        {
+                            "success": False,
+                            "status": "error",
+                            "message": f"The FROM email domain is not verified in Resend. {error_msg or ''} Please verify it at https://resend.com/domains.",
+                            "sent_count": 0,
+                        }
+                    ), 400
 
         log.info("admin_email_customers[POST]: loading form data")
         subject = (request.form.get("subject") or "").strip()
