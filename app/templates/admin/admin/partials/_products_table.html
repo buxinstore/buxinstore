@@ -2,13 +2,13 @@
 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 bulk-edit-row" data-product-id="{{ product.id }}">
     <td class="px-6 py-4 whitespace-nowrap">
         <div class="flex items-center">
-            <div class="flex-shrink-0 h-10 w-10">
+            <div class="flex-shrink-0 h-10 w-10 relative">
                 <img class="product-thumbnail h-10 w-10 rounded-md object-cover" 
                      src="{{ product.image|product_image_url if product.image else '/static/img/placeholder.png' }}" 
                      alt="{{ product.name }}"
                      data-product-id="{{ product.id }}">
             </div>
-            <div class="ml-4 flex-1">
+            <div class="ml-4 flex-1 min-w-0">
                 <input type="text" 
                        class="bulk-edit-field product-name-input w-full px-2 py-1 text-sm font-medium text-gray-900 dark:text-white bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700" 
                        value="{{ product.name }}"
@@ -16,6 +16,13 @@
                        data-original="{{ product.name }}"
                        data-product-id="{{ product.id }}">
                 <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">SKU: {{ product.sku or 'N/A' }}</div>
+                <input type="url" 
+                       placeholder="Image URL"
+                       class="bulk-edit-field image-url-input w-full mt-1 px-2 py-1 text-xs text-gray-900 dark:text-white bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700" 
+                       value="{{ product.image if product.image else '' }}"
+                       data-field="image"
+                       data-original="{{ product.image if product.image else '' }}"
+                       data-product-id="{{ product.id }}">
             </div>
         </div>
     </td>
@@ -66,8 +73,8 @@
             </span>
         {% endif %}
     </td>
-    <td class="px-6 py-4 whitespace-nowrap">
-        <div class="flex flex-col items-center gap-2">
+    <td class="px-6 py-4 whitespace-nowrap text-center">
+        <div class="flex flex-col items-center gap-1">
             <label class="gambia-toggle-switch" title="Toggle Gambia availability">
                 <input type="checkbox" 
                        class="bulk-edit-field toggle-gambia" 
@@ -81,27 +88,10 @@
                    step="0.01"
                    min="0"
                    placeholder="Shipping"
-                   class="bulk-edit-field gambia-shipping-input w-20 px-1 py-1 text-xs text-gray-900 dark:text-white bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700" 
+                   class="bulk-edit-field gambia-shipping-input w-16 px-1 py-0.5 text-xs text-gray-900 dark:text-white bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700" 
                    value="{{ product.shipping_price if product.shipping_price else '' }}"
                    data-field="shipping_price"
                    data-original="{{ product.shipping_price if product.shipping_price else '' }}"
-                   data-product-id="{{ product.id }}">
-        </div>
-    </td>
-    <td class="px-6 py-4 whitespace-nowrap">
-        <div class="flex flex-col gap-2">
-            <div class="flex items-center gap-2">
-                <img class="image-preview-thumbnail h-12 w-12 rounded-md object-cover border border-gray-300 dark:border-gray-600" 
-                     src="{{ product.image|product_image_url if product.image else '/static/img/placeholder.png' }}" 
-                     alt="Preview"
-                     data-product-id="{{ product.id }}">
-            </div>
-            <input type="url" 
-                   placeholder="Image URL"
-                   class="bulk-edit-field image-url-input w-full px-2 py-1 text-xs text-gray-900 dark:text-white bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700" 
-                   value="{{ product.image if product.image else '' }}"
-                   data-field="image"
-                   data-original="{{ product.image if product.image else '' }}"
                    data-product-id="{{ product.id }}">
         </div>
     </td>
@@ -116,7 +106,7 @@
 </tr>
 {% else %}
 <tr>
-    <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+    <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
         No products found
     </td>
 </tr>
