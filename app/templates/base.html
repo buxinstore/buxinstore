@@ -1056,6 +1056,9 @@
           currentCountry = data.country;
           updateCountryIcon();
           
+          // Reload countries list to ensure dropdown is up-to-date
+          await loadCountries();
+          
           // Close dropdown/modal
           const dropdown = document.getElementById('country-dropdown');
           if (dropdown) {
