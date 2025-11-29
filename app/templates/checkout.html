@@ -171,7 +171,7 @@
                                     <!-- Country Dropdown Menu -->
                                     <div id="checkout-country-dropdown" class="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl shadow-lg hidden max-h-80 overflow-hidden flex flex-col">
                                         <!-- Search Input -->
-                                        <div class="p-3 border-b border-slate-200 dark:border-slate-700">
+                                        <div class="p-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
                                             <input 
                                                 type="text" 
                                                 id="checkout-country-search"
@@ -180,7 +180,7 @@
                                             >
                                         </div>
                                         <!-- Country List -->
-                                        <div id="checkout-country-list" class="overflow-y-auto overscroll-contain p-2 space-y-1 flex-1 min-h-0">
+                                        <div id="checkout-country-list" class="overflow-y-auto overscroll-contain p-2 space-y-1 flex-1 min-h-0 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
                                             <!-- Countries will be loaded via JavaScript -->
                                         </div>
                                     </div>
@@ -375,7 +375,16 @@
         function clearError(fieldName) {
             const field = fields[fieldName];
             const errorEl = document.getElementById(`${fieldName}-error`);
-            if (field && errorEl) {
+            if (fieldName === 'country') {
+                // For country dropdown, update toggle button border
+                const toggle = document.getElementById('checkout-country-toggle');
+                if (toggle && errorEl) {
+                    toggle.classList.remove('border-red-500', 'dark:border-red-500');
+                    toggle.classList.add('border-slate-300', 'dark:border-slate-600');
+                    errorEl.classList.add('hidden');
+                    validationState[fieldName] = true;
+                }
+            } else if (field && errorEl) {
                 field.classList.remove('border-red-500', 'dark:border-red-500');
                 field.classList.add('border-slate-300', 'dark:border-slate-600');
                 errorEl.classList.add('hidden');
@@ -405,6 +414,12 @@
                     }
                     break;
                 case 'country':
+                    // For country dropdown, check if a country is selected
+                    if (!value || value.trim() === '') {
+                        showError(fieldName, 'Please select a country');
+                        return false;
+                    }
+                    break;
                 case 'city':
                 case 'delivery_address':
                     if (!validateRequired(value)) {
