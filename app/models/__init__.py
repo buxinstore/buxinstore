@@ -4,8 +4,10 @@ from app.models.forum import (
     ForumPost, ForumFile, ForumLink, 
     ForumComment, ForumReaction, ForumBan
 )
+from app.models.country import Country
 
 __all__ = [
     'ForumPost', 'ForumFile', 'ForumLink',
-    'ForumComment', 'ForumReaction', 'ForumBan'
+    'ForumComment', 'ForumReaction', 'ForumBan',
+    'Country'
 ]

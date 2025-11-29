@@ -114,6 +114,8 @@ from .extensions import csrf, db, init_extensions, login_manager, mail, migrate
 from .models.forum import ForumPost, ForumFile, ForumLink, ForumComment, ForumReaction, ForumBan
 # Import bulk email models so Alembic can detect them
 from .models.bulk_email import BulkEmailJob, BulkEmailRecipient, BulkEmailJobLock
+# Import country model so Alembic can detect it
+from .models.country import Country
 from .utils.db_backup import (
     DatabaseBackupError,
     dump_database_to_file,
@@ -491,11 +493,58 @@ def inject_site_settings():
         pwa_logo_path = None
         pwa_favicon_path = None
     
+    # Get current country for localization
+    current_country = None
+    current_currency = current_app.config.get('CART_CURRENCY_SYMBOL', 'D')
+    current_language = 'en'
+    country_selected = session.get('country_selected', False)
+    
+    try:
+        # Try to get current country (this function is defined later in the file)
+        # We'll use a try-except to handle cases where Country table doesn't exist yet
+        from sqlalchemy import text
+        check_query = text("""
+            SELECT 1 
+            FROM information_schema.tables 
+            WHERE table_name = 'country'
+            LIMIT 1
+        """)
+        try:
+            result = db.session.execute(check_query)
+            table_exists = result.fetchone() is not None
+        except Exception:
+            table_exists = False
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+        
+        if table_exists:
+            # Get country from user profile or session
+            if current_user.is_authenticated and hasattr(current_user, 'country_id') and current_user.country_id:
+                current_country = Country.query.get(current_user.country_id)
+            elif session.get('selected_country_id'):
+                current_country = Country.query.get(session.get('selected_country_id'))
+            
+            # If no country selected, get default (first active country)
+            if not current_country:
+                current_country = Country.query.filter_by(is_active=True).first()
+            
+            if current_country and current_country.is_active:
+                current_currency = current_country.currency_symbol or current_country.currency
+                current_language = current_country.language
+    except Exception as e:
+        current_app.logger.debug(f"Could not load country settings (migration may be pending): {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+    
     return {
         'site_settings': settings,
         'site_logo_url': logo_url,
         'hero_image_url': hero_image_url,
-        'cart_currency': current_app.config.get('CART_CURRENCY_SYMBOL', 'D'),
+        'cart_currency': current_currency,
         'current_user_avatar_url': avatar_url,
         'current_user_display_name': display_name,
         'current_user_google_connected': google_connected,
@@ -505,6 +554,11 @@ def inject_site_settings():
         'floating_email': floating_email,
         'floating_email_subject': floating_email_subject,
         'floating_email_body': floating_email_body,
+        # Country/Localization Settings
+        'current_country': current_country,
+        'current_currency': current_currency,
+        'current_language': current_language,
+        'country_selected': country_selected,
         # PWA Settings (with fallback defaults)
         'pwa_app_name': pwa_app_name if 'pwa_app_name' in locals() else 'buxin store',
         'pwa_short_name': pwa_short_name if 'pwa_short_name' in locals() else 'buxin store',
@@ -673,6 +727,7 @@ class User(UserMixin, db.Model):
     password_updated_at = db.Column(db.DateTime)
     last_login_at = db.Column(db.DateTime)
     whatsapp_number = db.Column(db.String(32), nullable=True)  # WhatsApp number with country code
+    country_id = db.Column(db.Integer, db.ForeignKey('country.id'), nullable=True)  # User's selected country
     orders = db.relationship('Order', primaryjoin='User.id == Order.user_id', backref=db.backref('customer', lazy=True), lazy=True)
     cart_items = db.relationship('CartItem', backref='user', lazy=True, cascade='all, delete-orphan')
     profile = db.relationship('UserProfile', uselist=False, back_populates='user', cascade='all, delete-orphan')
@@ -2714,6 +2769,101 @@ def api_get_cart_summary():
     response = build_cart_response(summary, message='Cart summary retrieved', item=None, removed=False)
     return jsonify(response)
 
+# ======================
+# Country Localization API Routes
+# ======================
+
+def get_current_country():
+    """Get the current user's selected country from session or user profile."""
+    try:
+        # First, try to get from authenticated user's profile
+        if current_user.is_authenticated and current_user.country_id:
+            country = Country.query.get(current_user.country_id)
+            if country and country.is_active:
+                return country
+        
+        # Fall back to session
+        country_id = session.get('selected_country_id')
+        if country_id:
+            country = Country.query.get(country_id)
+            if country and country.is_active:
+                return country
+        
+        # Default: return first active country or None
+        default_country = Country.query.filter_by(is_active=True).first()
+        return default_country
+    except Exception as e:
+        current_app.logger.error(f"Error getting current country: {e}")
+        return None
+
+@app.route('/api/countries', methods=['GET'])
+def api_get_countries():
+    """Get all active countries."""
+    try:
+        countries = Country.query.filter_by(is_active=True).order_by(Country.name).all()
+        return jsonify({
+            'success': True,
+            'countries': [country.to_dict() for country in countries]
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error fetching countries: {e}")
+        return jsonify({'success': False, 'message': 'Failed to fetch countries'}), 500
+
+@app.route('/api/country/current', methods=['GET'])
+def api_get_current_country():
+    """Get the current user's selected country."""
+    try:
+        country = get_current_country()
+        if country:
+            return jsonify({
+                'success': True,
+                'country': country.to_dict()
+            })
+        return jsonify({
+            'success': False,
+            'message': 'No country selected'
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error getting current country: {e}")
+        return jsonify({'success': False, 'message': 'Failed to get current country'}), 500
+
+@app.route('/api/country/select', methods=['POST'])
+def api_select_country():
+    """Select a country for the current user/session."""
+    try:
+        data = request.get_json()
+        country_id = data.get('country_id')
+        
+        if not country_id:
+            return jsonify({'success': False, 'message': 'Country ID is required'}), 400
+        
+        country = Country.query.get(country_id)
+        if not country:
+            return jsonify({'success': False, 'message': 'Country not found'}), 404
+        
+        if not country.is_active:
+            return jsonify({'success': False, 'message': 'Country is not active'}), 400
+        
+        # Save to user profile if authenticated
+        if current_user.is_authenticated:
+            current_user.country_id = country_id
+            db.session.commit()
+        
+        # Also save to session
+        session['selected_country_id'] = country_id
+        session['country_selected'] = True  # Flag to prevent pop-up from showing again
+        session.permanent = True
+        
+        return jsonify({
+            'success': True,
+            'message': 'Country selected successfully',
+            'country': country.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error selecting country: {e}")
+        return jsonify({'success': False, 'message': 'Failed to select country'}), 500
+
 # ... rest of the code remains the same ...
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
@@ -4165,6 +4315,144 @@ def admin_settings_clear_cache():
     except Exception as e:
         current_app.logger.error(f"Clear cache error: {str(e)}")
         return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+
+# ======================
+# Admin Country Management Routes
+# ======================
+
+@app.route('/admin/countries', methods=['GET'])
+@login_required
+@admin_required
+def admin_countries():
+    """Admin page for managing countries."""
+    countries = Country.query.order_by(Country.name).all()
+    return render_template('admin/admin/countries.html', countries=countries)
+
+@app.route('/admin/countries/add', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_add_country():
+    """Add a new country."""
+    if request.method == 'POST':
+        try:
+            name = request.form.get('name', '').strip()
+            code = request.form.get('code', '').strip().upper()
+            currency = request.form.get('currency', '').strip().upper()
+            currency_symbol = request.form.get('currency_symbol', '').strip()
+            language = request.form.get('language', '').strip().lower()
+            is_active = request.form.get('is_active') == 'on'
+            
+            # Handle flag image upload
+            flag_image_path = None
+            if 'flag_image' in request.files:
+                file = request.files['flag_image']
+                if file and file.filename:
+                    from .utils.cloudinary_utils import upload_image_to_cloudinary
+                    try:
+                        flag_image_path = upload_image_to_cloudinary(file, folder='country_flags')
+                    except Exception as e:
+                        current_app.logger.error(f"Error uploading flag image: {e}")
+                        flash('Failed to upload flag image. Please try again.', 'error')
+                        return redirect(url_for('admin_add_country'))
+            
+            # Validate required fields
+            if not all([name, code, currency, language]):
+                flash('Please fill in all required fields.', 'error')
+                return redirect(url_for('admin_add_country'))
+            
+            # Check if country code already exists
+            existing = Country.query.filter_by(code=code).first()
+            if existing:
+                flash(f'Country with code {code} already exists.', 'error')
+                return redirect(url_for('admin_add_country'))
+            
+            country = Country(
+                name=name,
+                code=code,
+                currency=currency,
+                currency_symbol=currency_symbol,
+                language=language,
+                flag_image_path=flag_image_path,
+                is_active=is_active
+            )
+            
+            db.session.add(country)
+            db.session.commit()
+            
+            flash(f'Country {name} added successfully!', 'success')
+            return redirect(url_for('admin_countries'))
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error adding country: {e}")
+            flash('Failed to add country. Please try again.', 'error')
+            return redirect(url_for('admin_add_country'))
+    
+    return render_template('admin/admin/country_form.html', country=None)
+
+@app.route('/admin/countries/<int:country_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_edit_country(country_id):
+    """Edit an existing country."""
+    country = Country.query.get_or_404(country_id)
+    
+    if request.method == 'POST':
+        try:
+            country.name = request.form.get('name', '').strip()
+            country.code = request.form.get('code', '').strip().upper()
+            country.currency = request.form.get('currency', '').strip().upper()
+            country.currency_symbol = request.form.get('currency_symbol', '').strip()
+            country.language = request.form.get('language', '').strip().lower()
+            country.is_active = request.form.get('is_active') == 'on'
+            
+            # Handle flag image upload
+            if 'flag_image' in request.files:
+                file = request.files['flag_image']
+                if file and file.filename:
+                    from .utils.cloudinary_utils import upload_image_to_cloudinary
+                    try:
+                        country.flag_image_path = upload_image_to_cloudinary(file, folder='country_flags')
+                    except Exception as e:
+                        current_app.logger.error(f"Error uploading flag image: {e}")
+                        flash('Failed to upload flag image. Please try again.', 'error')
+                        return redirect(url_for('admin_edit_country', country_id=country_id))
+            
+            db.session.commit()
+            flash(f'Country {country.name} updated successfully!', 'success')
+            return redirect(url_for('admin_countries'))
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error updating country: {e}")
+            flash('Failed to update country. Please try again.', 'error')
+            return redirect(url_for('admin_edit_country', country_id=country_id))
+    
+    return render_template('admin/admin/country_form.html', country=country)
+
+@app.route('/admin/countries/<int:country_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_country(country_id):
+    """Delete a country."""
+    country = Country.query.get_or_404(country_id)
+    
+    try:
+        # Check if any users are using this country
+        user_count = User.query.filter_by(country_id=country_id).count()
+        if user_count > 0:
+            flash(f'Cannot delete {country.name}. {user_count} user(s) are using this country.', 'error')
+            return redirect(url_for('admin_countries'))
+        
+        db.session.delete(country)
+        db.session.commit()
+        flash(f'Country {country.name} deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting country: {e}")
+        flash('Failed to delete country. Please try again.', 'error')
+    
+    return redirect(url_for('admin_countries'))
 
 @app.route('/admin/email/customers', methods=['GET', 'POST'])
 @login_required

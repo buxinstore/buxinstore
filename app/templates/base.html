@@ -411,6 +411,36 @@
           </a>
           
           <div class="flex items-center gap-2">
+            <!-- Country Selector -->
+            <div class="relative flex items-center" id="country-selector">
+              <button type="button"
+                      id="country-toggle"
+                      class="relative p-2 hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                      aria-label="Select country"
+                      aria-haspopup="true"
+                      aria-expanded="false">
+                <span class="sr-only">Select country</span>
+                {% if current_country and current_country.flag_image_path %}
+                  <img src="{{ current_country.get_flag_url() }}" 
+                       alt="{{ current_country.name }}" 
+                       class="w-6 h-6 rounded-sm object-cover border border-[color:var(--app-border)]"
+                       id="country-flag-icon">
+                {% else %}
+                  <i data-lucide="globe" class="w-5 h-5" id="country-globe-icon"></i>
+                {% endif %}
+              </button>
+              
+              <!-- Country Dropdown -->
+              <div id="country-dropdown" class="absolute right-0 mt-3 w-64 bg-[color:var(--app-card)] backdrop-blur-xl border border-[color:var(--app-border)] rounded-2xl p-3 space-y-1 shadow-2xl animate-in-custom hidden z-50 max-h-96 overflow-y-auto">
+                <div class="px-3 py-2 border-b border-[color:var(--app-border)] mb-2">
+                  <p class="text-sm font-semibold text-[color:var(--app-text)]">Select Country</p>
+                </div>
+                <div id="country-list" class="space-y-1">
+                  <!-- Countries will be loaded via JavaScript -->
+                </div>
+              </div>
+            </div>
+            
             <!-- Theme Toggle -->
             <div class="relative flex items-center" id="theme-control">
               <button type="button"
@@ -536,6 +566,28 @@
       {% endwith %}
       
       {% block content %}{% endblock %}
+    </div>
+    
+    <!-- Country Selector Modal (First-time users) -->
+    <div id="country-selector-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] items-center justify-center hidden" style="display: none;">
+      <div class="bg-[color:var(--app-card)] rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-[color:var(--app-border)]">
+        <div class="text-center mb-6">
+          <h2 class="text-2xl font-bold text-[color:var(--app-text)] mb-2">Select your country</h2>
+          <p class="text-sm text-[color:var(--app-muted)]">Choose your country to see prices and content in your local currency and language</p>
+        </div>
+        
+        <div id="country-modal-list" class="space-y-2 max-h-96 overflow-y-auto mb-4">
+          <!-- Countries will be loaded via JavaScript -->
+        </div>
+        
+        <div class="flex gap-3">
+          <button type="button" 
+                  id="country-modal-close" 
+                  class="flex-1 px-4 py-2 bg-[color:var(--app-surface-hover)] text-[color:var(--app-text)] rounded-xl hover:bg-[color:var(--app-surface-hover)] transition-colors">
+            Skip for now
+          </button>
+        </div>
+      </div>
     </div>
     
     <!-- Footer 
@@ -813,6 +865,253 @@
         profileButton.setAttribute('aria-expanded', 'false');
       }
     });
+
+    // ======================
+    // Country Selection System
+    // ======================
+    
+    let currentCountry = null;
+    let countries = [];
+    
+    // Load countries from API
+    async function loadCountries() {
+      try {
+        const response = await fetch('/api/countries');
+        const data = await response.json();
+        if (data.success) {
+          countries = data.countries;
+          renderCountryDropdown();
+          renderCountryModal();
+        }
+      } catch (error) {
+        console.error('Error loading countries:', error);
+      }
+    }
+    
+    // Get current country
+    async function loadCurrentCountry() {
+      try {
+        const response = await fetch('/api/country/current');
+        const data = await response.json();
+        if (data.success && data.country) {
+          currentCountry = data.country;
+          updateCountryIcon();
+        }
+      } catch (error) {
+        console.error('Error loading current country:', error);
+      }
+    }
+    
+    // Render country dropdown in navigation
+    function renderCountryDropdown() {
+      const dropdown = document.getElementById('country-list');
+      if (!dropdown) return;
+      
+      dropdown.innerHTML = countries.map(country => {
+        const flagUrl = country.flag_image_path 
+          ? (country.flag_image_path.startsWith('http') 
+              ? country.flag_image_path 
+              : `/static/${country.flag_image_path}`)
+          : '';
+        const isSelected = currentCountry && currentCountry.id === country.id;
+        
+        return `
+          <button type="button" 
+                  class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors ${isSelected ? 'bg-[color:var(--app-surface-hover)]' : ''}"
+                  onclick="selectCountry(${country.id}, false)">
+            ${flagUrl ? `<img src="${flagUrl}" alt="${country.name}" class="w-6 h-6 rounded-sm object-cover border border-[color:var(--app-border)]">` : '<i data-lucide="globe" class="w-5 h-5"></i>'}
+            <span class="text-sm font-medium flex-1 text-left">${country.name}</span>
+            ${isSelected ? '<i data-lucide="check" class="w-4 h-4 text-cyan-500"></i>' : ''}
+          </button>
+        `;
+      }).join('');
+      
+      // Re-render Lucide icons
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    }
+    
+    // Render country modal
+    function renderCountryModal() {
+      const modalList = document.getElementById('country-modal-list');
+      if (!modalList) return;
+      
+      modalList.innerHTML = countries.map(country => {
+        const flagUrl = country.flag_image_path 
+          ? (country.flag_image_path.startsWith('http') 
+              ? country.flag_image_path 
+              : `/static/${country.flag_image_path}`)
+          : '';
+        
+        return `
+          <button type="button" 
+                  class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors border border-[color:var(--app-border)]"
+                  onclick="selectCountry(${country.id}, true)">
+            ${flagUrl ? `<img src="${flagUrl}" alt="${country.name}" class="w-8 h-8 rounded-sm object-cover border border-[color:var(--app-border)]">` : '<i data-lucide="globe" class="w-6 h-6"></i>'}
+            <div class="flex-1 text-left">
+              <span class="text-sm font-medium block">${country.name}</span>
+              <span class="text-xs text-[color:var(--app-muted)]">${country.currency_symbol || country.currency} • ${country.language.toUpperCase()}</span>
+            </div>
+          </button>
+        `;
+      }).join('');
+      
+      // Re-render Lucide icons
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    }
+    
+    // Update country icon in navigation
+    function updateCountryIcon() {
+      const flagIcon = document.getElementById('country-flag-icon');
+      const globeIcon = document.getElementById('country-globe-icon');
+      
+      if (currentCountry && currentCountry.flag_image_path) {
+        const flagUrl = currentCountry.flag_image_path.startsWith('http') 
+          ? currentCountry.flag_image_path 
+          : `/static/${currentCountry.flag_image_path}`;
+        
+        if (flagIcon) {
+          flagIcon.src = flagUrl;
+          flagIcon.alt = currentCountry.name;
+          flagIcon.classList.remove('hidden');
+        }
+        if (globeIcon) {
+          globeIcon.classList.add('hidden');
+        }
+      } else {
+        if (flagIcon) {
+          flagIcon.classList.add('hidden');
+        }
+        if (globeIcon) {
+          globeIcon.classList.remove('hidden');
+        }
+      }
+    }
+    
+    // Select country
+    async function selectCountry(countryId, fromModal = false) {
+      try {
+        const response = await fetch('/api/country/select', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+          },
+          body: JSON.stringify({ country_id: countryId })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          currentCountry = data.country;
+          updateCountryIcon();
+          
+          // Close dropdown/modal
+          const dropdown = document.getElementById('country-dropdown');
+          if (dropdown) {
+            dropdown.classList.add('hidden');
+          }
+          
+          if (fromModal) {
+            const modal = document.getElementById('country-selector-modal');
+            if (modal) {
+              modal.classList.add('hidden');
+              modal.style.display = 'none';
+            }
+            // Set flag to prevent modal from showing again
+            sessionStorage.setItem('country_selected', 'true');
+          }
+          
+          // Reload page to apply new currency/language
+          window.location.reload();
+        } else {
+          alert('Failed to select country: ' + (data.message || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error selecting country:', error);
+        alert('Failed to select country. Please try again.');
+      }
+    }
+    
+    // Toggle country dropdown
+    function toggleCountryDropdown() {
+      const dropdown = document.getElementById('country-dropdown');
+      const toggleButton = document.getElementById('country-toggle');
+      if (!dropdown || !toggleButton) return;
+      
+      const isHidden = dropdown.classList.contains('hidden');
+      dropdown.classList.toggle('hidden');
+      toggleButton.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+    }
+    
+    // Initialize country system
+    document.addEventListener('DOMContentLoaded', async function() {
+      await loadCountries();
+      await loadCurrentCountry();
+      
+      // Set up country toggle button
+      const countryToggle = document.getElementById('country-toggle');
+      if (countryToggle) {
+        countryToggle.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleCountryDropdown();
+        });
+      }
+      
+      // Close dropdown when clicking outside
+      document.addEventListener('click', function(event) {
+        const countryButton = document.getElementById('country-toggle');
+        const countryDropdown = document.getElementById('country-dropdown');
+        if (!countryButton || !countryDropdown) return;
+        
+        if (!countryDropdown.classList.contains('hidden') && 
+            !countryButton.contains(event.target) && 
+            !countryDropdown.contains(event.target)) {
+          countryDropdown.classList.add('hidden');
+          countryButton.setAttribute('aria-expanded', 'false');
+        }
+      });
+      
+      // Show country selector modal if country not selected
+      const countrySelected = sessionStorage.getItem('country_selected') || '{{ country_selected|default("false") }}';
+      const modal = document.getElementById('country-selector-modal');
+      
+      if (modal && countrySelected === 'false' && !currentCountry) {
+        // Show modal after a short delay
+        setTimeout(() => {
+          modal.classList.remove('hidden');
+          modal.style.display = 'flex';
+        }, 500);
+      }
+      
+      // Close modal button
+      const closeModalBtn = document.getElementById('country-modal-close');
+      if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', function() {
+          if (modal) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+          }
+          sessionStorage.setItem('country_selected', 'true');
+        });
+      }
+      
+      // Close modal when clicking outside
+      if (modal) {
+        modal.addEventListener('click', function(e) {
+          if (e.target === modal) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            sessionStorage.setItem('country_selected', 'true');
+          }
+        });
+      }
+    });
+    
+    // Make selectCountry available globally
+    window.selectCountry = selectCountry;
 
     function updateNavbarProfile({ avatarUrl, displayName, email, googleConnected }) {
       const avatar = document.getElementById('navbar-avatar');

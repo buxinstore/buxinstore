@@ -1,0 +1,115 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}Country Settings{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <div class="flex justify-between items-center mb-4">
+        <div>
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Country Settings</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage countries, currencies, and languages for localization</p>
+        </div>
+        <a href="{{ url_for('admin_add_country') }}" 
+           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            <i class="fas fa-plus mr-2"></i> Add Country
+        </a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-4 space-y-2">
+                {% for category, message in messages %}
+                    <div class="px-4 py-3 rounded-lg text-sm {% if category == 'success' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40{% else %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Flag</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Country</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Code</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Currency</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Language</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {% for country in countries %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if country.flag_image_path %}
+                            <img src="{{ country.get_flag_url() }}" 
+                                 alt="{{ country.name }}" 
+                                 class="w-8 h-8 rounded-sm object-cover border border-gray-300 dark:border-gray-600">
+                        {% else %}
+                            <i class="fas fa-globe text-gray-400 text-xl"></i>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ country.name }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">{{ country.code }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-900 dark:text-white">
+                            {{ country.currency_symbol or country.currency }} ({{ country.currency }})
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-gray-500 dark:text-gray-400 uppercase">{{ country.language }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if country.is_active %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">
+                                Active
+                            </span>
+                        {% else %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                Inactive
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <a href="{{ url_for('admin_edit_country', country_id=country.id) }}" 
+                           class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-4">
+                            <i class="fas fa-edit mr-1"></i> Edit
+                        </a>
+                        <form method="POST" 
+                              action="{{ url_for('admin_delete_country', country_id=country.id) }}" 
+                              class="inline"
+                              onsubmit="return confirm('Are you sure you want to delete {{ country.name }}? This action cannot be undone.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" 
+                                    class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                                <i class="fas fa-trash mr-1"></i> Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if countries|length == 0 %}
+    <div class="text-center py-12 bg-white dark:bg-gray-800 rounded-md shadow">
+        <i class="fas fa-globe text-gray-400 text-6xl mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No countries</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Get started by adding your first country.</p>
+        <a href="{{ url_for('admin_add_country') }}" 
+           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">
+            <i class="fas fa-plus mr-2"></i> Add Country
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

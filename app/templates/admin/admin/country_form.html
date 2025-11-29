@@ -1,0 +1,152 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}{{ 'Edit Country' if country else 'Add Country' }}{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <div class="mb-4">
+        <a href="{{ url_for('admin_countries') }}" 
+           class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+            <i class="fas fa-arrow-left mr-2"></i> Back to Countries
+        </a>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 shadow rounded-md p-6">
+        <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
+            {{ 'Edit Country' if country else 'Add New Country' }}
+        </h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4 space-y-2">
+                    {% for category, message in messages %}
+                        <div class="px-4 py-3 rounded-lg text-sm {% if category == 'success' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40{% else %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" enctype="multipart/form-data" class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Country Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                           id="name" 
+                           name="name" 
+                           value="{{ country.name if country else '' }}" 
+                           required
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                </div>
+
+                <div>
+                    <label for="code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Country Code (ISO) <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                           id="code" 
+                           name="code" 
+                           value="{{ country.code if country else '' }}" 
+                           required
+                           maxlength="10"
+                           placeholder="e.g., SN, CI, GM"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">ISO country code (2-3 letters)</p>
+                </div>
+
+                <div>
+                    <label for="currency" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Currency Code <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                           id="currency" 
+                           name="currency" 
+                           value="{{ country.currency if country else '' }}" 
+                           required
+                           maxlength="10"
+                           placeholder="e.g., XOF, GMD, USD"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">ISO currency code (e.g., XOF, GMD)</p>
+                </div>
+
+                <div>
+                    <label for="currency_symbol" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Currency Symbol
+                    </label>
+                    <input type="text" 
+                           id="currency_symbol" 
+                           name="currency_symbol" 
+                           value="{{ country.currency_symbol if country else '' }}" 
+                           maxlength="10"
+                           placeholder="e.g., CFA, D, $"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Display symbol (e.g., CFA, D)</p>
+                </div>
+
+                <div>
+                    <label for="language" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Language Code <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                           id="language" 
+                           name="language" 
+                           value="{{ country.language if country else '' }}" 
+                           required
+                           maxlength="10"
+                           placeholder="e.g., fr, en"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">ISO language code (e.g., fr, en)</p>
+                </div>
+
+                <div>
+                    <label for="flag_image" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Flag Image
+                    </label>
+                    <input type="file" 
+                           id="flag_image" 
+                           name="flag_image" 
+                           accept="image/*"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    {% if country and country.flag_image_path %}
+                        <div class="mt-2">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Current flag:</p>
+                            <img src="{{ country.get_flag_url() }}" 
+                                 alt="{{ country.name }}" 
+                                 class="w-16 h-16 rounded-sm object-cover border border-gray-300 dark:border-gray-600">
+                        </div>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Upload a flag image (PNG, JPG, SVG)</p>
+                </div>
+            </div>
+
+            <div class="flex items-center">
+                <input type="checkbox" 
+                       id="is_active" 
+                       name="is_active" 
+                       {% if country and country.is_active or not country %}checked{% endif %}
+                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                <label for="is_active" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                    Active (Country will be available for selection)
+                </label>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="{{ url_for('admin_countries') }}" 
+                   class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <i class="fas fa-save mr-2"></i> {{ 'Update Country' if country else 'Add Country' }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
