@@ -8667,12 +8667,13 @@ def china_orders():
     from sqlalchemy import or_
     
     status = request.args.get('status', 'all')
+    country_filter = request.args.get('country', '')  # Country name filter
     page = request.args.get('page', 1, type=int)
     per_page = 20
     
     # Redirect pending status to all (Pending tab removed)
     if status == 'pending':
-        return redirect(url_for('china_orders', status='all', page=page))
+        return redirect(url_for('china_orders', status='all', page=page, country=country_filter))
     
     # Base query - ONLY orders with completed payments
     # Subquery for orders with completed payments
@@ -8681,21 +8682,56 @@ def china_orders():
         Payment.order_id.isnot(None)
     ).distinct()
     
-    # Only show orders that:
+    # Base query - Only show orders that:
     # 1. Have completed payments (via Payment table)
     # 2. Have status='paid' or 'completed' (legacy support)
     # 3. Are not yet shipped (exclude "Shipped" status)
-    orders = Order.query.filter(
+    query = Order.query.options(
+        joinedload(Order.customer).joinedload(User.profile)
+    ).filter(
         or_(
             Order.id.in_(completed_payments_subquery),
             Order.status.in_(['paid', 'completed'])
         ),
         Order.status != "Shipped"
-    ).order_by(Order.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    )
+    
+    # Apply country filter if provided
+    if country_filter:
+        # Join with User and UserProfile to filter by country
+        query = query.join(User).join(UserProfile).filter(
+            UserProfile.country == country_filter
+        )
+    
+    # Get all active countries for filter dropdown
+    countries = Country.query.filter_by(is_active=True).order_by(Country.name).all()
+    countries_dict = []
+    for country in countries:
+        try:
+            countries_dict.append(country.to_dict())
+        except Exception as e:
+            # Fallback if to_dict() fails for any reason
+            current_app.logger.warning(f"Failed to convert country {country.id} to dict: {e}")
+            countries_dict.append({
+                'id': country.id,
+                'name': country.name,
+                'code': country.code or '',
+                'currency': country.currency or '',
+                'currency_symbol': country.currency_symbol or '',
+                'language': country.language or 'en',
+                'flag_image_path': country.flag_image_path or '',
+                'flag_url': None,
+                'is_active': country.is_active
+            })
+    
+    orders = query.order_by(Order.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
     return render_template('china/orders.html', 
                          orders=orders,
-                         status='all')
+                         status='all',
+                         country_filter=country_filter,
+                         countries=countries,
+                         countries_dict=countries_dict)
 
 @app.route('/china/orders/submit', methods=['POST'])
 @login_required
@@ -8869,6 +8905,25 @@ def china_submit_shipment():
             'success': False,
             'message': f'An error occurred / 发生错误: {str(e)}'
         }), 500
+
+@app.route('/china/order/<int:order_id>')
+@login_required
+@china_partner_required
+def china_order_detail(order_id):
+    """China Partner order detail page"""
+    order = Order.query.options(
+        joinedload(Order.customer).joinedload(User.profile)
+    ).get_or_404(order_id)
+    
+    # Get country for display
+    order_country = None
+    order_country_obj = None
+    if order.customer and order.customer.profile:
+        order_country = order.customer.profile.country
+        if order_country:
+            order_country_obj = Country.query.filter_by(name=order_country, is_active=True).first()
+    
+    return render_template('china/order_detail.html', order=order, order_country=order_country, order_country_obj=order_country_obj)
 
 @app.route('/china/order/<int:order_id>/mark-shipped', methods=['POST'])
 @login_required
