@@ -6848,6 +6848,7 @@ def admin_orders():
     date_filter = request.args.get('date_filter', 'all')  # 'yesterday', 'today', 'tomorrow', '7days', '30days', 'this_month', 'last_month', 'this_year', 'custom', 'all'
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
+    country_filter = request.args.get('country', '')  # Country name filter
     page = request.args.get('page', 1, type=int)
     per_page = 20  # Number of orders per page
     
@@ -6917,6 +6918,10 @@ def admin_orders():
     if date_start and date_end:
         query = query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
     
+    # Country filtering - filter by user profile country
+    if country_filter:
+        query = query.join(User).join(UserProfile).filter(UserProfile.country == country_filter)
+    
     # CSV Export
     if request.args.get('export') == 'csv':
         # Get all orders (no pagination for export)
@@ -6930,19 +6935,21 @@ def admin_orders():
         writer = csv.writer(output)
         
         # Write header (removed Shipping Status)
-        writer.writerow(['Order ID', 'Date', 'Customer', 'Email', 'Phone', 'Total', 'Status', 'Payment Method', 'Items'])
+        writer.writerow(['Order ID', 'Date', 'Customer', 'Email', 'Phone', 'Country', 'Total', 'Status', 'Payment Method', 'Items'])
         
         # Write data
         for order in export_orders:
             items_str = '; '.join([f"{item.product.name if item.product else 'N/A'} (Qty: {item.quantity}, Price: D{item.price})" for item in order.items])
             customer_email = order.customer.email if order.customer else ''
             customer_phone = getattr(order, 'customer_phone', '') or ''
+            order_country = order.customer.profile.country if (order.customer and order.customer.profile) else 'N/A'
             writer.writerow([
                 order.id,
                 order.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                 order.customer.username if order.customer else 'N/A',
                 customer_email,
                 customer_phone,
+                order_country,
                 f"D{order.total:.2f}",
                 order.status,
                 order.payment_method or 'N/A',
@@ -6957,10 +6964,10 @@ def admin_orders():
         response.headers['Content-Disposition'] = f'attachment; filename={filename}'
         return response
     
-    # Get pagination object with eager loading
+    # Get pagination object with eager loading (include UserProfile for country)
     orders = query.options(
         joinedload(Order.items).joinedload(OrderItem.product),
-        joinedload(Order.customer)
+        joinedload(Order.customer).joinedload(User.profile)
     ).order_by(Order.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False)
     
@@ -6977,6 +6984,10 @@ def admin_orders():
     # Always apply date range to totals
     if date_start and date_end:
         totals_query = totals_query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
+    
+    # Apply country filter to totals if set
+    if country_filter:
+        totals_query = totals_query.join(User, Order.user_id == User.id).join(UserProfile, User.id == UserProfile.user_id).filter(UserProfile.country == country_filter)
     
     # Total Sales - optimized using COALESCE
     total_sales_result = totals_query.with_entities(db.func.coalesce(db.func.sum(Order.total), 0)).scalar()
@@ -6999,6 +7010,8 @@ def admin_orders():
     )
     if date_start and date_end:
         quantity_query = quantity_query.filter(Order.created_at >= date_start, Order.created_at <= date_end)
+    if country_filter:
+        quantity_query = quantity_query.join(User, Order.user_id == User.id).join(UserProfile, User.id == UserProfile.user_id).filter(UserProfile.country == country_filter).distinct()
     total_quantity = int(quantity_query.scalar() or 0)
     
     # Total Unique Customers - optimized
@@ -7239,11 +7252,16 @@ def admin_orders():
         db.func.sum(OrderItem.quantity * OrderItem.price).desc()
     ).limit(10).all()
         
+    # Get all active countries for filter dropdown
+    countries = Country.query.filter_by(is_active=True).order_by(Country.name).all()
+    
     return render_template('admin/admin/orders.html',
                          orders=orders, 
                          date_filter=date_filter,
                          start_date=start_date,
                          end_date=end_date,
+                         country_filter=country_filter,
+                         countries=countries,
                          total_sales=total_sales,
                          total_orders_count=total_orders_count,
                          avg_order_value=avg_order_value,
@@ -7258,7 +7276,9 @@ def admin_orders():
 @login_required
 @admin_required
 def admin_order_detail(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = Order.query.options(
+        joinedload(Order.customer).joinedload(User.profile)
+    ).get_or_404(order_id)
     
     if request.method == 'POST':
         new_status = request.form.get('status')
@@ -7271,7 +7291,15 @@ def admin_order_detail(order_id):
         
         return redirect(url_for('admin_order_detail', order_id=order.id))
     
-    return render_template('admin/admin/order_detail.html', order=order)
+    # Get country for display
+    order_country = None
+    order_country_obj = None
+    if order.customer and order.customer.profile:
+        order_country = order.customer.profile.country
+        if order_country:
+            order_country_obj = Country.query.filter_by(name=order_country, is_active=True).first()
+    
+    return render_template('admin/admin/order_detail.html', order=order, order_country=order_country, order_country_obj=order_country_obj)
 
 @app.route('/admin/pending-payments')
 @login_required
