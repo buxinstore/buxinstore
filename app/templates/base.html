@@ -467,9 +467,12 @@
                 overflow-hidden 
                 flex flex-col
                 animate-in-custom
+                transition-transform duration-200 ease-out
               ">
-                <div class="px-4 py-3 border-b border-[color:var(--app-border)] bg-slate-50 dark:bg-slate-900/50 flex-shrink-0">
-                  <p class="text-sm font-semibold text-[color:var(--app-text)]">{{ _('Select Country') }}</p>
+                <div class="px-4 py-3 border-b border-[color:var(--app-border)] bg-slate-50 dark:bg-slate-900/50 flex-shrink-0 relative">
+                  <!-- Swipe indicator for mobile -->
+                  <div class="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-slate-300 dark:bg-slate-600 rounded-full md:hidden"></div>
+                  <p class="text-sm font-semibold text-[color:var(--app-text)] mt-2 md:mt-0">{{ _('Select Country') }}</p>
                 </div>
                 <div id="country-list" class="overflow-y-auto overscroll-contain p-3 md:p-2 space-y-1.5 md:space-y-1 flex-1 min-h-0 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
                   <!-- Countries will be loaded via JavaScript -->
@@ -1154,19 +1157,153 @@
     }
     
     // Close dropdown (used by overlay click)
-    function closeCountryDropdown() {
+    function closeCountryDropdown(animate = true) {
       const dropdown = document.getElementById('country-dropdown');
       const overlay = document.getElementById('country-dropdown-overlay');
       const toggleButton = document.getElementById('country-toggle');
       
       if (dropdown) {
-        dropdown.classList.add('hidden');
+        if (animate && isMobile()) {
+          // Add fade/slide animation on mobile
+          dropdown.style.transition = 'opacity 200ms ease-out, transform 200ms ease-out';
+          dropdown.style.opacity = '0';
+          dropdown.style.transform = 'translate(-50%, -1rem)';
+          
+          setTimeout(() => {
+            dropdown.classList.add('hidden');
+            dropdown.style.opacity = '';
+            dropdown.style.transform = '';
+            dropdown.style.transition = '';
+          }, 200);
+        } else {
+          dropdown.classList.add('hidden');
+        }
       }
       if (overlay) {
-        overlay.classList.add('hidden');
+        overlay.style.transition = 'opacity 200ms ease-out';
+        overlay.style.opacity = '0';
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+          overlay.style.opacity = '';
+          overlay.style.transition = '';
+        }, 200);
       }
       if (toggleButton) {
         toggleButton.setAttribute('aria-expanded', 'false');
+      }
+    }
+    
+    // Swipe-to-dismiss functionality for mobile
+    let swipeState = {
+      startY: 0,
+      currentY: 0,
+      isDragging: false,
+      startScrollTop: 0,
+      threshold: 100, // pixels to drag before dismissing
+      resistance: 0.3 // resistance factor for drag
+    };
+    
+    function initSwipeToDismiss() {
+      const dropdown = document.getElementById('country-dropdown');
+      const countryList = document.getElementById('country-list');
+      if (!dropdown || !countryList) return;
+      
+      // Touch start
+      dropdown.addEventListener('touchstart', function(e) {
+        if (!isMobile()) return;
+        
+        const touch = e.touches[0];
+        swipeState.startY = touch.clientY;
+        swipeState.currentY = touch.clientY;
+        swipeState.startScrollTop = countryList.scrollTop;
+        swipeState.isDragging = false;
+        
+        // Reset transform
+        dropdown.style.transition = 'none';
+      }, { passive: true });
+      
+      // Touch move
+      dropdown.addEventListener('touchmove', function(e) {
+        if (!isMobile()) return;
+        
+        const touch = e.touches[0];
+        const deltaY = touch.clientY - swipeState.startY;
+        const scrollTop = countryList.scrollTop;
+        
+        // Only start dragging if:
+        // 1. User is dragging down (deltaY > 0)
+        // 2. User is at the top of the scroll (scrollTop === 0) OR already dragging
+        // 3. Not scrolling the list
+        if (deltaY > 0 && (scrollTop === 0 || swipeState.isDragging)) {
+          e.preventDefault();
+          swipeState.isDragging = true;
+          swipeState.currentY = touch.clientY;
+          
+          // Apply resistance: drag becomes harder as you pull down
+          const dragDistance = deltaY;
+          const resistance = 1 - (dragDistance / (window.innerHeight * 0.5)) * swipeState.resistance;
+          const adjustedDistance = dragDistance * Math.max(resistance, 0.3);
+          
+          // Apply transform
+          dropdown.style.transform = `translate(-50%, ${adjustedDistance}px)`;
+          
+          // Fade overlay as user drags
+          const overlay = document.getElementById('country-dropdown-overlay');
+          if (overlay) {
+            const opacity = Math.max(0, 0.5 - (adjustedDistance / 300));
+            overlay.style.opacity = opacity.toString();
+          }
+        } else if (scrollTop > 0 && !swipeState.isDragging) {
+          // User is scrolling the list, don't interfere
+          return;
+        }
+      }, { passive: false });
+      
+      // Touch end
+      dropdown.addEventListener('touchend', function(e) {
+        if (!isMobile() || !swipeState.isDragging) {
+          swipeState.isDragging = false;
+          return;
+        }
+        
+        const deltaY = swipeState.currentY - swipeState.startY;
+        
+        // If dragged far enough, close the dropdown
+        if (deltaY > swipeState.threshold) {
+          closeCountryDropdown(true);
+        } else {
+          // Snap back to original position
+          dropdown.style.transition = 'transform 200ms ease-out, opacity 200ms ease-out';
+          dropdown.style.transform = 'translate(-50%, 0)';
+          
+          // Restore overlay opacity
+          const overlay = document.getElementById('country-dropdown-overlay');
+          if (overlay) {
+            overlay.style.transition = 'opacity 200ms ease-out';
+            overlay.style.opacity = '0.5';
+          }
+          
+          setTimeout(() => {
+            dropdown.style.transition = '';
+            if (overlay) overlay.style.transition = '';
+          }, 200);
+        }
+        
+        swipeState.isDragging = false;
+      }, { passive: true });
+      
+      // Also handle touch on the header for easier dragging
+      const dropdownHeader = dropdown.querySelector('.px-4.py-3');
+      if (dropdownHeader) {
+        dropdownHeader.addEventListener('touchstart', function(e) {
+          if (!isMobile()) return;
+          const touch = e.touches[0];
+          swipeState.startY = touch.clientY;
+          swipeState.currentY = touch.clientY;
+          swipeState.startScrollTop = 0;
+          swipeState.isDragging = true;
+          dropdown.style.transition = 'none';
+        }, { passive: true });
       }
     }
     
@@ -1174,6 +1311,9 @@
     document.addEventListener('DOMContentLoaded', async function() {
       await loadCountries();
       await loadCurrentCountry();
+      
+      // Initialize swipe-to-dismiss for mobile
+      initSwipeToDismiss();
       
       // Set up country toggle button
       const countryToggle = document.getElementById('country-toggle');
