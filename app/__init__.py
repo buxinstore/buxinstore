@@ -3107,9 +3107,16 @@ def checkout():
             from app.payments.models import PendingPayment
             import json
             
-            # Pre-fill user data
-            user_phone = getattr(current_user, 'phone', '')
+            # Get or create user profile
+            profile = ensure_user_profile(current_user)
+            
+            # Pre-fill user data from profile
+            user_phone = profile.phone_number or getattr(current_user, 'phone', '')
             user_email = current_user.email
+            full_name = f"{profile.first_name or ''} {profile.last_name or ''}".strip() or current_user.username
+            user_country = profile.country or ''
+            user_city = profile.city or ''
+            user_address = profile.address or ''
             
             # Create a PendingPayment for this checkout session
             # It will be used when user clicks "Pay Now" via JavaScript
@@ -3122,11 +3129,14 @@ def checkout():
             db.session.add(pending_payment)
             db.session.commit()
             
-            # The form is needed for the GET request to render the fields
+            # Pre-fill form with user profile data
             form = CheckoutForm(
-                full_name=current_user.username,
+                full_name=full_name,
                 email=user_email,
-                phone=user_phone
+                phone=user_phone,
+                country=user_country,
+                city=user_city,
+                delivery_address=user_address
             )
 
             return render_template('checkout.html', 
