@@ -2920,6 +2920,17 @@ def cart_proceed():
     if not current_user.is_authenticated:
         flash('Please log in to complete your checkout.', 'info')
         return redirect(url_for('login', next=url_for('checkout')))
+    
+    # Check if cart is empty before proceeding
+    try:
+        cart_items, _ = update_cart()
+        if not cart_items:
+            flash('Your cart is empty. Please add items before checkout.', 'warning')
+            return redirect(url_for('cart'))
+    except Exception as e:
+        app.logger.error(f'Error checking cart in cart_proceed: {str(e)}', exc_info=True)
+        flash('An error occurred while processing your cart. Please try again.', 'error')
+        return redirect(url_for('cart'))
 
     return redirect(url_for('checkout'))
 @app.route('/add_to_cart/<int:product_id>', methods=['POST'])
@@ -3401,12 +3412,27 @@ def checkout():
     GET: Shows checkout form with ModemPay payment options
     POST: Creates order and initiates ModemPay payment
     """
-    cart_items, _ = update_cart()
-    cart_summary = serialize_cart_summary(cart_items)
-    checkout_summary = cart_summary['checkout']
-    
-    if not cart_items:
-        flash('Your cart is empty', 'warning')
+    try:
+        cart_items, _ = update_cart()
+        
+        # Check for empty cart early
+        if not cart_items:
+            flash('Your cart is empty', 'warning')
+            return redirect(url_for('cart'))
+        
+        cart_summary = serialize_cart_summary(cart_items)
+        checkout_summary = cart_summary.get('checkout', {})
+        
+        # Validate checkout summary
+        if not checkout_summary or 'total' not in checkout_summary:
+            app.logger.error(f'Invalid checkout summary: {checkout_summary}')
+            flash('An error occurred while processing your cart. Please try again.', 'error')
+            return redirect(url_for('cart'))
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f'Error processing cart in checkout: {str(e)}', exc_info=True)
+        flash('An error occurred while processing your cart. Please try again.', 'error')
         return redirect(url_for('cart'))
     
     # Handle GET request - show checkout page
@@ -3430,36 +3456,45 @@ def checkout():
             shipping_info = None
             country_id = None
             if user_country:
-                country = Country.query.filter_by(name=user_country, is_active=True).first()
-                if country:
-                    country_id = country.id
-                    total_weight = calculate_cart_total_weight(cart_items, default_weight=0.0)
-                    shipping_result = calculate_shipping_price(total_weight, country_id, default_weight=0.0)
-                    if shipping_result and shipping_result.get('available'):
-                        from .utils.currency_rates import convert_price
-                        shipping_price_gmd = shipping_result['price_gmd']
-                        if country.currency != 'GMD':
-                            shipping_price_display = convert_price(shipping_price_gmd, 'GMD', country.currency)
-                        else:
-                            shipping_price_display = shipping_price_gmd
-                        shipping_info = {
-                            'price_gmd': shipping_price_gmd,
-                            'price_display': shipping_price_display,
-                            'delivery_time': shipping_result['delivery_time'],
-                            'rule': shipping_result['rule']
-                        }
+                try:
+                    country = Country.query.filter_by(name=user_country, is_active=True).first()
+                    if country:
+                        country_id = country.id
+                        total_weight = calculate_cart_total_weight(cart_items, default_weight=0.0)
+                        shipping_result = calculate_shipping_price(total_weight, country_id, default_weight=0.0)
+                        if shipping_result and shipping_result.get('available'):
+                            from .utils.currency_rates import convert_price
+                            shipping_price_gmd = shipping_result['price_gmd']
+                            if country.currency != 'GMD':
+                                shipping_price_display = convert_price(shipping_price_gmd, 'GMD', country.currency)
+                            else:
+                                shipping_price_display = shipping_price_gmd
+                            shipping_info = {
+                                'price_gmd': shipping_price_gmd,
+                                'price_display': shipping_price_display,
+                                'delivery_time': shipping_result['delivery_time'],
+                                'rule': shipping_result['rule']
+                            }
+                except Exception as e:
+                    app.logger.warning(f'Error calculating shipping for display: {str(e)}')
+                    # Continue without shipping info - it will be calculated on POST
             
             # Create a PendingPayment for this checkout session
             # It will be used when user clicks "Pay Now" via JavaScript
             # Note: Shipping will be recalculated on POST with final country selection
-            pending_payment = PendingPayment(
-                user_id=current_user.id,
-                amount=checkout_summary['total'],
-                status='waiting',
-                cart_items_json=json.dumps(cart_items)
-            )
-            db.session.add(pending_payment)
-            db.session.commit()
+            try:
+                pending_payment = PendingPayment(
+                    user_id=current_user.id,
+                    amount=checkout_summary['total'],
+                    status='waiting',
+                    cart_items_json=json.dumps(cart_items)
+                )
+                db.session.add(pending_payment)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f'Error creating pending payment: {str(e)}', exc_info=True)
+                raise
             
             # Pre-fill form with user profile data
             form = CheckoutForm(
@@ -3485,7 +3520,7 @@ def checkout():
             
         except Exception as e:
             db.session.rollback()
-            app.logger.error(f'Error creating order: {str(e)}')
+            app.logger.error(f'Error in checkout GET: {str(e)}', exc_info=True)
             flash('An error occurred while processing your order. Please try again.', 'error')
             return redirect(url_for('cart'))
     
