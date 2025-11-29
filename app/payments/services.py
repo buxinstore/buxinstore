@@ -493,11 +493,15 @@ class PaymentService:
                 status='paid',  # Order is created only after successful payment
                 shipping_status='pending',
                 shipping_price=pending_payment.shipping_price,
+                shipping_price_gmd=pending_payment.shipping_price,  # Store GMD value
                 total_cost=pending_payment.total_cost,
                 customer_name=pending_payment.customer_name,
                 customer_address=pending_payment.delivery_address,
                 customer_phone=pending_payment.customer_phone,
-                location=pending_payment.location or 'China'
+                location=pending_payment.location or 'China',
+                shipping_rule_id=pending_payment.shipping_rule_id,
+                shipping_delivery_estimate=pending_payment.shipping_delivery_estimate,
+                shipping_display_currency=pending_payment.shipping_display_currency
             )
             
             db.session.add(order)

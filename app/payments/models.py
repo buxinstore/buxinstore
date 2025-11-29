@@ -123,11 +123,17 @@ class PendingPayment(db.Model):
     total_cost = db.Column(db.Float, nullable=True)
     location = db.Column(db.String(50), nullable=True)
     
+    # Shipping rule fields (for automatic shipping calculation)
+    shipping_rule_id = db.Column(db.Integer, db.ForeignKey('shipping_rule.id'), nullable=True)  # Which shipping rule was applied
+    shipping_delivery_estimate = db.Column(db.String(100), nullable=True)  # Delivery time estimate from rule
+    shipping_display_currency = db.Column(db.String(10), nullable=True)  # Currency used for display (e.g., 'GMD', 'XOF')
+    
     # Store cart items as JSON for simplicity (will be converted to OrderItems on success)
     cart_items_json = db.Column(db.Text, nullable=True)  # JSON string of cart items
     
     # Relationships
     user = db.relationship('User', backref='pending_payments', lazy=True)
+    shipping_rule = db.relationship('ShippingRule', backref='pending_payments', lazy=True)
     
     def __repr__(self):
         return f'<PendingPayment {self.id} - User {self.user_id} - {self.status}>'

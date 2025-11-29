@@ -61,6 +61,68 @@
                         {% endif %}
                     </dd>
                 </div>
+                <div class="bg-white dark:bg-gray-800 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
+                        Shipping Rule
+                    </dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white sm:mt-0 sm:col-span-2">
+                        {% if order.shipping_rule %}
+                            <div class="space-y-1">
+                                <div>
+                                    <span class="font-medium">
+                                        {% if order.shipping_rule.rule_type == 'global' %}
+                                            🌍 Global Rule
+                                        {% else %}
+                                            {{ order.shipping_rule.country.name if order.shipping_rule.country else 'Country Rule' }}
+                                        {% endif %}
+                                    </span>
+                                    (Priority: {{ order.shipping_rule.priority }})
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    Weight: {{ "%.6f"|format(order.shipping_rule.min_weight) }}kg - {{ "%.6f"|format(order.shipping_rule.max_weight) }}kg
+                                </div>
+                                {% if order.shipping_rule.note %}
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                                        Note: {{ order.shipping_rule.note }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <span class="text-gray-400 dark:text-gray-500">Not specified</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
+                        Shipping Price
+                    </dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white sm:mt-0 sm:col-span-2">
+                        {% if order.shipping_price_gmd %}
+                            D{{ "%.2f"|format(order.shipping_price_gmd) }} (GMD)
+                            {% if order.shipping_display_currency and order.shipping_display_currency != 'GMD' %}
+                                <span class="text-gray-500 dark:text-gray-400">
+                                    (Displayed as {{ order.shipping_display_currency }})
+                                </span>
+                            {% endif %}
+                        {% elif order.shipping_price %}
+                            D{{ "%.2f"|format(order.shipping_price) }}
+                        {% else %}
+                            <span class="text-gray-400 dark:text-gray-500">Not specified</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="bg-white dark:bg-gray-800 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
+                        Delivery Estimate
+                    </dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white sm:mt-0 sm:col-span-2">
+                        {% if order.shipping_delivery_estimate %}
+                            {{ order.shipping_delivery_estimate }}
+                        {% else %}
+                            <span class="text-gray-400 dark:text-gray-500">Not specified</span>
+                        {% endif %}
+                    </dd>
+                </div>
                 <div class="bg-gray-50 dark:bg-gray-700 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
                         Order Total
@@ -69,7 +131,7 @@
                         D{{ "%.2f"|format(order.total) }}
                     </dd>
                 </div>
-                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <div class="bg-white dark:bg-gray-800 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
                         Payment Method
                     </dt>
@@ -81,7 +143,7 @@
                         {% endif %}
                     </dd>
                 </div>
-                <div class="bg-white dark:bg-gray-800 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
                         Delivery Address
                     </dt>

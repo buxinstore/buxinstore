@@ -1,0 +1,206 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}{{ 'Edit Shipping Rule' if rule else 'Add Shipping Rule' }}{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <div class="mb-4">
+        <a href="{{ url_for('admin_shipping_rules') }}" 
+           class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+            <i class="fas fa-arrow-left mr-2"></i> Back to Shipping Rules
+        </a>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 shadow rounded-md p-6">
+        <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
+            {{ 'Edit Shipping Rule' if rule else 'Add New Shipping Rule' }}
+        </h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4 space-y-2">
+                    {% for category, message in messages %}
+                        <div class="px-4 py-3 rounded-lg text-sm {% if category == 'success' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40{% elif category == 'warning' %}bg-yellow-50 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-700/40{% else %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="rule_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Rule Type <span class="text-red-500">*</span>
+                    </label>
+                    <select id="rule_type" 
+                            name="rule_type" 
+                            required
+                            onchange="toggleCountryField()"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                        <option value="country" {% if rule and rule.rule_type == 'country' %}selected{% endif %}>Country-Specific</option>
+                        <option value="global" {% if rule and rule.rule_type == 'global' %}selected{% endif %}>Global (All Countries)</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Global rules apply to all countries when no country-specific rule matches</p>
+                </div>
+
+                <div id="country-field">
+                    <label for="country_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Country <span class="text-red-500" id="country-required">*</span>
+                    </label>
+                    <select id="country_id" 
+                            name="country_id" 
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                        <option value="">Select Country</option>
+                        {% for country in countries %}
+                        <option value="{{ country.id }}" 
+                                {% if rule and rule.country_id == country.id %}selected{% endif %}
+                                data-flag="{{ country.get_flag_url() }}"
+                                data-name="{{ country.name }}">
+                            {{ country.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select the country this rule applies to</p>
+                </div>
+
+                <div>
+                    <label for="min_weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Min Weight (kg) <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" 
+                           id="min_weight" 
+                           name="min_weight" 
+                           step="0.000001"
+                           min="0"
+                           value="{{ "%.6f"|format(rule.min_weight) if rule else '0.0' }}" 
+                           required
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Minimum weight in kilograms (e.g., 0.00015)</p>
+                </div>
+
+                <div>
+                    <label for="max_weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Max Weight (kg) <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" 
+                           id="max_weight" 
+                           name="max_weight" 
+                           step="0.000001"
+                           min="0"
+                           value="{{ "%.6f"|format(rule.max_weight) if rule else '1.0' }}" 
+                           required
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Maximum weight in kilograms (must be greater than min weight)</p>
+                </div>
+
+                <div>
+                    <label for="price_gmd" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Price (GMD) <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" 
+                           id="price_gmd" 
+                           name="price_gmd" 
+                           step="0.01"
+                           min="0"
+                           value="{{ "%.2f"|format(rule.price_gmd) if rule else '0.00' }}" 
+                           required
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Shipping price in Gambian Dalasi (GMD)</p>
+                </div>
+
+                <div>
+                    <label for="delivery_time" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Delivery Time
+                    </label>
+                    <input type="text" 
+                           id="delivery_time" 
+                           name="delivery_time" 
+                           value="{{ rule.delivery_time if rule else '' }}" 
+                           placeholder="e.g., 7-30 days"
+                           maxlength="100"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Estimated delivery time (optional)</p>
+                </div>
+
+                <div>
+                    <label for="priority" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Priority
+                    </label>
+                    <input type="number" 
+                           id="priority" 
+                           name="priority" 
+                           value="{{ rule.priority if rule else '0' }}" 
+                           min="0"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Higher priority rules are checked first (default: 0)</p>
+                </div>
+
+                <div>
+                    <label for="status" class="flex items-center">
+                        <input type="checkbox" 
+                               id="status" 
+                               name="status" 
+                               {% if not rule or rule.status %}checked{% endif %}
+                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
+                    </label>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Only active rules are used for shipping calculations</p>
+                </div>
+            </div>
+
+            <div>
+                <label for="note" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Notes
+                </label>
+                <textarea id="note" 
+                          name="note" 
+                          rows="3"
+                          placeholder="Optional notes about this rule..."
+                          class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">{{ rule.note if rule else '' }}</textarea>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional notes for internal reference</p>
+            </div>
+
+            <div class="flex justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="{{ url_for('admin_shipping_rules') }}" 
+                   class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    {{ 'Update Rule' if rule else 'Create Rule' }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleCountryField() {
+    const ruleType = document.getElementById('rule_type').value;
+    const countryField = document.getElementById('country-field');
+    const countrySelect = document.getElementById('country_id');
+    const countryRequired = document.getElementById('country-required');
+    
+    if (ruleType === 'global') {
+        countryField.style.display = 'none';
+        countrySelect.removeAttribute('required');
+        countryRequired.style.display = 'none';
+        countrySelect.value = '';
+    } else {
+        countryField.style.display = 'block';
+        countrySelect.setAttribute('required', 'required');
+        countryRequired.style.display = 'inline';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleCountryField();
+});
+</script>
+{% endblock %}
+

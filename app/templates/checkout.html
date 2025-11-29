@@ -595,10 +595,85 @@
                 window.lucide.createIcons();
             }
             
+            // Calculate shipping for selected country
+            calculateShippingForCountry(country.id);
+            
             // Validate and update button state
             clearError('country');
             validationState.country = true;
             updateButtonState();
+        }
+        
+        // Calculate shipping for selected country
+        async function calculateShippingForCountry(countryId) {
+            try {
+                // Get cart summary data
+                const summaryData = JSON.parse(document.getElementById('checkout-summary-data').textContent);
+                const cartItems = summaryData.items || [];
+                
+                // Calculate total weight
+                let totalWeight = 0;
+                for (const item of cartItems) {
+                    // Weight will be calculated server-side, but we can estimate
+                    // For now, use a default weight per item if not available
+                    const itemWeight = item.weight_kg || 0.1; // Default 0.1kg per item
+                    totalWeight += itemWeight * item.quantity;
+                }
+                
+                // Call shipping estimate API
+                const response = await fetch('/api/shipping/estimate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        country_id: countryId,
+                        weight: totalWeight
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.available) {
+                    // Update shipping display
+                    const shippingEl = document.querySelector('[data-checkout-shipping]');
+                    const totalEl = document.querySelector('[data-checkout-total]');
+                    
+                    if (shippingEl && totalEl) {
+                        // Format shipping price (assuming GMD for now, can be converted)
+                        const shippingPrice = data.price_gmd.toFixed(2);
+                        shippingEl.textContent = `D${shippingPrice}`;
+                        
+                        // Update total (subtotal + shipping)
+                        const subtotal = summaryData.subtotal || 0;
+                        const tax = summaryData.tax || 0;
+                        const newTotal = subtotal + tax + data.price_gmd;
+                        totalEl.textContent = `D${newTotal.toFixed(2)}`;
+                        
+                        // Update hidden amount field
+                        const amountInput = document.getElementById('amount');
+                        if (amountInput) {
+                            amountInput.value = newTotal.toFixed(2);
+                        }
+                        
+                        // Show delivery estimate if available
+                        if (data.delivery_time) {
+                            // You can add a delivery estimate display here
+                            console.log('Delivery estimate:', data.delivery_time);
+                        }
+                    }
+                } else {
+                    // Shipping unavailable
+                    const shippingEl = document.querySelector('[data-checkout-shipping]');
+                    if (shippingEl) {
+                        shippingEl.textContent = 'Unavailable';
+                        shippingEl.classList.add('text-red-500');
+                    }
+                }
+            } catch (error) {
+                console.error('Error calculating shipping:', error);
+            }
+        }
             
             // Trigger auto-save
             autoSaveAddress();
