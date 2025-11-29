@@ -431,12 +431,36 @@
                 {% endif %}
               </button>
               
-              <!-- Country Dropdown -->
-              <div id="country-dropdown" class="absolute right-0 mt-3 w-72 bg-[color:var(--app-card)] backdrop-blur-xl border border-[color:var(--app-border)] rounded-2xl shadow-2xl animate-in-custom hidden z-50 max-h-[32rem] overflow-hidden flex flex-col">
-                <div class="px-4 py-3 border-b border-[color:var(--app-border)]">
+              <!-- Mobile Overlay -->
+              <div id="country-dropdown-overlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] hidden md:hidden transition-opacity duration-300"></div>
+              
+              <!-- Country Dropdown - Responsive: Mobile (centered modal) / Desktop (normal dropdown) -->
+              <div id="country-dropdown" class="
+                fixed md:absolute 
+                top-1/2 md:top-auto 
+                left-1/2 md:left-auto 
+                right-auto md:right-0 
+                -translate-x-1/2 md:translate-x-0 
+                -translate-y-1/2 md:translate-y-0 
+                mt-0 md:mt-3 
+                w-[90%] md:w-72 
+                max-w-md md:max-w-none
+                bg-white dark:bg-slate-800 
+                backdrop-blur-xl 
+                border border-[color:var(--app-border)] 
+                rounded-xl md:rounded-2xl 
+                shadow-lg md:shadow-2xl 
+                hidden 
+                z-[70] md:z-50 
+                max-h-[80vh] md:max-h-[32rem] 
+                overflow-hidden 
+                flex flex-col
+                animate-in-custom
+              ">
+                <div class="px-4 py-3 border-b border-[color:var(--app-border)] bg-slate-50 dark:bg-slate-900/50">
                   <p class="text-sm font-semibold text-[color:var(--app-text)]">{{ _('Select Country') }}</p>
                 </div>
-                <div id="country-list" class="overflow-y-auto p-2 space-y-1">
+                <div id="country-list" class="overflow-y-auto p-3 md:p-2 space-y-1.5 md:space-y-1">
                   <!-- Countries will be loaded via JavaScript -->
                 </div>
               </div>
@@ -926,16 +950,16 @@
         
         return `
           <button type="button" 
-                  class="w-full flex items-center gap-3 px-4 py-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-all duration-200 ${isSelected ? 'bg-[color:var(--app-surface-hover)] ring-2 ring-cyan-500/30' : ''}"
+                  class="w-full flex items-center gap-3 px-3 py-2.5 md:px-4 md:py-3 text-[color:var(--app-text)] hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg md:rounded-xl transition-all duration-200 ${isSelected ? 'bg-slate-100 dark:bg-slate-700/50 ring-2 ring-cyan-500/30' : ''}"
                   onclick="selectCountry(${country.id}, false)">
-            <div class="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden border-2 border-[color:var(--app-border)] flex items-center justify-center bg-gray-100 dark:bg-gray-700">
-              ${flagUrl ? `<img src="${flagUrl}" alt="${country.name}" class="w-full h-full object-cover" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<i data-lucide=\\'globe\\' class=\\'w-5 h-5 text-[color:var(--app-muted)]\\'></i>'; if(window.lucide) window.lucide.createIcons();">` : '<i data-lucide="globe" class="w-5 h-5 text-[color:var(--app-muted)]"></i>'}
+            <div class="flex-shrink-0 w-9 h-9 md:w-10 md:h-10 rounded-full overflow-hidden border-2 border-[color:var(--app-border)] flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+              ${flagUrl ? `<img src="${flagUrl}" alt="${country.name}" class="w-full h-full object-cover" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<i data-lucide=\\'globe\\' class=\\'w-4 h-4 md:w-5 md:h-5 text-[color:var(--app-muted)]\\'></i>'; if(window.lucide) window.lucide.createIcons();">` : '<i data-lucide="globe" class="w-4 h-4 md:w-5 md:h-5 text-[color:var(--app-muted)]"></i>'}
             </div>
             <div class="flex-1 text-left min-w-0">
-              <div class="text-sm font-semibold text-[color:var(--app-text)] truncate">${country.name}</div>
+              <div class="text-sm md:text-sm font-semibold text-[color:var(--app-text)] truncate">${country.name}</div>
               <div class="text-xs text-[color:var(--app-muted)] truncate">${currencyDisplay} • ${(country.language || 'en').toUpperCase()}</div>
             </div>
-            ${isSelected ? '<i data-lucide="check" class="w-5 h-5 text-cyan-500 flex-shrink-0"></i>' : ''}
+            ${isSelected ? '<i data-lucide="check" class="w-4 h-4 md:w-5 md:h-5 text-cyan-500 flex-shrink-0"></i>' : ''}
           </button>
         `;
       }).join('');
@@ -1060,10 +1084,7 @@
           await loadCountries();
           
           // Close dropdown/modal
-          const dropdown = document.getElementById('country-dropdown');
-          if (dropdown) {
-            dropdown.classList.add('hidden');
-          }
+          closeCountryDropdown();
           
           if (fromModal) {
             const modal = document.getElementById('country-selector-modal');
@@ -1086,15 +1107,56 @@
       }
     }
     
+    // Check if mobile screen
+    function isMobile() {
+      return window.innerWidth < 768; // md breakpoint
+    }
+    
     // Toggle country dropdown
     function toggleCountryDropdown() {
       const dropdown = document.getElementById('country-dropdown');
+      const overlay = document.getElementById('country-dropdown-overlay');
       const toggleButton = document.getElementById('country-toggle');
       if (!dropdown || !toggleButton) return;
       
       const isHidden = dropdown.classList.contains('hidden');
-      dropdown.classList.toggle('hidden');
-      toggleButton.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+      
+      if (isHidden) {
+        // Show dropdown
+        dropdown.classList.remove('hidden');
+        toggleButton.setAttribute('aria-expanded', 'true');
+        
+        // Show overlay on mobile
+        if (isMobile() && overlay) {
+          overlay.classList.remove('hidden');
+        }
+      } else {
+        // Hide dropdown
+        dropdown.classList.add('hidden');
+        toggleButton.setAttribute('aria-expanded', 'false');
+        
+        // Hide overlay
+        if (overlay) {
+          overlay.classList.add('hidden');
+        }
+      }
+    }
+    
+    // Close dropdown (used by overlay click)
+    function closeCountryDropdown() {
+      const dropdown = document.getElementById('country-dropdown');
+      const overlay = document.getElementById('country-dropdown-overlay');
+      const toggleButton = document.getElementById('country-toggle');
+      
+      if (dropdown) {
+        dropdown.classList.add('hidden');
+      }
+      if (overlay) {
+        overlay.classList.add('hidden');
+      }
+      if (toggleButton) {
+        toggleButton.setAttribute('aria-expanded', 'false');
+      }
     }
     
     // Initialize country system
@@ -1111,18 +1173,41 @@
         });
       }
       
-      // Close dropdown when clicking outside
+      // Close dropdown when clicking outside (desktop) or on overlay (mobile)
       document.addEventListener('click', function(event) {
         const countryButton = document.getElementById('country-toggle');
         const countryDropdown = document.getElementById('country-dropdown');
+        const overlay = document.getElementById('country-dropdown-overlay');
+        
         if (!countryButton || !countryDropdown) return;
         
-        if (!countryDropdown.classList.contains('hidden') && 
+        // On mobile, close when clicking overlay
+        if (isMobile() && overlay && event.target === overlay) {
+          closeCountryDropdown();
+          return;
+        }
+        
+        // On desktop, close when clicking outside
+        if (!isMobile() && 
+            !countryDropdown.classList.contains('hidden') && 
             !countryButton.contains(event.target) && 
             !countryDropdown.contains(event.target)) {
-          countryDropdown.classList.add('hidden');
-          countryButton.setAttribute('aria-expanded', 'false');
+          closeCountryDropdown();
         }
+      });
+      
+      // Handle window resize to update dropdown behavior
+      let resizeTimer;
+      window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+          // If resizing from mobile to desktop or vice versa, close dropdown
+          const dropdown = document.getElementById('country-dropdown');
+          const overlay = document.getElementById('country-dropdown-overlay');
+          if (dropdown && !dropdown.classList.contains('hidden')) {
+            closeCountryDropdown();
+          }
+        }, 250);
       });
       
       // Show country selector modal if country not selected
