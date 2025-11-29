@@ -1140,19 +1140,18 @@
         dropdown.classList.remove('hidden');
         toggleButton.setAttribute('aria-expanded', 'true');
         
+        // Reset transform and opacity
+        dropdown.style.transform = '';
+        dropdown.style.opacity = '';
+        
         // Show overlay on mobile
         if (isMobile() && overlay) {
           overlay.classList.remove('hidden');
+          overlay.style.opacity = '0.5';
         }
       } else {
-        // Hide dropdown
-        dropdown.classList.add('hidden');
-        toggleButton.setAttribute('aria-expanded', 'false');
-        
-        // Hide overlay
-        if (overlay) {
-          overlay.classList.add('hidden');
-        }
+        // Hide dropdown with animation
+        closeCountryDropdown(true);
       }
     }
     
