@@ -1,0 +1,129 @@
+# French translations
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr\n"
+
+msgid "Select your country"
+msgstr "Sélectionnez votre pays"
+
+msgid "Choose your country to see prices and content in your local currency and language"
+msgstr "Choisissez votre pays pour voir les prix et le contenu dans votre devise et langue locales"
+
+msgid "Skip for now"
+msgstr "Passer pour l'instant"
+
+msgid "Shopping Cart"
+msgstr "Panier d'achat"
+
+msgid "Review your items and proceed to checkout."
+msgstr "Examinez vos articles et passez à la caisse."
+
+msgid "Continue Shopping"
+msgstr "Continuer les achats"
+
+msgid "Your cart is empty"
+msgstr "Votre panier est vide"
+
+msgid "Looks like you haven't added anything yet."
+msgstr "Il semble que vous n'ayez encore rien ajouté."
+
+msgid "Start Shopping"
+msgstr "Commencer les achats"
+
+msgid "Add to Cart"
+msgstr "Ajouter au panier"
+
+msgid "Out of Stock"
+msgstr "Rupture de stock"
+
+msgid "In Stock"
+msgstr "En stock"
+
+msgid "Delivery Fee"
+msgstr "Frais de livraison"
+
+msgid "Subtotal"
+msgstr "Sous-total"
+
+msgid "Tax"
+msgstr "Taxe"
+
+msgid "Shipping"
+msgstr "Expédition"
+
+msgid "Order Total"
+msgstr "Total de la commande"
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Remove"
+msgstr "Retirer"
+
+msgid "Checkout"
+msgstr "Commander"
+
+msgid "Order summary"
+msgstr "Résumé de la commande"
+
+msgid "Payment Information"
+msgstr "Informations de paiement"
+
+msgid "Pay securely using ModemPay"
+msgstr "Payer en toute sécurité avec ModemPay"
+
+msgid "Amount"
+msgstr "Montant"
+
+msgid "Product Price"
+msgstr "Prix du produit"
+
+msgid "Final Price"
+msgstr "Prix final"
+
+msgid "Location"
+msgstr "Emplacement"
+
+msgid "Customer Message"
+msgstr "Message client"
+
+msgid "You can receive your order today by calling our support team."
+msgstr "Vous pouvez recevoir votre commande aujourd'hui en appelant notre équipe de support."
+
+msgid "Estimated delivery: 14–30 days."
+msgstr "Livraison estimée : 14–30 jours."
+
+msgid "Search products..."
+msgstr "Rechercher des produits..."
+
+msgid "My Profile"
+msgstr "Mon profil"
+
+msgid "My Orders"
+msgstr "Mes commandes"
+
+msgid "My Wishlist"
+msgstr "Ma liste de souhaits"
+
+msgid "Discussion Forum"
+msgstr "Forum de discussion"
+
+msgid "Sign Out"
+msgstr "Se déconnecter"
+
+msgid "Sign In"
+msgstr "Se connecter"
+
+msgid "Create Account"
+msgstr "Créer un compte"
+
+msgid "Welcome back"
+msgstr "Bon retour"
+
+msgid "Account"
+msgstr "Compte"
+
+msgid "Select Country"
+msgstr "Sélectionner le pays"
+

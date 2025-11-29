@@ -1,0 +1,111 @@
+[1mdiff --git a/app/templates/admin/admin/bulk_upload.html b/app/templates/admin/admin/bulk_upload.html[m
+[1mindex 894f2d2..c54de4d 100644[m
+[1m--- a/app/templates/admin/admin/bulk_upload.html[m
+[1m+++ b/app/templates/admin/admin/bulk_upload.html[m
+[36m@@ -27,7 +27,8 @@[m
+                                 <ul class="list-disc pl-5 space-y-1">[m
+                                     <li>File must be in XLSX or CSV format</li>[m
+                                     <li>Required columns: <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Product Name</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Category</code></li>[m
+[31m-                                    <li>Optional columns: <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Price (GMD)</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Stock Quantity</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Description</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Image URL</code></li>[m
+[32m+[m[32m                                    <li>Optional columns: <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Price</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Stock</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Description</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Image URL</code>, <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Image Filename</code></li>[m
+[32m+[m[32m                                    <li class="mt-2 font-medium">Image Handling: If <code class="bg-blue-100 dark:bg-blue-900 px-1 rounded">Image Filename</code> is provided, upload the matching image file below. Uploaded images override Image URLs.</li>[m
+                                 </ul>[m
+                             </div>[m
+                             <div class="mt-4">[m
+[36m@@ -62,6 +63,34 @@[m
+                         </div>[m
+                     </div>[m
+ [m
+[32m+[m[32m                    <!-- Image Upload Section -->[m
+[32m+[m[32m                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">[m
+[32m+[m[32m                        <label for="images-upload" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">[m
+[32m+[m[32m                            Product Images (Optional)[m
+[32m+[m[32m                        </label>[m
+[32m+[m[32m                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">[m
+[32m+[m[32m                            Upload image files that match the filenames in your <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">Image Filename</code> column. All images will be uploaded to Cloudinary automatically.[m
+[32m+[m[32m                        </p>[m
+[32m+[m[32m                        <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md">[m
+[32m+[m[32m                            <div class="space-y-1 text-center">[m
+[32m+[m[32m                                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">[m
+[32m+[m[32m                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />[m
+[32m+[m[32m                                </svg>[m
+[32m+[m[32m                                <div class="flex text-sm text-gray-600 dark:text-gray-400">[m
+[32m+[m[32m                                    <label for="images-upload" class="relative cursor-pointer bg-white dark:bg-gray-800 rounded-md font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">[m
+[32m+[m[32m                                        <span>Upload images</span>[m
+[32m+[m[32m                                        <input id="images-upload" name="images" type="file" class="sr-only" accept=".png,.jpg,.jpeg,.webp" multiple>[m
+[32m+[m[32m                                    </label>[m
+[32m+[m[32m                                    <p class="pl-1">or drag and drop</p>[m
+[32m+[m[32m                                </div>[m
+[32m+[m[32m                                <p class="text-xs text-gray-500 dark:text-gray-400">[m
+[32m+[m[32m                                    PNG, JPG, JPEG, or WEBP (multiple files allowed)[m
+[32m+[m[32m                                </p>[m
+[32m+[m[32m                                <div id="image-files-list" class="mt-2 text-sm text-gray-600 dark:text-gray-400"></div>[m
+[32m+[m[32m                            </div>[m
+[32m+[m[32m                        </div>[m
+[32m+[m[32m                    </div>[m
+[32m+[m
+                     <div class="flex justify-end">[m
+                         <a href="{{ url_for('admin_products') }}" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:bg-gray-600">[m
+                             Cancel[m
+[36m@@ -150,5 +179,61 @@[m
+             dropZone.querySelector('.text-xs').before(fileInfo);[m
+         }[m
+     });[m
+[32m+[m
+[32m+[m[32m    // Handle image files upload[m
+[32m+[m[32m    const imagesInput = document.getElementById('images-upload');[m
+[32m+[m[32m    const imagesList = document.getElementById('image-files-list');[m
+[32m+[m[32m    const imagesDropZone = imagesInput.closest('.border-dashed');[m
+[32m+[m
+[32m+[m[32m    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {[m
+[32m+[m[32m        imagesDropZone.addEventListener(eventName, preventDefaults, false);[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    ['dragenter', 'dragover'].forEach(eventName => {[m
+[32m+[m[32m        imagesDropZone.addEventListener(eventName, function() {[m
+[32m+[m[32m            imagesDropZone.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');[m
+[32m+[m[32m        }, false);[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    ['dragleave', 'drop'].forEach(eventName => {[m
+[32m+[m[32m        imagesDropZone.addEventListener(eventName, function() {[m
+[32m+[m[32m            imagesDropZone.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/20');[m
+[32m+[m[32m        }, false);[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    imagesDropZone.addEventListener('drop', function(e) {[m
+[32m+[m[32m        const dt = e.dataTransfer;[m
+[32m+[m[32m        const files = Array.from(dt.files).filter(file => {[m
+[32m+[m[32m            const ext = file.name.split('.').pop().toLowerCase();[m
+[32m+[m[32m            return ['png', 'jpg', 'jpeg', 'webp'].includes(ext);[m
+[32m+[m[32m        });[m
+[32m+[m[41m        [m
+[32m+[m[32m        if (files.length) {[m
+[32m+[m[32m            const dataTransfer = new DataTransfer();[m
+[32m+[m[32m            // Add existing files[m
+[32m+[m[32m            for (let file of imagesInput.files) {[m
+[32m+[m[32m                dataTransfer.items.add(file);[m
+[32m+[m[32m            }[m
+[32m+[m[32m            // Add new files[m
+[32m+[m[32m            for (let file of files) {[m
+[32m+[m[32m                dataTransfer.items.add(file);[m
+[32m+[m[32m            }[m
+[32m+[m[32m            imagesInput.files = dataTransfer.files;[m
+[32m+[m[32m            updateImagesList();[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }, false);[m
+[32m+[m
+[32m+[m[32m    imagesInput.addEventListener('change', function() {[m
+[32m+[m[32m        updateImagesList();[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    function updateImagesList() {[m
+[32m+[m[32m        if (imagesInput.files.length > 0) {[m
+[32m+[m[32m            const fileNames = Array.from(imagesInput.files).map(f => f.name).join(', ');[m
+[32m+[m[32m            imagesList.innerHTML = `<div class="text-green-600 dark:text-green-400 font-medium">${imagesInput.files.length} image(s) selected: ${fileNames}</div>`;[m
+[32m+[m[32m        } else {[m
+[32m+[m[32m            imagesList.innerHTML = '';[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+ </script>[m
+ {% endblock %}[m

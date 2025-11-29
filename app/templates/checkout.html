@@ -41,12 +41,12 @@
 
                                         <div class="mt-1 flex-1 flex flex-col gap-1">
                                             <div class="flex items-end justify-between">
-                                                <p class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-price>{{ currency }}{{ "%.2f"|format(item.price) }}</p>
+                                                <p class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-price>{{ item.price|price_with_symbol }}</p>
                                                 <p class="text-sm text-slate-500 dark:text-slate-400" data-checkout-quantity>Qty {{ item.quantity }}</p>
                                             </div>
                                             <div class="flex items-center justify-between">
                                                 <p class="text-xs text-slate-500 dark:text-slate-400">
-                                                    Shipping: <span data-checkout-item-shipping>{{ currency }}{{ "%.2f"|format(item.shipping_per_unit) }} × {{ item.quantity }} = {{ currency }}{{ "%.2f"|format(item.shipping) }}</span>
+                                                    Shipping: <span data-checkout-item-shipping>{{ item.shipping_per_unit|price_with_symbol }} × {{ item.quantity }} = {{ item.shipping|price_with_symbol }}</span>
                                                 </p>
                                             </div>
                                         </div>
@@ -59,19 +59,19 @@
                         <dl class="border-t border-[color:var(--app-border)] dark:border-slate-800 py-6 px-4 space-y-6 sm:px-6">
                             <div class="flex items-center justify-between">
                                 <dt class="text-sm">Subtotal</dt>
-                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-subtotal>{{ currency }}{{ "%.2f"|format(checkout_summary.subtotal) }}</dd>
+                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-subtotal>{{ checkout_summary.subtotal|price_with_symbol }}</dd>
                             </div>
                             <div class="flex items-center justify-between">
                                 <dt class="text-sm">Tax</dt>
-                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-tax>{{ currency }}{{ "%.2f"|format(checkout_summary.tax) }}</dd>
+                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-tax>{{ checkout_summary.tax|price_with_symbol }}</dd>
                             </div>
                             <div class="flex items-center justify-between">
                                 <dt class="text-sm">Shipping</dt>
-                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-shipping>{{ currency }}{{ "%.2f"|format(checkout_summary.shipping) }}</dd>
+                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-shipping>{{ checkout_summary.shipping|price_with_symbol }}</dd>
                             </div>
                             <div class="flex items-center justify-between border-t border-[color:var(--app-border)] dark:border-slate-800 pt-6">
                                 <dt class="text-base font-semibold text-slate-900 dark:text-white">Total</dt>
-                                <dd class="text-base font-bold text-cyan-500 dark:text-cyan-300" data-checkout-total>{{ currency }}{{ "%.2f"|format(checkout_summary.total) }}</dd>
+                                <dd class="text-base font-bold text-cyan-500 dark:text-cyan-300" data-checkout-total>{{ checkout_summary.total|price_with_symbol }}</dd>
                             </div>
                         </dl>
                     </div>

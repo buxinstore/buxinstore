@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from flask_migrate.cli import db as flask_migrate_cli
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import CSRFProtect
+from flask_babel import Babel
 
 # Initialize SQLAlchemy with default session options
 # Engine options will be set in init_extensions after app config is loaded
@@ -12,6 +13,7 @@ login_manager = LoginManager()
 migrate = Migrate()
 mail = Mail()
 csrf = CSRFProtect()
+babel = Babel()
 
 
 def init_extensions(app):
@@ -31,6 +33,8 @@ def init_extensions(app):
     login_manager.login_view = "login"
 
     csrf.init_app(app)
+    
+    babel.init_app(app)
 
     # Flask-Mail removed - using Resend API instead
     app.logger.info("✅ Email system: Using Resend API (Flask-Mail disabled)")

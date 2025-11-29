@@ -1,0 +1,129 @@
+# English translations
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en\n"
+
+msgid "Select your country"
+msgstr "Select your country"
+
+msgid "Choose your country to see prices and content in your local currency and language"
+msgstr "Choose your country to see prices and content in your local currency and language"
+
+msgid "Skip for now"
+msgstr "Skip for now"
+
+msgid "Shopping Cart"
+msgstr "Shopping Cart"
+
+msgid "Review your items and proceed to checkout."
+msgstr "Review your items and proceed to checkout."
+
+msgid "Continue Shopping"
+msgstr "Continue Shopping"
+
+msgid "Your cart is empty"
+msgstr "Your cart is empty"
+
+msgid "Looks like you haven't added anything yet."
+msgstr "Looks like you haven't added anything yet."
+
+msgid "Start Shopping"
+msgstr "Start Shopping"
+
+msgid "Add to Cart"
+msgstr "Add to Cart"
+
+msgid "Out of Stock"
+msgstr "Out of Stock"
+
+msgid "In Stock"
+msgstr "In Stock"
+
+msgid "Delivery Fee"
+msgstr "Delivery Fee"
+
+msgid "Subtotal"
+msgstr "Subtotal"
+
+msgid "Tax"
+msgstr "Tax"
+
+msgid "Shipping"
+msgstr "Shipping"
+
+msgid "Order Total"
+msgstr "Order Total"
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Remove"
+msgstr "Remove"
+
+msgid "Checkout"
+msgstr "Checkout"
+
+msgid "Order summary"
+msgstr "Order summary"
+
+msgid "Payment Information"
+msgstr "Payment Information"
+
+msgid "Pay securely using ModemPay"
+msgstr "Pay securely using ModemPay"
+
+msgid "Amount"
+msgstr "Amount"
+
+msgid "Product Price"
+msgstr "Product Price"
+
+msgid "Final Price"
+msgstr "Final Price"
+
+msgid "Location"
+msgstr "Location"
+
+msgid "Customer Message"
+msgstr "Customer Message"
+
+msgid "You can receive your order today by calling our support team."
+msgstr "You can receive your order today by calling our support team."
+
+msgid "Estimated delivery: 14–30 days."
+msgstr "Estimated delivery: 14–30 days."
+
+msgid "Search products..."
+msgstr "Search products..."
+
+msgid "My Profile"
+msgstr "My Profile"
+
+msgid "My Orders"
+msgstr "My Orders"
+
+msgid "My Wishlist"
+msgstr "My Wishlist"
+
+msgid "Discussion Forum"
+msgstr "Discussion Forum"
+
+msgid "Sign Out"
+msgstr "Sign Out"
+
+msgid "Sign In"
+msgstr "Sign In"
+
+msgid "Create Account"
+msgstr "Create Account"
+
+msgid "Welcome back"
+msgstr "Welcome back"
+
+msgid "Account"
+msgstr "Account"
+
+msgid "Select Country"
+msgstr "Select Country"
+

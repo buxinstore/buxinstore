@@ -108,7 +108,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from .config import Config
-from .extensions import csrf, db, init_extensions, login_manager, mail, migrate
+from .extensions import csrf, db, init_extensions, login_manager, mail, migrate, babel
 
 # Import forum models so Alembic can detect them
 from .models.forum import ForumPost, ForumFile, ForumLink, ForumComment, ForumReaction, ForumBan
@@ -330,6 +330,35 @@ def product_image_url_filter(image_path):
     # Otherwise, use url_for to generate the correct URL
     return url_for('static', filename=image_path)
 
+@app.template_filter('convert_price')
+def convert_price_filter(price, from_currency="GMD"):
+    """Template filter to convert product price to current currency."""
+    from .utils.currency_rates import convert_price
+    try:
+        country = get_current_country()
+        if country:
+            to_currency = country.currency
+            converted = convert_price(price, from_currency, to_currency)
+            return f"{converted:.2f}"
+        return f"{float(price):.2f}"
+    except Exception:
+        return f"{float(price):.2f}"
+
+@app.template_filter('price_with_symbol')
+def price_with_symbol_filter(price, from_currency="GMD"):
+    """Template filter to format price with currency symbol."""
+    from .utils.currency_rates import convert_price, get_currency_symbol
+    try:
+        country = get_current_country()
+        if country:
+            to_currency = country.currency
+            converted = convert_price(price, from_currency, to_currency)
+            symbol = get_currency_symbol(to_currency)
+            return f"{symbol}{converted:.2f}"
+        return f"D{float(price):.2f}"
+    except Exception:
+        return f"D{float(price):.2f}"
+
 @app.template_filter('category_image_url')
 def category_image_url_filter(image_path):
     """
@@ -354,6 +383,25 @@ def category_image_url_filter(image_path):
     
     # Otherwise, use url_for to generate the correct URL
     return url_for('static', filename=image_path)
+
+@babel.localeselector
+def get_locale():
+    """Get the locale for Babel based on session or default."""
+    # Try to get language from session
+    language = session.get('language')
+    if language:
+        return language
+    
+    # Try to get from current country
+    try:
+        country = get_current_country()
+        if country and country.language:
+            return country.language
+    except Exception:
+        pass
+    
+    # Default to English
+    return 'en'
 
 @app.context_processor
 def inject_site_settings():
@@ -533,12 +581,29 @@ def inject_site_settings():
             if current_country and current_country.is_active:
                 current_currency = current_country.currency_symbol or current_country.currency
                 current_language = current_country.language
+                # Update session if not already set
+                if not session.get('language'):
+                    session['language'] = current_country.language
+                if not session.get('currency'):
+                    session['currency'] = current_country.currency
     except Exception as e:
         current_app.logger.debug(f"Could not load country settings (migration may be pending): {e}")
         try:
             db.session.rollback()
         except Exception:
             pass
+    
+    # Import currency conversion helper
+    from .utils.currency_rates import convert_price, get_currency_symbol, format_price
+    from flask_babel import gettext as _
+    
+    # Helper function for templates to convert prices
+    def convert_product_price(price, from_currency="GMD"):
+        """Convert product price to current currency."""
+        if not current_country:
+            return float(price)
+        to_currency = current_country.currency
+        return convert_price(price, from_currency, to_currency)
     
     return {
         'site_settings': settings,
@@ -557,8 +622,15 @@ def inject_site_settings():
         # Country/Localization Settings
         'current_country': current_country,
         'current_currency': current_currency,
+        'current_currency_code': current_country.currency if current_country else 'GMD',
         'current_language': current_language,
         'country_selected': country_selected,
+        # Currency conversion helpers
+        'convert_price': convert_product_price,
+        'get_currency_symbol': get_currency_symbol,
+        'format_price': format_price,
+        # Translation helper
+        '_': _,
         # PWA Settings (with fallback defaults)
         'pwa_app_name': pwa_app_name if 'pwa_app_name' in locals() else 'buxin store',
         'pwa_short_name': pwa_short_name if 'pwa_short_name' in locals() else 'buxin store',
@@ -2321,13 +2393,20 @@ def update_cart():
 def calculate_cart_totals(cart_items):
     """
     Given sanitized cart items, compute subtotal, tax, shipping, and total as Decimal values.
+    Prices are converted to the current country's currency.
     Shipping is calculated per product based on product price:
     - If product price ≤ D1000 → Shipping = D300 per unit
     - If product price > D1000 and ≤ D2000 → Shipping = D800 per unit
     - If product price > D2000 → Shipping = D1200 per unit
     Total shipping = sum of (shipping_per_unit × quantity) for all products
     """
-    currency = current_app.config.get('CART_CURRENCY_SYMBOL', 'D')
+    from .utils.currency_rates import convert_price, get_currency_symbol
+    
+    # Get current country for currency conversion
+    country = get_current_country()
+    to_currency = country.currency if country else 'GMD'
+    currency_symbol = get_currency_symbol(to_currency) if country else 'D'
+    
     tax_rate = Decimal(str(current_app.config.get('CART_TAX_RATE', 0) or 0))
 
     subtotal = Decimal('0.00')
@@ -2335,16 +2414,23 @@ def calculate_cart_totals(cart_items):
     
     # Calculate per-product shipping and subtotal
     for item in cart_items:
-        item_subtotal = Decimal(str(item['total']))
+        # Convert prices to current currency
+        base_price = Decimal(str(item['price']))
+        converted_price = Decimal(str(convert_price(float(base_price), 'GMD', to_currency)))
+        item['price'] = float(converted_price)  # Update item price to converted value
+        
+        item_subtotal = Decimal(str(converted_price * Decimal(str(item['quantity']))))
         subtotal += item_subtotal
         
-        # Calculate shipping per unit based on product-specific delivery rules
-        product_price = Decimal(str(item['price']))
+        # Calculate shipping per unit based on product-specific delivery rules (in base currency)
+        product_price = base_price  # Use base price for shipping calculation
         quantity = Decimal(str(item['quantity']))
         product_id = item.get('id')
         
-        # Use calculate_delivery_price with product_id to get custom rules
-        shipping_per_unit = Decimal(str(calculate_delivery_price(float(product_price), product_id)))
+        # Use calculate_delivery_price with product_id to get custom rules (returns base currency)
+        shipping_per_unit_base = Decimal(str(calculate_delivery_price(float(product_price), product_id)))
+        # Convert shipping to current currency
+        shipping_per_unit = Decimal(str(convert_price(float(shipping_per_unit_base), 'GMD', to_currency)))
         
         # Product shipping = shipping_per_unit × quantity
         item_shipping = (shipping_per_unit * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -2359,7 +2445,7 @@ def calculate_cart_totals(cart_items):
     total = subtotal + tax + shipping
 
     return {
-        'currency': currency,
+        'currency': currency_symbol,
         'subtotal': subtotal,
         'tax': tax,
         'shipping': shipping,
@@ -2852,6 +2938,8 @@ def api_select_country():
         # Also save to session
         session['selected_country_id'] = country_id
         session['country_selected'] = True  # Flag to prevent pop-up from showing again
+        session['language'] = country.language  # Set language for Babel
+        session['currency'] = country.currency  # Set currency for conversion
         session.permanent = True
         
         return jsonify({

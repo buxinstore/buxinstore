@@ -61,7 +61,7 @@
                                                 {{ item.name }}
                                             </a>
                                         </h3>
-                                        <p class="text-lg font-bold text-[color:var(--app-text)] dark:text-white">{{ currency }}{{ "%.2f"|format(item.price) }}</p>
+                                        <p class="text-lg font-bold text-[color:var(--app-text)] dark:text-white">{{ item.price|price_with_symbol }}</p>
                                         <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-400">
                                             {% if item.stock > 10 %}
                                                 <span class="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
@@ -102,7 +102,7 @@
                                     <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                         <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">
                                             <span class="font-semibold">Subtotal:</span>
-                                            <span class="font-bold text-[color:var(--app-text)] dark:text-white" data-item-total>{{ currency }}{{ "%.2f"|format(item.price * item.quantity) }}</span>
+                                            <span class="font-bold text-[color:var(--app-text)] dark:text-white" data-item-total>{{ (item.price * item.quantity)|price_with_symbol }}</span>
                                         </p>
                                         {% if item.quantity > item.stock and item.stock > 0 %}
                                             <p class="text-xs font-medium text-amber-600 dark:text-amber-300">
@@ -113,7 +113,7 @@
                                     <div class="flex items-center justify-between">
                                         <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">
                                             <span class="font-semibold">Shipping:</span>
-                                            <span class="text-[color:var(--app-text)] dark:text-white" data-item-shipping>{{ currency }}{{ "%.2f"|format(item.shipping_per_unit) }} × {{ item.quantity }} = {{ currency }}{{ "%.2f"|format(item.shipping) }}</span>
+                                            <span class="text-[color:var(--app-text)] dark:text-white" data-item-shipping>{{ item.shipping_per_unit|price_with_symbol }} × {{ item.quantity }} = {{ item.shipping|price_with_symbol }}</span>
                                         </p>
                                     </div>
                                 </div>
@@ -130,19 +130,19 @@
                 <dl class="mt-6 space-y-4">
                     <div class="flex items-center justify-between">
                         <dt class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">Subtotal</dt>
-                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-subtotal>{{ currency }}{{ "%.2f"|format(cart_summary.cart_subtotal) }}</dd>
+                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-subtotal>{{ cart_summary.cart_subtotal|price_with_symbol }}</dd>
                     </div>
                     <div class="flex items-center justify-between border-t border-[color:var(--app-border)] dark:border-slate-800 pt-4">
                         <dt class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">Tax</dt>
-                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-tax>{{ currency }}{{ "%.2f"|format(cart_summary.cart_tax) }}</dd>
+                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-tax>{{ cart_summary.cart_tax|price_with_symbol }}</dd>
                     </div>
                     <div class="flex items-center justify-between border-t border-[color:var(--app-border)] dark:border-slate-800 pt-4">
                         <dt class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">Shipping</dt>
-                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-shipping>{{ currency }}{{ "%.2f"|format(cart_summary.cart_shipping) }}</dd>
+                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-shipping>{{ cart_summary.cart_shipping|price_with_symbol }}</dd>
                     </div>
                     <div class="border-t border-[color:var(--app-border)] dark:border-slate-800 pt-4 flex items-center justify-between">
                         <dt class="text-base font-semibold text-[color:var(--app-text)] dark:text-white">Order Total</dt>
-                        <dd class="text-base font-bold text-cyan-500 dark:text-cyan-300" data-cart-total>{{ currency }}{{ "%.2f"|format(cart_summary.cart_total) }}</dd>
+                        <dd class="text-base font-bold text-cyan-500 dark:text-cyan-300" data-cart-total>{{ cart_summary.cart_total|price_with_symbol }}</dd>
                     </div>
                 </dl>
 

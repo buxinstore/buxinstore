@@ -55,6 +55,14 @@ class Config:
 
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
     
+    # Babel Configuration
+    BABEL_DEFAULT_LOCALE = 'en'
+    BABEL_DEFAULT_TIMEZONE = 'UTC'
+    LANGUAGES = {
+        'en': 'English',
+        'fr': 'Français'
+    }
+    
     # Bulk Email System Configuration
     BULK_EMAIL_RATE_PER_MINUTE = int(os.environ.get("BULK_EMAIL_RATE_PER_MINUTE", "10"))
     BULK_EMAIL_RATE_PER_HOUR = int(os.environ.get("BULK_EMAIL_RATE_PER_HOUR", "1000"))

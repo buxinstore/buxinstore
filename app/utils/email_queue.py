@@ -150,22 +150,54 @@ def _send_bulk_email_job(
 
             # Stream recipients and collect valid emails
             log.info("email_queue._send_bulk_email_job: collecting valid customer emails")
-            if hasattr(recipients_source, "yield_per"):
-                iterator = recipients_source.yield_per(100)
-                for user in iterator:
-                    addr = getattr(user, "email", None)
-                    if is_valid_email(addr):
-                        valid_emails.append(addr)
-                    else:
-                        skipped += 1
-                        log.warning(f"email_queue._send_bulk_email_job: skipping invalid email: {addr}")
-            else:
-                for addr in recipients_source:
-                    if is_valid_email(addr):
-                        valid_emails.append(addr)
-                    else:
-                        skipped += 1
-                        log.warning(f"email_queue._send_bulk_email_job: skipping invalid email: {addr}")
+            try:
+                if hasattr(recipients_source, "yield_per"):
+                    # SQLAlchemy query - use yield_per for efficient streaming
+                    log.info("email_queue._send_bulk_email_job: Using SQLAlchemy query with yield_per")
+                    iterator = recipients_source.yield_per(100)
+                    for user in iterator:
+                        try:
+                            addr = getattr(user, "email", None)
+                            if is_valid_email(addr):
+                                valid_emails.append(addr)
+                            else:
+                                skipped += 1
+                                log.warning(f"email_queue._send_bulk_email_job: skipping invalid email: {addr}")
+                        except Exception as user_exc:
+                            skipped += 1
+                            log.warning(
+                                f"email_queue._send_bulk_email_job: error processing user record: {user_exc}",
+                                exc_info=True,
+                            )
+                else:
+                    # List or other iterable of email addresses
+                    log.info("email_queue._send_bulk_email_job: Iterating over email address list")
+                    for addr in recipients_source:
+                        try:
+                            if is_valid_email(addr):
+                                valid_emails.append(addr)
+                            else:
+                                skipped += 1
+                                log.warning(f"email_queue._send_bulk_email_job: skipping invalid email: {addr}")
+                        except Exception as addr_exc:
+                            skipped += 1
+                            log.warning(
+                                f"email_queue._send_bulk_email_job: error processing email address: {addr_exc}",
+                                exc_info=True,
+                            )
+            except Exception as collection_exc:
+                log.error(
+                    f"email_queue._send_bulk_email_job: failed to collect recipient emails: {collection_exc}",
+                    exc_info=True,
+                    extra={"job_id": job_id, "thread": thread_name},
+                )
+                email_status[job_id] = {
+                    "status": "failed",
+                    "sent": 0,
+                    "failed": 0,
+                    "total": 0,
+                }
+                return
 
             total_valid = len(valid_emails)
             log.info(f"email_queue._send_bulk_email_job: Valid customer emails: {total_valid}, Skipped: {skipped}")
@@ -180,121 +212,91 @@ def _send_bulk_email_job(
                 }
                 return
 
-            # Use Resend Batch API for bulk sending (more efficient)
-            # Build batch payloads: List[resend.Emails.SendParams]
-            log.info(f"email_queue._send_bulk_email_job: Building batch payload for {total_valid} emails")
-            payloads: List[Dict[str, Any]] = []
-            
-            for email in valid_emails:
-                payload: Dict[str, Any] = {
-                    "from": from_email,
-                    "to": [email],  # Resend API requires "to" as a list
-                    "subject": subject,
-                    "html": html_body or "",
-                }
-                if metadata:
-                    payload["headers"] = {"X-Metadata": str(metadata)}
-                payloads.append(payload)
+            # Update status with total count before starting
+            email_status[job_id] = {
+                "status": "running",
+                "sent": 0,
+                "failed": 0,
+                "total": total_valid,
+            }
 
-            # Send batch using Resend Batch API
-            log.info(f"email_queue._send_bulk_email_job: Sending batch of {len(payloads)} emails via resend.Batch.send()")
-            try:
-                batch_response = resend.Batch.send(payloads)
-                
-                # Resend Batch API returns a list of results
-                # Each result has an 'id' if successful, or error information if failed
-                if hasattr(batch_response, 'data') and batch_response.data:
-                    results = batch_response.data
-                elif isinstance(batch_response, list):
-                    results = batch_response
-                else:
-                    results = [batch_response] if batch_response else []
-                
-                # Count successes and failures
-                for i, result in enumerate(results):
-                    total += 1
-                    email = valid_emails[i] if i < len(valid_emails) else "unknown"
+            # Send emails individually to each customer (privacy requirement)
+            # This works with restricted Resend API keys and ensures individual delivery
+            log.info(f"email_queue._send_bulk_email_job: Sending {total_valid} emails individually to customers")
+            
+            for idx, email in enumerate(valid_emails, start=1):
+                total += 1
+                try:
+                    # Ensure Resend is configured for each email (in case of long-running job)
+                    _ensure_resend_config()
                     
-                    # Check if the result indicates success
-                    # Resend returns an object with 'id' field on success
-                    if hasattr(result, 'id') or (isinstance(result, dict) and result.get('id')):
+                    # Build payload for individual email
+                    payload: Dict[str, Any] = {
+                        "from": from_email,
+                        "to": [email],  # Resend API requires "to" as a list
+                        "subject": subject,
+                        "html": html_body or "",
+                    }
+                    if metadata:
+                        payload["headers"] = {"X-Metadata": str(metadata)}
+
+                    # Send email using Resend API
+                    response = resend.Emails.send(payload)
+                    
+                    # Check if send was successful
+                    # Resend API returns an object with 'id' field on success
+                    if response and (hasattr(response, 'id') or (isinstance(response, dict) and response.get('id'))):
                         sent += 1
                         log.info(
-                            f"email_queue._send_bulk_email_job: Successfully sent to: {email}",
-                            extra={"job_id": job_id, "recipient": email, "thread": thread_name},
+                            f"email_queue._send_bulk_email_job: Successfully sent to: {email} ({idx}/{total_valid})",
+                            extra={
+                                "job_id": job_id,
+                                "recipient": email,
+                                "thread": thread_name,
+                                "progress": f"{idx}/{total_valid}",
+                            },
                         )
                     else:
+                        # Response doesn't indicate success
                         failed += 1
-                        error_info = str(result) if not isinstance(result, dict) else result.get('error', result)
                         log.error(
-                            f"email_queue._send_bulk_email_job: Error sending to: {email} - {error_info}",
+                            f"email_queue._send_bulk_email_job: Unexpected response when sending to: {email} - {response}",
                             extra={"job_id": job_id, "recipient": email, "thread": thread_name},
                         )
-                    
-                    # Update status periodically
-                    if total % 10 == 0:
-                        email_status[job_id] = {
-                            "status": "running",
+                        
+                except Exception as individual_error:
+                    failed += 1
+                    error_msg = str(individual_error)
+                    log.error(
+                        f"email_queue._send_bulk_email_job: Error sending to: {email} ({idx}/{total_valid}) - {error_msg}",
+                        exc_info=True,
+                        extra={
+                            "job_id": job_id,
+                            "recipient": email,
+                            "thread": thread_name,
+                            "progress": f"{idx}/{total_valid}",
+                        },
+                    )
+                    # Continue to next email - don't let individual failures block others
+                
+                # Update status periodically (every 10 emails or at the end)
+                if total % 10 == 0 or idx == total_valid:
+                    email_status[job_id] = {
+                        "status": "running",
+                        "sent": sent,
+                        "failed": failed,
+                        "total": total,
+                    }
+                    log.info(
+                        f"email_queue._send_bulk_email_job: Progress update - Sent: {sent}, Failed: {failed}, Total: {total}/{total_valid}",
+                        extra={
+                            "job_id": job_id,
                             "sent": sent,
                             "failed": failed,
                             "total": total,
-                        }
-                
-                # If results count doesn't match, mark remaining as failed
-                if len(results) < total_valid:
-                    for i in range(len(results), total_valid):
-                        total += 1
-                        failed += 1
-                        email = valid_emails[i]
-                        log.warning(
-                            f"email_queue._send_bulk_email_job: No result for: {email}, marking as failed",
-                            extra={"job_id": job_id, "recipient": email, "thread": thread_name},
-                        )
-                
-            except Exception as e:
-                # If batch send fails entirely, fall back to individual sends
-                log.error(
-                    f"email_queue._send_bulk_email_job: Batch send failed, falling back to individual sends: {str(e)}",
-                    exc_info=True,
-                    extra={"job_id": job_id, "thread": thread_name},
-                )
-                
-                # Fallback: send individually
-                for email in valid_emails:
-                    total += 1
-                    try:
-                        payload: Dict[str, Any] = {
-                            "from": from_email,
-                            "to": [email],  # Resend API requires "to" as a list
-                            "subject": subject,
-                            "html": html_body or "",
-                        }
-                        if metadata:
-                            payload["headers"] = {"X-Metadata": str(metadata)}
-
-                        resend.Emails.send(payload)
-                        sent += 1
-                        log.info(
-                            f"email_queue._send_bulk_email_job: Successfully sent to: {email} (individual)",
-                            extra={"job_id": job_id, "recipient": email, "thread": thread_name},
-                        )
-                    except Exception as individual_error:
-                        failed += 1
-                        error_msg = str(individual_error)
-                        log.error(
-                            f"email_queue._send_bulk_email_job: Error sending to: {email} - {error_msg}",
-                            exc_info=True,
-                            extra={"job_id": job_id, "recipient": email, "thread": thread_name},
-                        )
-                    
-                    # Update status after each attempt
-                    if total % 10 == 0:
-                        email_status[job_id] = {
-                            "status": "running",
-                            "sent": sent,
-                            "failed": failed,
-                            "total": total,
-                        }
+                            "progress": f"{idx}/{total_valid}",
+                        },
+                    )
 
             email_status[job_id] = {
                 "status": "completed",
@@ -346,10 +348,63 @@ def queue_bulk_email(
     html_body: str,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> str:
+    """Queue a bulk email job for background execution.
+    
+    Args:
+        app: Flask application instance
+        recipients: SQLAlchemy query or list of email addresses
+        subject: Email subject line
+        html_body: HTML email body
+        metadata: Optional metadata dict to include in email headers
+        
+    Returns:
+        job_id: Unique identifier for tracking this email job
+    """
     app_obj = app
     job_id = str(uuid.uuid4())
-    EXECUTOR.submit(_send_bulk_email_job, app_obj, recipients, subject, html_body, metadata, job_id)
-    return job_id
+    
+    # Initialize job status before submitting
+    email_status[job_id] = {
+        "status": "queued",
+        "sent": 0,
+        "failed": 0,
+        "total": 0,
+    }
+    
+    try:
+        # Submit job to thread pool executor
+        future = EXECUTOR.submit(_send_bulk_email_job, app_obj, recipients, subject, html_body, metadata, job_id)
+        
+        # Log job submission (don't wait for result)
+        try:
+            log = app.logger
+            log.info(
+                f"email_queue.queue_bulk_email: Job {job_id} queued successfully",
+                extra={"job_id": job_id},
+            )
+        except Exception:
+            pass  # Logger might not be available in all contexts
+        
+        return job_id
+    except Exception as exc:
+        # If job submission fails, mark as failed immediately
+        email_status[job_id] = {
+            "status": "failed",
+            "sent": 0,
+            "failed": 0,
+            "total": 0,
+            "error": str(exc),
+        }
+        try:
+            log = app.logger
+            log.error(
+                f"email_queue.queue_bulk_email: Failed to queue job {job_id}: {exc}",
+                exc_info=True,
+                extra={"job_id": job_id},
+            )
+        except Exception:
+            pass
+        raise
 
 
 def get_email_job_status(job_id: str) -> Optional[Dict[str, Any]]:
