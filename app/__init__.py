@@ -2742,11 +2742,7 @@ def calculate_cart_totals(cart_items):
     """
     Given sanitized cart items, compute subtotal, tax, shipping, and total as Decimal values.
     Prices are converted to the current country's currency.
-    Shipping is calculated per product based on product price:
-    - If product price ≤ D1000 → Shipping = D300 per unit
-    - If product price > D1000 and ≤ D2000 → Shipping = D800 per unit
-    - If product price > D2000 → Shipping = D1200 per unit
-    Total shipping = sum of (shipping_per_unit × quantity) for all products
+    Shipping is now calculated using the shipping rules system based on total cart weight and country.
     """
     from .utils.currency_rates import convert_price, get_currency_symbol, parse_price
     
@@ -2754,16 +2750,16 @@ def calculate_cart_totals(cart_items):
     country = get_current_country()
     to_currency = country.currency if country else 'GMD'
     currency_symbol = get_currency_symbol(to_currency) if country else 'D'
+    country_id = country.id if country else None
     
     tax_rate = Decimal(str(current_app.config.get('CART_TAX_RATE', 0) or 0))
 
     subtotal = Decimal('0.00')
-    total_shipping = Decimal('0.00')
+    total_weight = Decimal('0.00')
     
-    # Calculate per-product shipping and subtotal
+    # Calculate subtotal and total weight
     for item in cart_items:
         # Parse and convert prices to current currency
-        # Parse price to handle cases where it might be a string with currency symbol
         numeric_price, _ = parse_price(item['price'])
         base_price = Decimal(str(numeric_price))
         converted_price = Decimal(str(convert_price(float(base_price), 'GMD', to_currency)))
@@ -2772,26 +2768,75 @@ def calculate_cart_totals(cart_items):
         item_subtotal = Decimal(str(converted_price * Decimal(str(item['quantity']))))
         subtotal += item_subtotal
         
-        # Calculate shipping per unit based on product-specific delivery rules (in base currency)
-        product_price = base_price  # Use base price for shipping calculation
-        quantity = Decimal(str(item['quantity']))
+        # Calculate weight for this item
         product_id = item.get('id')
+        if product_id:
+            product = Product.query.get(product_id)
+            if product and product.weight_kg:
+                item_weight = Decimal(str(product.weight_kg)) * Decimal(str(item['quantity']))
+                total_weight += item_weight
+            else:
+                # Default weight if not set
+                total_weight += Decimal('0.1') * Decimal(str(item['quantity']))
+    
+    # Calculate shipping using shipping rules system (based on total cart weight)
+    # Always try to calculate shipping, even if no country is selected (will use global rules)
+    shipping_result = calculate_shipping_price(float(total_weight), country_id, default_weight=0.1)
+    
+    total_shipping_gmd = Decimal('0.00')
+    shipping_delivery_time = None
+    
+    if shipping_result and shipping_result.get('available'):
+        total_shipping_gmd = Decimal(str(shipping_result['price_gmd']))
+        shipping_delivery_time = shipping_result['delivery_time']
+    else:
+        # Fallback: calculate per-item shipping using old system (for backward compatibility)
+        for item in cart_items:
+            product_id = item.get('id')
+            quantity = Decimal(str(item['quantity']))
+            if product_id:
+                product = Product.query.get(product_id)
+                if product:
+                    shipping_per_unit_base = Decimal(str(calculate_delivery_price(float(product.price), product_id)))
+                    shipping_per_unit = Decimal(str(convert_price(float(shipping_per_unit_base), 'GMD', to_currency)))
+                    item_shipping = (shipping_per_unit * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    total_shipping_gmd += item_shipping
+                    item['shipping_per_unit'] = float(shipping_per_unit)
+                    item['shipping'] = float(item_shipping)
         
-        # Use calculate_delivery_price with product_id to get custom rules (returns base currency)
-        shipping_per_unit_base = Decimal(str(calculate_delivery_price(float(product_price), product_id)))
-        # Convert shipping to current currency
-        shipping_per_unit = Decimal(str(convert_price(float(shipping_per_unit_base), 'GMD', to_currency)))
-        
-        # Product shipping = shipping_per_unit × quantity
-        item_shipping = (shipping_per_unit * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        total_shipping += item_shipping
-        
-        # Store per-product shipping in item for later use
-        item['shipping_per_unit'] = float(shipping_per_unit)
-        item['shipping'] = float(item_shipping)
+        # If still no shipping found, try to get any global rule as last resort
+        if total_shipping_gmd == Decimal('0.00'):
+            global_rule = ShippingRule.query.filter(
+                ShippingRule.rule_type == 'global',
+                ShippingRule.status == True
+            ).order_by(ShippingRule.priority.desc()).first()
+            if global_rule:
+                total_shipping_gmd = Decimal(str(global_rule.price_gmd))
+                shipping_delivery_time = global_rule.delivery_time
+    
+    # Convert shipping to display currency if needed
+    if country and country.currency != 'GMD':
+        shipping_display = Decimal(str(convert_price(float(total_shipping_gmd), 'GMD', to_currency)))
+    else:
+        shipping_display = total_shipping_gmd
+    
+    # If shipping was calculated by rules (not per-item), distribute it proportionally
+    if shipping_result and shipping_result.get('available'):
+        # Distribute total shipping proportionally by item weight
+        if total_weight > 0:
+            for item in cart_items:
+                product_id = item.get('id')
+                if product_id:
+                    product = Product.query.get(product_id)
+                    item_weight = Decimal(str(product.weight_kg)) if (product and product.weight_kg) else Decimal('0.1')
+                    item_weight_total = item_weight * Decimal(str(item['quantity']))
+                    weight_ratio = item_weight_total / total_weight if total_weight > 0 else Decimal('0')
+                    item_shipping = (shipping_display * weight_ratio).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    item['shipping'] = float(item_shipping)
+                    item['shipping_per_unit'] = float(item_shipping / Decimal(str(item['quantity']))) if item['quantity'] > 0 else 0.0
 
     tax = (subtotal * tax_rate).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if tax_rate else Decimal('0.00')
-    shipping = total_shipping.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    shipping = shipping_display.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     total = subtotal + tax + shipping
 
     return {
@@ -2799,7 +2844,8 @@ def calculate_cart_totals(cart_items):
         'subtotal': subtotal,
         'tax': tax,
         'shipping': shipping,
-        'total': total
+        'total': total,
+        'shipping_delivery_time': shipping_delivery_time
     }
 
 
@@ -10544,8 +10590,42 @@ def category(category_id):
 def product(product_id):
     product = Product.query.get_or_404(product_id)
     
-    # Calculate shipping fee based on product-specific delivery rules
-    shipping_fee = calculate_delivery_price(product.price, product_id=product.id)
+    # Calculate shipping fee using new shipping rules system
+    # Get user's country (or use None to try global rules)
+    country = get_current_country()
+    country_id = country.id if country else None
+    
+    # Get product weight (default to 0.1kg if not set)
+    product_weight = float(product.weight_kg) if product.weight_kg else 0.1
+    
+    # Calculate shipping using shipping rules (will try country-specific first, then global)
+    shipping_result = calculate_shipping_price(product_weight, country_id, default_weight=0.1)
+    
+    shipping_fee = 0.0
+    shipping_delivery_time = None
+    
+    if shipping_result and shipping_result.get('available'):
+        shipping_fee = shipping_result['price_gmd']
+        shipping_delivery_time = shipping_result['delivery_time']
+        
+        # Convert to display currency if needed
+        if country and country.currency != 'GMD':
+            from .utils.currency_rates import convert_price
+            shipping_fee = convert_price(shipping_fee, 'GMD', country.currency)
+    else:
+        # Fallback to old system if no rule found (for backward compatibility)
+        # This ensures shipping is never 0 unless explicitly set
+        shipping_fee = calculate_delivery_price(product.price, product_id=product.id)
+        if shipping_fee == 0.0:
+            # If old system also returns 0, try to get any global rule as last resort
+            global_rule = ShippingRule.query.filter(
+                ShippingRule.rule_type == 'global',
+                ShippingRule.status == True
+            ).order_by(ShippingRule.priority.desc()).first()
+            if global_rule:
+                shipping_fee = float(global_rule.price_gmd)
+                shipping_delivery_time = global_rule.delivery_time
+    
     final_price = product.price + shipping_fee
     
     # Set delivery_price to 0.00 if not set (for backward compatibility)
@@ -10562,6 +10642,7 @@ def product(product_id):
                          category=category,
                          related_products=related_products,
                          shipping_fee=shipping_fee,
+                         shipping_delivery_time=shipping_delivery_time,
                          final_price=final_price)
 
 @app.route('/test/users')

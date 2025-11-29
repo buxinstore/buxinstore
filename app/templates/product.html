@@ -53,7 +53,14 @@
                     <h2 class="sr-only">Product information</h2>
                     <p class="text-3xl font-bold text-[color:var(--app-text)] dark:text-white">{{ product.price|price_with_symbol }}</p>
                     
-                    {% if product.delivery_price %}
+                    {% if shipping_fee and shipping_fee > 0 %}
+                    <p class="mt-2 text-lg text-[color:var(--app-muted)] dark:text-slate-400">
+                        <span class="font-medium">Shipping Fee:</span> {{ shipping_fee|price_with_symbol }}
+                        {% if shipping_delivery_time %}
+                            <span class="text-sm">({{ shipping_delivery_time }})</span>
+                        {% endif %}
+                    </p>
+                    {% elif product.delivery_price and product.delivery_price > 0 %}
                     <p class="mt-2 text-lg text-[color:var(--app-muted)] dark:text-slate-400">
                         <span class="font-medium">Delivery Fee:</span> {{ product.delivery_price|price_with_symbol }}
                     </p>
@@ -171,12 +178,19 @@
                             <div class="pb-6 prose prose-sm text-[color:var(--app-muted)] dark:text-slate-300" id="disclosure-2">
                                 <div class="space-y-3">
                                     <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Product Price: {{ product.price|price_with_symbol }}</p>
-                                    <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Shipping Fee: {{ shipping_fee|price_with_symbol }}</p>
+                                    <p class="font-semibold text-[color:var(--app-text)] dark:text-white">
+                                        Shipping Fee: {{ shipping_fee|price_with_symbol }}
+                                        {% if shipping_delivery_time %}
+                                            <span class="text-sm font-normal text-[color:var(--app-muted)] dark:text-slate-400">({{ shipping_delivery_time }})</span>
+                                        {% endif %}
+                                    </p>
                                     <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Final Price: {{ final_price|price_with_symbol }}</p>
                                     <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Location: {{ product.location if product.location else "Not specified" }}</p>
                                     <div class="mt-4">
                                         <p class="font-semibold text-[color:var(--app-text)] dark:text-white mb-2">Customer Message:</p>
-                                        {% if product.location == "In The Gambia" %}
+                                        {% if shipping_delivery_time %}
+                                        <p>Estimated delivery: {{ shipping_delivery_time }}.</p>
+                                        {% elif product.location == "In The Gambia" %}
                                         <p>You can receive your order today by calling our support team.</p>
                                         {% else %}
                                         <p>Estimated delivery: 14–30 days.</p>
