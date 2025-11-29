@@ -415,27 +415,28 @@
             <div class="relative flex items-center" id="country-selector">
               <button type="button"
                       id="country-toggle"
-                      class="relative p-2 hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                      class="relative w-10 h-10 flex items-center justify-center hover:bg-[color:var(--app-surface-hover)] rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 border-2 border-[color:var(--app-border)] hover:border-cyan-500/50"
                       aria-label="Select country"
                       aria-haspopup="true"
                       aria-expanded="false">
                 <span class="sr-only">Select country</span>
-                {% if current_country and current_country.flag_image_path %}
-                  <img src="{{ current_country.get_flag_url() }}" 
+                {% if current_country %}
+                  <img src="{{ current_country.get_flag_url() or ('https://flagcdn.com/w40/' + current_country.code.lower() + '.png') }}" 
                        alt="{{ current_country.name }}" 
-                       class="w-6 h-6 rounded-sm object-cover border border-[color:var(--app-border)]"
-                       id="country-flag-icon">
+                       class="w-7 h-7 rounded-full object-cover"
+                       id="country-flag-icon"
+                       onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'10\'/%3E%3Cpath d=\'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\'/%3E%3Cpath d=\'M2 12h20\'/%3E%3C/svg%3E'; this.style.display='block'; document.getElementById('country-globe-icon')?.classList.add('hidden');">
                 {% else %}
                   <i data-lucide="globe" class="w-5 h-5" id="country-globe-icon"></i>
                 {% endif %}
               </button>
               
               <!-- Country Dropdown -->
-              <div id="country-dropdown" class="absolute right-0 mt-3 w-64 bg-[color:var(--app-card)] backdrop-blur-xl border border-[color:var(--app-border)] rounded-2xl p-3 space-y-1 shadow-2xl animate-in-custom hidden z-50 max-h-96 overflow-y-auto">
-                <div class="px-3 py-2 border-b border-[color:var(--app-border)] mb-2">
+              <div id="country-dropdown" class="absolute right-0 mt-3 w-72 bg-[color:var(--app-card)] backdrop-blur-xl border border-[color:var(--app-border)] rounded-2xl shadow-2xl animate-in-custom hidden z-50 max-h-[32rem] overflow-hidden flex flex-col">
+                <div class="px-4 py-3 border-b border-[color:var(--app-border)]">
                   <p class="text-sm font-semibold text-[color:var(--app-text)]">{{ _('Select Country') }}</p>
                 </div>
-                <div id="country-list" class="space-y-1">
+                <div id="country-list" class="overflow-y-auto p-2 space-y-1">
                   <!-- Countries will be loaded via JavaScript -->
                 </div>
               </div>
@@ -576,7 +577,7 @@
           <p class="text-sm text-[color:var(--app-muted)]">{{ _('Choose your country to see prices and content in your local currency and language') }}</p>
         </div>
         
-        <div id="country-modal-list" class="space-y-2 max-h-96 overflow-y-auto mb-4">
+        <div id="country-modal-list" class="space-y-2 max-h-96 overflow-y-auto mb-4 p-2">
           <!-- Countries will be loaded via JavaScript -->
         </div>
         
@@ -908,20 +909,33 @@
       if (!dropdown) return;
       
       dropdown.innerHTML = countries.map(country => {
-        const flagUrl = country.flag_image_path 
-          ? (country.flag_image_path.startsWith('http') 
-              ? country.flag_image_path 
-              : `/static/${country.flag_image_path}`)
-          : '';
+        // Get flag URL - prefer flag_url from API, then flag_image_path, then fallback
+        let flagUrl = country.flag_url || '';
+        if (!flagUrl && country.flag_image_path) {
+          flagUrl = country.flag_image_path.startsWith('http') 
+            ? country.flag_image_path 
+            : `/static/${country.flag_image_path}`;
+        }
+        if (!flagUrl && country.code) {
+          // Fallback to flagcdn.com
+          flagUrl = `https://flagcdn.com/w40/${country.code.toLowerCase()}.png`;
+        }
+        
         const isSelected = currentCountry && currentCountry.id === country.id;
+        const currencyDisplay = country.currency_symbol || country.currency || '';
         
         return `
           <button type="button" 
-                  class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors ${isSelected ? 'bg-[color:var(--app-surface-hover)]' : ''}"
+                  class="w-full flex items-center gap-3 px-4 py-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-all duration-200 ${isSelected ? 'bg-[color:var(--app-surface-hover)] ring-2 ring-cyan-500/30' : ''}"
                   onclick="selectCountry(${country.id}, false)">
-            ${flagUrl ? `<img src="${flagUrl}" alt="${country.name}" class="w-6 h-6 rounded-sm object-cover border border-[color:var(--app-border)]">` : '<i data-lucide="globe" class="w-5 h-5"></i>'}
-            <span class="text-sm font-medium flex-1 text-left">${country.name}</span>
-            ${isSelected ? '<i data-lucide="check" class="w-4 h-4 text-cyan-500"></i>' : ''}
+            <div class="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden border-2 border-[color:var(--app-border)] flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+              ${flagUrl ? `<img src="${flagUrl}" alt="${country.name}" class="w-full h-full object-cover" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<i data-lucide=\\'globe\\' class=\\'w-5 h-5 text-[color:var(--app-muted)]\\'></i>'; if(window.lucide) window.lucide.createIcons();">` : '<i data-lucide="globe" class="w-5 h-5 text-[color:var(--app-muted)]"></i>'}
+            </div>
+            <div class="flex-1 text-left min-w-0">
+              <div class="text-sm font-semibold text-[color:var(--app-text)] truncate">${country.name}</div>
+              <div class="text-xs text-[color:var(--app-muted)] truncate">${currencyDisplay} • ${(country.language || 'en').toUpperCase()}</div>
+            </div>
+            ${isSelected ? '<i data-lucide="check" class="w-5 h-5 text-cyan-500 flex-shrink-0"></i>' : ''}
           </button>
         `;
       }).join('');
@@ -938,20 +952,30 @@
       if (!modalList) return;
       
       modalList.innerHTML = countries.map(country => {
-        const flagUrl = country.flag_image_path 
-          ? (country.flag_image_path.startsWith('http') 
-              ? country.flag_image_path 
-              : `/static/${country.flag_image_path}`)
-          : '';
+        // Get flag URL - prefer flag_url from API, then flag_image_path, then fallback
+        let flagUrl = country.flag_url || '';
+        if (!flagUrl && country.flag_image_path) {
+          flagUrl = country.flag_image_path.startsWith('http') 
+            ? country.flag_image_path 
+            : `/static/${country.flag_image_path}`;
+        }
+        if (!flagUrl && country.code) {
+          // Fallback to flagcdn.com
+          flagUrl = `https://flagcdn.com/w40/${country.code.toLowerCase()}.png`;
+        }
+        
+        const currencyDisplay = country.currency_symbol || country.currency || '';
         
         return `
           <button type="button" 
-                  class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors border border-[color:var(--app-border)]"
+                  class="w-full flex items-center gap-3 px-4 py-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-all duration-200 border border-[color:var(--app-border)]"
                   onclick="selectCountry(${country.id}, true)">
-            ${flagUrl ? `<img src="${flagUrl}" alt="${country.name}" class="w-8 h-8 rounded-sm object-cover border border-[color:var(--app-border)]">` : '<i data-lucide="globe" class="w-6 h-6"></i>'}
-            <div class="flex-1 text-left">
-              <span class="text-sm font-medium block">${country.name}</span>
-              <span class="text-xs text-[color:var(--app-muted)]">${country.currency_symbol || country.currency} • ${country.language.toUpperCase()}</span>
+            <div class="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden border-2 border-[color:var(--app-border)] flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+              ${flagUrl ? `<img src="${flagUrl}" alt="${country.name}" class="w-full h-full object-cover" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<i data-lucide=\\'globe\\' class=\\'w-5 h-5 text-[color:var(--app-muted)]\\'></i>'; if(window.lucide) window.lucide.createIcons();">` : '<i data-lucide="globe" class="w-5 h-5 text-[color:var(--app-muted)]"></i>'}
+            </div>
+            <div class="flex-1 text-left min-w-0">
+              <div class="text-sm font-semibold text-[color:var(--app-text)] truncate">${country.name}</div>
+              <div class="text-xs text-[color:var(--app-muted)] truncate">${currencyDisplay} • ${(country.language || 'en').toUpperCase()}</div>
             </div>
           </button>
         `;
@@ -967,26 +991,50 @@
     function updateCountryIcon() {
       const flagIcon = document.getElementById('country-flag-icon');
       const globeIcon = document.getElementById('country-globe-icon');
+      const toggleButton = document.getElementById('country-toggle');
       
-      if (currentCountry && currentCountry.flag_image_path) {
-        const flagUrl = currentCountry.flag_image_path.startsWith('http') 
-          ? currentCountry.flag_image_path 
-          : `/static/${currentCountry.flag_image_path}`;
+      if (currentCountry) {
+        // Get flag URL - prefer flag_url from API, then flag_image_path, then fallback
+        let flagUrl = currentCountry.flag_url || '';
+        if (!flagUrl && currentCountry.flag_image_path) {
+          flagUrl = currentCountry.flag_image_path.startsWith('http') 
+            ? currentCountry.flag_image_path 
+            : `/static/${currentCountry.flag_image_path}`;
+        }
+        if (!flagUrl && currentCountry.code) {
+          // Fallback to flagcdn.com
+          flagUrl = `https://flagcdn.com/w40/${currentCountry.code.toLowerCase()}.png`;
+        }
         
-        if (flagIcon) {
+        if (flagUrl && flagIcon) {
           flagIcon.src = flagUrl;
           flagIcon.alt = currentCountry.name;
+          flagIcon.style.display = 'block';
           flagIcon.classList.remove('hidden');
-        }
-        if (globeIcon) {
-          globeIcon.classList.add('hidden');
+          flagIcon.onerror = function() {
+            // If flag fails to load, show globe icon
+            this.style.display = 'none';
+            if (globeIcon) {
+              globeIcon.classList.remove('hidden');
+              globeIcon.style.display = 'block';
+            }
+          };
+        } else {
+          if (flagIcon) {
+            flagIcon.style.display = 'none';
+          }
+          if (globeIcon) {
+            globeIcon.classList.remove('hidden');
+            globeIcon.style.display = 'block';
+          }
         }
       } else {
         if (flagIcon) {
-          flagIcon.classList.add('hidden');
+          flagIcon.style.display = 'none';
         }
         if (globeIcon) {
           globeIcon.classList.remove('hidden');
+          globeIcon.style.display = 'block';
         }
       }
     }

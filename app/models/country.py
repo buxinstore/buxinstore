@@ -34,27 +34,33 @@ class Country(db.Model):
             'currency_symbol': self.currency_symbol,
             'language': self.language,
             'flag_image_path': self.flag_image_path,
+            'flag_url': self.get_flag_url(),  # Include flag URL in API response
             'is_active': self.is_active
         }
     
     def get_flag_url(self):
-        """Get the URL for the country flag image."""
-        if not self.flag_image_path:
-            return None
+        """Get the URL for the country flag image with fallback to flagcdn.com."""
+        # If flag_image_path exists and is a valid URL, use it
+        if self.flag_image_path:
+            # Check if it's a Cloudinary URL or full URL
+            if self.flag_image_path.startswith('http://') or self.flag_image_path.startswith('https://'):
+                return self.flag_image_path
+            
+            # Check if it's already a static path
+            if self.flag_image_path.startswith('/static/'):
+                return self.flag_image_path
+            
+            # Otherwise, use url_for
+            from flask import url_for
+            try:
+                return url_for('static', filename=self.flag_image_path)
+            except RuntimeError:
+                # Outside request context
+                return f'/static/{self.flag_image_path}'
         
-        # Check if it's a Cloudinary URL
-        if self.flag_image_path.startswith('http://') or self.flag_image_path.startswith('https://'):
-            return self.flag_image_path
+        # Fallback to flagcdn.com if no flag_image_path
+        if self.code:
+            return f"https://flagcdn.com/w40/{self.code.lower()}.png"
         
-        # Check if it's already a static path
-        if self.flag_image_path.startswith('/static/'):
-            return self.flag_image_path
-        
-        # Otherwise, use url_for
-        from flask import url_for
-        try:
-            return url_for('static', filename=self.flag_image_path)
-        except RuntimeError:
-            # Outside request context
-            return f'/static/{self.flag_image_path}'
+        return None
 
