@@ -3147,7 +3147,8 @@ def checkout():
                                  form=form,
                                  user_phone=user_phone,
                                  user_email=user_email,
-                                 pending_payment_id=pending_payment.id)  # Pass pending_payment_id instead of order_id
+                                 pending_payment_id=pending_payment.id,
+                                 has_saved_address=bool(profile.address and profile.city and profile.country))  # Pass pending_payment_id instead of order_id
             
         except Exception as e:
             db.session.rollback()
