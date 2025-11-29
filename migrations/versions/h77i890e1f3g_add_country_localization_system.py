@@ -1,7 +1,7 @@
 """add country localization system
 
 Revision ID: h77i890e1f3g
-Revises: g66h789d0e2f
+Revises: deb6a76fcc77
 Create Date: 2025-01-XX XX:XX:XX.XXXXXX
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'h77i890e1f3g'
-down_revision: Union[str, None] = 'g66h789d0e2f'
+down_revision: Union[str, None] = 'deb6a76fcc77'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -48,19 +48,18 @@ def upgrade() -> None:
     
     # Insert default countries
     from datetime import datetime
-    from sqlalchemy import text
-    now = datetime.utcnow()
-    op.execute(text("""
+    now = datetime.utcnow().isoformat()
+    op.execute(f"""
         INSERT INTO country (name, code, currency, currency_symbol, language, is_active, created_at, updated_at)
         VALUES
-        ('Senegal', 'SN', 'XOF', 'CFA', 'fr', true, :now, :now),
-        ('Côte d''Ivoire', 'CI', 'XOF', 'CFA', 'fr', true, :now, :now),
-        ('Gambia', 'GM', 'GMD', 'D', 'en', true, :now, :now),
-        ('Mali', 'ML', 'XOF', 'CFA', 'fr', true, :now, :now),
-        ('Burkina Faso', 'BF', 'XOF', 'CFA', 'fr', true, :now, :now),
-        ('Sierra Leone', 'SL', 'SLL', 'Le', 'en', true, :now, :now),
-        ('Uganda', 'UG', 'UGX', 'USh', 'en', true, :now, :now)
-    """), {'now': now})
+        ('Senegal', 'SN', 'XOF', 'CFA', 'fr', true, '{now}', '{now}'),
+        ('Côte d''Ivoire', 'CI', 'XOF', 'CFA', 'fr', true, '{now}', '{now}'),
+        ('Gambia', 'GM', 'GMD', 'D', 'en', true, '{now}', '{now}'),
+        ('Mali', 'ML', 'XOF', 'CFA', 'fr', true, '{now}', '{now}'),
+        ('Burkina Faso', 'BF', 'XOF', 'CFA', 'fr', true, '{now}', '{now}'),
+        ('Sierra Leone', 'SL', 'SLL', 'Le', 'en', true, '{now}', '{now}'),
+        ('Uganda', 'UG', 'UGX', 'USh', 'en', true, '{now}', '{now}')
+    """)
 
 
 def downgrade() -> None:
