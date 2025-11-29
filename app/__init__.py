@@ -3001,10 +3001,13 @@ from wtforms import StringField, SelectField, TextAreaField, SubmitField, Intege
 from wtforms.validators import DataRequired, Email, NumberRange
 
 class CheckoutForm(FlaskForm):
-    full_name = StringField('Full Name', validators=[DataRequired()])
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    phone = StringField('Phone', validators=[DataRequired()])
-    delivery_address = TextAreaField('Delivery Address', validators=[DataRequired()])
+    full_name = StringField('Full Name', validators=[DataRequired(message='Full name is required')])
+    email = StringField('Email', validators=[DataRequired(message='Email is required'), Email(message='Please enter a valid email address')])
+    phone = StringField('Phone Number', validators=[DataRequired(message='Phone number is required')])
+    country = StringField('Country', validators=[DataRequired(message='Country is required')])
+    city = StringField('City / Region', validators=[DataRequired(message='City or region is required')])
+    delivery_address = TextAreaField('Full Delivery Address', validators=[DataRequired(message='Delivery address is required')])
+    delivery_notes = TextAreaField('Delivery Notes (Optional)', validators=[])
     payment_method = SelectField('Payment Method', 
                                choices=[
                                    ('', 'Select a payment method'),
@@ -3013,8 +3016,8 @@ class CheckoutForm(FlaskForm):
                                    ('afrimoney', 'AfriMoney'),
                                    ('ecobank', 'ECOBANK Mobile')
                                ],
-                               validators=[DataRequired()])
-    submit = SubmitField('Place Order')
+                               validators=[DataRequired(message='Please select a payment method')])
+    submit = SubmitField('Proceed to Payment')
 
 
 def calculate_delivery_price(price, product_id=None):
@@ -3161,6 +3164,18 @@ def checkout():
                 if not product or (product.stock is not None and product.stock < item['quantity']):
                     flash(f'Sorry, {item["name"]} is out of stock or the quantity is not available', 'error')
                     return redirect(url_for('cart'))
+            
+            # Save address to user profile
+            profile = ensure_user_profile(current_user)
+            # Split full_name into first_name and last_name
+            name_parts = form.full_name.data.strip().split(' ', 1)
+            profile.first_name = name_parts[0] if name_parts else ''
+            profile.last_name = name_parts[1] if len(name_parts) > 1 else ''
+            profile.phone_number = form.phone.data
+            profile.country = form.country.data
+            profile.city = form.city.data
+            profile.address = form.delivery_address.data
+            db.session.commit()
             
             # Create PendingPayment instead of Order
             # Orders will only be created AFTER successful payment confirmation
@@ -9008,6 +9023,57 @@ def api_profile():
         return jsonify({'status': 'error', 'message': 'Unable to update profile due to conflicting data.'}), 409
 
     return jsonify({'status': 'success', 'profile': user.to_profile_dict()})
+
+@app.route('/api/checkout/save-address', methods=['POST'])
+@login_required
+def api_save_checkout_address():
+    """Save checkout address to user profile."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        profile = ensure_user_profile(current_user)
+        
+        # Split full_name into first_name and last_name
+        full_name = data.get('full_name', '').strip()
+        if full_name:
+            name_parts = full_name.split(' ', 1)
+            profile.first_name = name_parts[0] if name_parts else ''
+            profile.last_name = name_parts[1] if len(name_parts) > 1 else ''
+        
+        # Update address fields
+        if 'phone' in data:
+            profile.phone_number = data['phone'].strip()
+        if 'email' in data:
+            # Email is stored on User model, not profile
+            current_user.email = data['email'].strip()
+        if 'country' in data:
+            profile.country = data['country'].strip()
+        if 'city' in data:
+            profile.city = data['city'].strip()
+        if 'delivery_address' in data:
+            profile.address = data['delivery_address'].strip()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Address saved successfully',
+            'profile': {
+                'first_name': profile.first_name,
+                'last_name': profile.last_name,
+                'phone_number': profile.phone_number,
+                'email': current_user.email,
+                'country': profile.country,
+                'city': profile.city,
+                'address': profile.address
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error saving checkout address: {e}")
+        return jsonify({'success': False, 'message': 'Failed to save address'}), 500
 
 
 @app.route('/api/profile/avatar', methods=['POST', 'DELETE'])

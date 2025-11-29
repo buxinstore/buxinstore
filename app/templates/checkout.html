@@ -77,42 +77,171 @@
                     </div>
                 </div>
 
-                <!-- ModemPay Payment Form -->
+                <!-- Checkout Form -->
                 <div class="mt-10 lg:mt-0">
                     <div class="bg-[color:var(--app-card)] dark:bg-slate-900/70 border border-[color:var(--app-border)] dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm transition-colors duration-300">
-                        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Payment Information</h2>
-                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Pay securely using ModemPay</p>
+                        <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-1">Delivery Information</h2>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">Complete your delivery details to proceed</p>
 
-                        <form id="modempay-form" class="mt-6 space-y-6">
-                            <!-- Amount (read-only, from cart total) -->
+                        <!-- Success message for saved address -->
+                        <div id="address-saved-message" class="hidden mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                            <p class="text-sm text-green-800 dark:text-green-200 flex items-center gap-2">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Address saved successfully!</span>
+                            </p>
+                        </div>
+
+                        <form id="checkout-form" class="space-y-5">
+                            {{ form.hidden_tag() }}
+                            
+                            <!-- Full Name -->
                             <div>
-                                <label for="amount" class="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                    Amount ({{ currency }})
+                                <label for="full_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    Full Name <span class="text-red-500">*</span>
                                 </label>
-                                <div class="mt-2">
-                                    <input 
-                                        type="number" 
-                                        id="amount" 
-                                        name="amount" 
-                                        value="{{ "%.2f"|format(checkout_summary.total) }}" 
-                                        readonly
-                                        step="0.01"
-                                        class="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/50 text-slate-900 dark:text-white cursor-not-allowed px-4 py-2"
-                                    >
-                                </div>
+                                <input 
+                                    type="text" 
+                                    id="full_name" 
+                                    name="full_name" 
+                                    value="{{ form.full_name.data or '' }}"
+                                    required
+                                    class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                                    placeholder="John Doe"
+                                >
+                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="full_name-error"></p>
                             </div>
 
-                            <!-- Order ID (hidden) -->
+                            <!-- Email -->
+                            <div>
+                                <label for="email" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    Email Address <span class="text-red-500">*</span>
+                                </label>
+                                <input 
+                                    type="email" 
+                                    id="email" 
+                                    name="email" 
+                                    value="{{ form.email.data or '' }}"
+                                    required
+                                    class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                                    placeholder="john@example.com"
+                                >
+                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="email-error"></p>
+                            </div>
+
+                            <!-- Phone -->
+                            <div>
+                                <label for="phone" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    Phone Number <span class="text-red-500">*</span>
+                                </label>
+                                <input 
+                                    type="tel" 
+                                    id="phone" 
+                                    name="phone" 
+                                    value="{{ form.phone.data or '' }}"
+                                    required
+                                    class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                                    placeholder="+220XXXXXXXXX"
+                                >
+                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="phone-error"></p>
+                            </div>
+
+                            <!-- Country -->
+                            <div>
+                                <label for="country" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    Country <span class="text-red-500">*</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="country" 
+                                    name="country" 
+                                    value="{{ form.country.data or '' }}"
+                                    required
+                                    class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                                    placeholder="Gambia"
+                                >
+                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="country-error"></p>
+                            </div>
+
+                            <!-- City / Region -->
+                            <div>
+                                <label for="city" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    City / Region <span class="text-red-500">*</span>
+                                </label>
+                                    <input 
+                                    type="text" 
+                                    id="city" 
+                                    name="city" 
+                                    value="{{ form.city.data or '' }}"
+                                    required
+                                    class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                                    placeholder="Banjul"
+                                >
+                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="city-error"></p>
+                            </div>
+
+                            <!-- Full Delivery Address -->
+                            <div>
+                                <label for="delivery_address" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    Full Delivery Address <span class="text-red-500">*</span>
+                                </label>
+                                <textarea 
+                                    id="delivery_address" 
+                                    name="delivery_address" 
+                                    rows="3"
+                                    required
+                                    class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all resize-none"
+                                    placeholder="Street address, building number, apartment, etc."
+                                >{{ form.delivery_address.data or '' }}</textarea>
+                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="delivery_address-error"></p>
+                            </div>
+
+                            <!-- Delivery Notes (Optional) -->
+                            <div>
+                                <label for="delivery_notes" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    Delivery Notes <span class="text-slate-400 text-xs">(Optional)</span>
+                                </label>
+                                <textarea 
+                                    id="delivery_notes" 
+                                    name="delivery_notes" 
+                                    rows="2"
+                                    class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all resize-none"
+                                    placeholder="Special delivery instructions, gate code, etc."
+                                >{{ form.delivery_notes.data or '' }}</textarea>
+                                </div>
+
+                            <!-- Payment Method -->
+                            <div>
+                                <label for="payment_method" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                                    Payment Method <span class="text-red-500">*</span>
+                                </label>
+                                <select 
+                                    id="payment_method" 
+                                    name="payment_method" 
+                                    required
+                                    class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                                >
+                                    <option value="">Select a payment method</option>
+                                    <option value="wave" {% if form.payment_method.data == 'wave' %}selected{% endif %}>Wave Money</option>
+                                    <option value="qmoney" {% if form.payment_method.data == 'qmoney' %}selected{% endif %}>QMoney</option>
+                                    <option value="afrimoney" {% if form.payment_method.data == 'afrimoney' %}selected{% endif %}>AfriMoney</option>
+                                    <option value="ecobank" {% if form.payment_method.data == 'ecobank' %}selected{% endif %}>ECOBANK Mobile</option>
+                                </select>
+                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="payment_method-error"></p>
+                            </div>
+
+                            <!-- Amount (hidden, from cart total) -->
+                            <input type="hidden" id="amount" name="amount" value="{{ "%.2f"|format(checkout_summary.total) }}">
                             <input type="hidden" id="pending_payment_id" name="pending_payment_id" value="{{ pending_payment_id or '' }}">
 
-                            <!-- Pay Now Button -->
+                            <!-- Proceed to Payment Button -->
                             <div class="pt-2">
                                 <button 
                                     type="submit" 
-                                    id="pay-button"
-                                    class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 py-3 px-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    id="proceed-button"
+                                    disabled
+                                    class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 py-3 px-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:shadow-lg"
                                 >
-                                    <span id="button-text">Pay Now</span>
+                                    <span id="button-text">Proceed to Payment</span>
                                     <span id="button-loading" class="hidden">Processing...</span>
                                 </button>
                             </div>
@@ -143,37 +272,351 @@
 {% block scripts %}
 <script id="checkout-summary-data" type="application/json">{{ cart_summary | tojson }}</script>
 <script>
-    // Get CSRF token from meta tag or form
-    function getCSRFToken() {
-        const metaTag = document.querySelector('meta[name="csrf-token"]');
-        if (metaTag) {
-            return metaTag.getAttribute('content');
+    // Checkout form validation and submission
+    (function() {
+        const form = document.getElementById('checkout-form');
+        const proceedButton = document.getElementById('proceed-button');
+        const buttonText = document.getElementById('button-text');
+        const buttonLoading = document.getElementById('button-loading');
+        const addressSavedMessage = document.getElementById('address-saved-message');
+        
+        // Form fields
+        const fields = {
+            full_name: document.getElementById('full_name'),
+            email: document.getElementById('email'),
+            phone: document.getElementById('phone'),
+            country: document.getElementById('country'),
+            city: document.getElementById('city'),
+            delivery_address: document.getElementById('delivery_address'),
+            payment_method: document.getElementById('payment_method')
+        };
+        
+        // Validation state
+        let validationState = {
+            full_name: false,
+            email: false,
+            phone: false,
+            country: false,
+            city: false,
+            delivery_address: false,
+            payment_method: false
+        };
+        
+        // Validation functions
+        function validateFullName(value) {
+            return value.trim().length >= 2;
         }
-        // Fallback: try to get from form
-    const form = document.querySelector('form');
-        if (form) {
-            const csrfInput = form.querySelector('input[name="csrf_token"]');
-            if (csrfInput) {
-                return csrfInput.value;
+        
+        function validateEmail(value) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(value.trim());
+        }
+        
+        function validatePhone(value) {
+            // Allow various phone formats
+            const cleaned = value.replace(/\D/g, '');
+            return cleaned.length >= 7;
+        }
+        
+        function validateRequired(value) {
+            return value.trim().length > 0;
+        }
+        
+        // Show error
+        function showError(fieldName, message) {
+            const field = fields[fieldName];
+            const errorEl = document.getElementById(`${fieldName}-error`);
+            if (field && errorEl) {
+                field.classList.add('border-red-500', 'dark:border-red-500');
+                field.classList.remove('border-slate-300', 'dark:border-slate-600');
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+                validationState[fieldName] = false;
             }
         }
-        return '';
-    }
-
-    // Format phone number
-    function formatPhoneNumber(phone) {
-        // Remove all non-digit characters
-        let cleaned = phone.replace(/\D/g, '');
         
-        // Add country code if not present (Gambia: +220)
-        if (!cleaned.startsWith('220')) {
-            cleaned = '220' + cleaned;
+        // Clear error
+        function clearError(fieldName) {
+            const field = fields[fieldName];
+            const errorEl = document.getElementById(`${fieldName}-error`);
+            if (field && errorEl) {
+                field.classList.remove('border-red-500', 'dark:border-red-500');
+                field.classList.add('border-slate-300', 'dark:border-slate-600');
+                errorEl.classList.add('hidden');
+                validationState[fieldName] = true;
+            }
         }
         
-        // Format as +220XXXXXXXXX
-        return '+' + cleaned;
-    }
-
+        // Validate field
+        function validateField(fieldName, value) {
+            switch(fieldName) {
+                case 'full_name':
+                    if (!validateFullName(value)) {
+                        showError(fieldName, 'Full name must be at least 2 characters');
+                        return false;
+                    }
+                    break;
+                case 'email':
+                    if (!validateEmail(value)) {
+                        showError(fieldName, 'Please enter a valid email address');
+                        return false;
+                    }
+                    break;
+                case 'phone':
+                    if (!validatePhone(value)) {
+                        showError(fieldName, 'Please enter a valid phone number');
+                        return false;
+                    }
+                    break;
+                case 'country':
+                case 'city':
+                case 'delivery_address':
+                    if (!validateRequired(value)) {
+                        showError(fieldName, 'This field is required');
+                        return false;
+                    }
+                    break;
+                case 'payment_method':
+                    if (!validateRequired(value)) {
+                        showError(fieldName, 'Please select a payment method');
+                        return false;
+                    }
+                    break;
+            }
+            clearError(fieldName);
+            return true;
+        }
+        
+        // Validate all fields
+        function validateForm() {
+            let isValid = true;
+            for (const [fieldName, field] of Object.entries(fields)) {
+                if (!validateField(fieldName, field.value)) {
+                    isValid = false;
+                }
+            }
+            return isValid;
+        }
+        
+        // Update button state
+        function updateButtonState() {
+            const isValid = validateForm();
+            proceedButton.disabled = !isValid;
+        }
+        
+        // Real-time validation
+        Object.entries(fields).forEach(([fieldName, field]) => {
+            field.addEventListener('blur', () => {
+                validateField(fieldName, field.value);
+                updateButtonState();
+            });
+            
+            field.addEventListener('input', () => {
+                if (validationState[fieldName] === false) {
+                    // Only validate if there was an error
+                    validateField(fieldName, field.value);
+                }
+                updateButtonState();
+            });
+        });
+        
+        // Auto-save address on blur (debounced)
+        let saveTimeout;
+        function autoSaveAddress() {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(async () => {
+                if (validateForm()) {
+                    try {
+                        const response = await fetch('/api/checkout/save-address', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                            },
+                            body: JSON.stringify({
+                                full_name: fields.full_name.value,
+                                email: fields.email.value,
+                                phone: fields.phone.value,
+                                country: fields.country.value,
+                                city: fields.city.value,
+                                delivery_address: fields.delivery_address.value
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            addressSavedMessage.classList.remove('hidden');
+                            setTimeout(() => {
+                                addressSavedMessage.classList.add('hidden');
+                            }, 3000);
+                        }
+                    } catch (error) {
+                        console.error('Error saving address:', error);
+                    }
+                }
+            }, 1000); // Wait 1 second after user stops typing
+        }
+        
+        // Auto-save on field changes
+        Object.values(fields).forEach(field => {
+            if (field.id !== 'payment_method') {
+                field.addEventListener('input', autoSaveAddress);
+            }
+        });
+        
+        // Form submission
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!validateForm()) {
+                // Scroll to first error
+                const firstError = Object.entries(fields).find(([name, field]) => !validationState[name]);
+                if (firstError) {
+                    firstError[1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstError[1].focus();
+                }
+                return;
+            }
+            
+            // Disable button and show loading
+            proceedButton.disabled = true;
+            buttonText.classList.add('hidden');
+            buttonLoading.classList.remove('hidden');
+            
+            // Save address before proceeding
+            try {
+                await fetch('/api/checkout/save-address', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    body: JSON.stringify({
+                        full_name: fields.full_name.value,
+                        email: fields.email.value,
+                        phone: fields.phone.value,
+                        country: fields.country.value,
+                        city: fields.city.value,
+                        delivery_address: fields.delivery_address.value
+                    })
+                });
+            } catch (error) {
+                console.error('Error saving address:', error);
+            }
+            
+            // Get form values
+            const pendingPaymentId = document.getElementById('pending_payment_id').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const provider = fields.payment_method.value;
+            
+            // Validation - ModemPay requires minimum 10 GMD
+            const MIN_AMOUNT = 10.0;
+            if (isNaN(amount) || amount < MIN_AMOUNT) {
+                showMessage(`Payment amount must be at least D${MIN_AMOUNT}. Current amount: D${amount.toFixed(2)}`, 'error');
+                proceedButton.disabled = false;
+                buttonText.classList.remove('hidden');
+                buttonLoading.classList.add('hidden');
+                return;
+            }
+            
+            // Validate pending_payment_id
+            if (!pendingPaymentId) {
+                showMessage('Pending payment ID is missing. Please refresh the page and try again.', 'error');
+                proceedButton.disabled = false;
+                buttonText.classList.remove('hidden');
+                buttonLoading.classList.add('hidden');
+                return;
+            }
+            
+            try {
+                // Prepare payment data
+                const paymentData = {
+                    pending_payment_id: parseInt(pendingPaymentId),
+                    provider: provider
+                };
+                
+                console.log('Initiating ModemPay payment:', paymentData);
+                
+                // Make API call to ModemPay payment endpoint
+                const response = await fetch('/payments/modempay/pay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(paymentData)
+                });
+                
+                // Parse response
+                const data = await response.json();
+                
+                console.log('ModemPay response:', data);
+                
+                // Display response
+                const responseContent = document.getElementById('response-content');
+                if (responseContent) {
+                    responseContent.textContent = JSON.stringify(data, null, 2);
+                }
+                
+                // Handle response
+                if (data.success || response.ok) {
+                    const paymentUrl = data.payment_url || (data.data && data.data.payment_url);
+                    
+                    if (paymentUrl && typeof paymentUrl === 'string' && paymentUrl.startsWith('http')) {
+                        // Valid payment URL - immediately redirect
+                        console.log('Redirecting to ModemPay checkout:', paymentUrl);
+                        window.location.href = paymentUrl;
+                        return;
+                    } else {
+                        showMessage('Payment initiated but redirect URL is missing or invalid. Please contact support.', 'error');
+                    }
+                } else {
+                    const errorMsg = data.message || data.error || 'Payment initiation failed';
+                    showMessage(errorMsg, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Payment error:', error);
+                showMessage('An error occurred while processing your payment. Please try again.', 'error');
+            } finally {
+                // Re-enable button
+                proceedButton.disabled = false;
+                buttonText.classList.remove('hidden');
+                buttonLoading.classList.add('hidden');
+            }
+        });
+        
+        // Show message function
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            const messageContent = document.getElementById('message-content');
+            
+            if (!messageDiv || !messageContent) return;
+            
+            messageContent.className = 'rounded-md p-4';
+            
+            if (type === 'success') {
+                messageContent.classList.add('bg-green-50', 'text-green-800', 'border', 'border-green-200', 'dark:bg-green-900', 'dark:text-green-200', 'dark:border-green-700');
+            } else if (type === 'error') {
+                messageContent.classList.add('bg-red-50', 'text-red-800', 'border', 'border-red-200', 'dark:bg-red-900', 'dark:text-red-200', 'dark:border-red-700');
+            }
+            
+            messageContent.innerHTML = message;
+            messageDiv.classList.remove('hidden');
+            messageDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                messageDiv.classList.add('hidden');
+                messageDiv.style.display = 'none';
+            }, 10000);
+        }
+        
+        // Initial validation
+        updateButtonState();
+    })();
+    
+    // Rest of existing checkout summary sync code...
     const CHECKOUT_CURRENCY = document.body.dataset.cartCurrency || "{{ currency }}";
     const STATIC_BASE = "{{ url_for('static', filename='') }}";
     const PLACEHOLDER_IMAGE = "{{ url_for('static', filename='images/placeholder.png') }}";
@@ -343,27 +786,6 @@
         if (amountInput) {
             amountInput.value = (checkout.total ?? summary.cart_total ?? 0).toFixed(2);
         }
-
-        const payButton = document.getElementById('pay-button');
-        if (payButton) {
-            const hasItems = (checkout.count ?? summary.cart_count ?? itemsData.length) > 0;
-            const totalAmount = checkout.total ?? summary.cart_total ?? 0;
-            const MIN_AMOUNT = 10.0; // ModemPay minimum
-            const hasValidAmount = totalAmount >= MIN_AMOUNT;
-            payButton.disabled = !hasItems || !hasValidAmount;
-            
-            // Update button title if amount is too low
-            if (!hasValidAmount && hasItems) {
-                payButton.title = `Minimum payment amount is D${MIN_AMOUNT}. Current: D${totalAmount.toFixed(2)}`;
-            } else {
-                payButton.title = '';
-            }
-        }
-
-        const cartCountValue = checkout.count ?? summary.cart_count ?? itemsData.length;
-        if (typeof window.updateCartBadgeCount === 'function') {
-            window.updateCartBadgeCount(cartCountValue);
-        }
     }
 
     function syncCheckoutSummary() {
@@ -400,156 +822,5 @@
             updateCheckoutView(normalized);
         }
     });
-
-    // Handle form submission
-    document.getElementById('modempay-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        // Get form elements
-        const form = e.target;
-        const payButton = document.getElementById('pay-button');
-        const buttonText = document.getElementById('button-text');
-        const buttonLoading = document.getElementById('button-loading');
-        const responseDiv = document.getElementById('response');
-        const responseContent = document.getElementById('response-content');
-        const messageDiv = document.getElementById('message');
-        const messageContent = document.getElementById('message-content');
-        
-        // Get form values
-        const pendingPaymentId = document.getElementById('pending_payment_id').value;
-        const amount = parseFloat(document.getElementById('amount').value);
-        const provider = 'modempay';
-        
-        // Validation - ModemPay requires minimum 10 GMD
-        const MIN_AMOUNT = 10.0;
-        if (isNaN(amount) || amount < MIN_AMOUNT) {
-            showMessage(`Payment amount must be at least D${MIN_AMOUNT}. Current amount: D${amount.toFixed(2)}`, 'error');
-            payButton.disabled = false;
-            buttonText.classList.remove('hidden');
-            buttonLoading.classList.add('hidden');
-            return;
-        }
-        
-        // Validate pending_payment_id
-        if (!pendingPaymentId) {
-            showMessage('Pending payment ID is missing. Please refresh the page and try again.', 'error');
-            payButton.disabled = false;
-            buttonText.classList.remove('hidden');
-            buttonLoading.classList.add('hidden');
-            return;
-        }
-        
-        // Disable button and show loading
-        payButton.disabled = true;
-        buttonText.classList.add('hidden');
-        buttonLoading.classList.remove('hidden');
-        responseDiv.classList.add('hidden');
-        messageDiv.classList.add('hidden');
-        
-        try {
-            // Prepare payment data - use pending_payment_id (new flow)
-            const paymentData = {
-                pending_payment_id: parseInt(pendingPaymentId),
-                provider: provider
-            };
-            
-            console.log('Initiating ModemPay payment:', paymentData);
-            
-            // Make API call to ModemPay payment endpoint
-            const response = await fetch('/payments/modempay/pay', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCSRFToken()
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify(paymentData)
-            });
-            
-            // Parse response
-            const data = await response.json();
-            
-            console.log('ModemPay response:', data);
-            console.log('Response status:', response.status);
-            
-            // Display response
-            responseContent.textContent = JSON.stringify(data, null, 2);
-            
-            // Handle response - check for payment_url in multiple possible locations
-            if (data.success || response.ok) {
-                // Support multiple response formats:
-                // 1. { success: true, payment_url: "..." }
-                // 2. { success: true, data: { payment_url: "..." } }
-                const paymentUrl = data.payment_url || (data.data && data.data.payment_url);
-                
-                console.log('Extracted payment URL:', paymentUrl);
-                
-                if (paymentUrl && typeof paymentUrl === 'string' && paymentUrl.startsWith('http')) {
-                    // Valid payment URL - immediately redirect
-                    console.log('Redirecting to ModemPay checkout:', paymentUrl);
-                    window.location.href = paymentUrl;
-                    return; // Exit early to prevent any other code from running
-                } else {
-                    // No valid payment URL - show error with details
-                    console.error('Payment initiated but no valid payment_url received:', {
-                        data: data,
-                        paymentUrl: paymentUrl,
-                        hasPaymentUrl: !!paymentUrl,
-                        isString: typeof paymentUrl === 'string',
-                        startsWithHttp: paymentUrl && paymentUrl.startsWith('http')
-                    });
-                    showMessage('Payment initiated but redirect URL is missing or invalid. Please contact support.', 'error');
-                }
-            } else {
-                const errorMsg = data.message || data.error || 'Payment initiation failed';
-                console.error('Payment failed:', errorMsg, data);
-                showMessage(errorMsg, 'error');
-            }
-            
-        } catch (error) {
-            console.error('Payment error:', error);
-            showMessage('An error occurred while processing your payment. Please try again.', 'error');
-            
-            // Show error in response area
-            responseContent.textContent = JSON.stringify({
-                error: error.message,
-                stack: error.stack
-            }, null, 2);
-        } finally {
-            // Re-enable button
-            payButton.disabled = false;
-            buttonText.classList.remove('hidden');
-            buttonLoading.classList.add('hidden');
-        }
-    });
-    
-    // Show message function
-    function showMessage(message, type) {
-        const messageDiv = document.getElementById('message');
-        const messageContent = document.getElementById('message-content');
-        
-        // Remove existing classes
-        messageContent.className = 'rounded-md p-4';
-        
-        // Add type-specific classes
-        if (type === 'success') {
-            messageContent.classList.add('bg-green-50', 'text-green-800', 'border', 'border-green-200', 'dark:bg-green-900', 'dark:text-green-200', 'dark:border-green-700');
-        } else if (type === 'error') {
-            messageContent.classList.add('bg-red-50', 'text-red-800', 'border', 'border-red-200', 'dark:bg-red-900', 'dark:text-red-200', 'dark:border-red-700');
-        } else if (type === 'info') {
-            messageContent.classList.add('bg-blue-50', 'text-blue-800', 'border', 'border-blue-200', 'dark:bg-blue-900', 'dark:text-blue-200', 'dark:border-blue-700');
-        } else {
-            messageContent.classList.add('bg-slate-100', 'text-slate-800', 'border', 'border-slate-200', 'dark:bg-slate-900/60', 'dark:text-slate-200', 'dark:border-slate-800');
-        }
-        
-        messageContent.innerHTML = message;
-        
-        // Auto-hide after 10 seconds
-        setTimeout(() => {
-            messageDiv.classList.add('hidden');
-        }, 10000);
-    }
-    
-    // Phone input removed
 </script>
 {% endblock %}
