@@ -369,31 +369,51 @@ def product_image_url_filter(image_path):
 @app.template_filter('convert_price')
 def convert_price_filter(price, from_currency="GMD"):
     """Template filter to convert product price to current currency."""
-    from .utils.currency_rates import convert_price
+    from .utils.currency_rates import convert_price, parse_price
     try:
+        # Parse price to extract numeric value (handles strings with symbols)
+        numeric_price, _ = parse_price(price)
+        
         country = get_current_country()
         if country:
             to_currency = country.currency
-            converted = convert_price(price, from_currency, to_currency)
+            # Always convert from GMD (base currency) to target currency
+            # The parse_price function already extracted the numeric value
+            converted = convert_price(numeric_price, from_currency, to_currency)
             return f"{converted:.2f}"
-        return f"{float(price):.2f}"
-    except Exception:
-        return f"{float(price):.2f}"
+        return f"{numeric_price:.2f}"
+    except Exception as e:
+        # Fallback: try to parse and return numeric value
+        try:
+            numeric_price, _ = parse_price(price)
+            return f"{numeric_price:.2f}"
+        except:
+            return "0.00"
 
 @app.template_filter('price_with_symbol')
 def price_with_symbol_filter(price, from_currency="GMD"):
     """Template filter to format price with currency symbol."""
-    from .utils.currency_rates import convert_price, get_currency_symbol
+    from .utils.currency_rates import convert_price, get_currency_symbol, parse_price
     try:
+        # Parse price to extract numeric value (handles strings with symbols)
+        numeric_price, _ = parse_price(price)
+        
         country = get_current_country()
         if country:
             to_currency = country.currency
-            converted = convert_price(price, from_currency, to_currency)
+            # Always convert from GMD (base currency) to target currency
+            converted = convert_price(numeric_price, from_currency, to_currency)
             symbol = get_currency_symbol(to_currency)
             return f"{symbol}{converted:.2f}"
-        return f"D{float(price):.2f}"
-    except Exception:
-        return f"D{float(price):.2f}"
+        # Default to GMD if no country selected
+        return f"D{numeric_price:.2f}"
+    except Exception as e:
+        # Fallback: try to parse and return with default symbol
+        try:
+            numeric_price, _ = parse_price(price)
+            return f"D{numeric_price:.2f}"
+        except:
+            return "D0.00"
 
 @app.template_filter('category_image_url')
 def category_image_url_filter(image_path):
@@ -617,10 +637,13 @@ def inject_site_settings():
     # Helper function for templates to convert prices
     def convert_product_price(price, from_currency="GMD"):
         """Convert product price to current currency."""
+        from .utils.currency_rates import parse_price
+        # Parse price to extract numeric value (handles strings with symbols)
+        numeric_price, _ = parse_price(price)
         if not current_country:
-            return float(price)
+            return float(numeric_price)
         to_currency = current_country.currency
-        return convert_price(price, from_currency, to_currency)
+        return convert_price(numeric_price, from_currency, to_currency)
     
     return {
         'site_settings': settings,
@@ -2417,7 +2440,7 @@ def calculate_cart_totals(cart_items):
     - If product price > D2000 → Shipping = D1200 per unit
     Total shipping = sum of (shipping_per_unit × quantity) for all products
     """
-    from .utils.currency_rates import convert_price, get_currency_symbol
+    from .utils.currency_rates import convert_price, get_currency_symbol, parse_price
     
     # Get current country for currency conversion
     country = get_current_country()
@@ -2431,8 +2454,10 @@ def calculate_cart_totals(cart_items):
     
     # Calculate per-product shipping and subtotal
     for item in cart_items:
-        # Convert prices to current currency
-        base_price = Decimal(str(item['price']))
+        # Parse and convert prices to current currency
+        # Parse price to handle cases where it might be a string with currency symbol
+        numeric_price, _ = parse_price(item['price'])
+        base_price = Decimal(str(numeric_price))
         converted_price = Decimal(str(convert_price(float(base_price), 'GMD', to_currency)))
         item['price'] = float(converted_price)  # Update item price to converted value
         
