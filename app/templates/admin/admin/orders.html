@@ -297,7 +297,7 @@ function toggleCustomDates() {
     const countryFlag = document.getElementById('country-filter-flag');
     
     const selectedCountryName = '{{ country_filter or '' }}';
-    const countries = {{ countries|tojson }};
+    const countries = {{ countries_dict|tojson }};
     
     // Initialize selected country display
     if (selectedCountryName && countryName && countryFlag) {

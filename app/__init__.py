@@ -7254,6 +7254,24 @@ def admin_orders():
         
     # Get all active countries for filter dropdown
     countries = Country.query.filter_by(is_active=True).order_by(Country.name).all()
+    countries_dict = []
+    for country in countries:
+        try:
+            countries_dict.append(country.to_dict())
+        except Exception as e:
+            # Fallback if to_dict() fails for any reason
+            current_app.logger.warning(f"Failed to convert country {country.id} to dict: {e}")
+            countries_dict.append({
+                'id': country.id,
+                'name': country.name,
+                'code': country.code or '',
+                'currency': country.currency or '',
+                'currency_symbol': country.currency_symbol or '',
+                'language': country.language or 'en',
+                'flag_image_path': country.flag_image_path or '',
+                'flag_url': None,
+                'is_active': country.is_active
+            })
     
     return render_template('admin/admin/orders.html',
                          orders=orders, 
@@ -7262,6 +7280,7 @@ def admin_orders():
                          end_date=end_date,
                          country_filter=country_filter,
                          countries=countries,
+                         countries_dict=countries_dict,
                          total_sales=total_sales,
                          total_orders_count=total_orders_count,
                          avg_order_value=avg_order_value,
