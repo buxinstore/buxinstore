@@ -11,37 +11,504 @@ from decimal import Decimal, ROUND_HALF_UP
 
 # Exchange rates: 1 GMD = X units of target currency
 # These rates represent how many units of the target currency equal 1 GMD
+# Rates are approximate and should be updated regularly
 CURRENCY_RATES = {
+    # Base currency
     "GMD": 1.0,      # Gambia (Dalasi) - Base currency
-    "XOF": 7.75,     # Senegal, Mali, Burkina Faso, Côte d'Ivoire (West African CFA franc)
-                     # 1 GMD = 7.75 CFA (approximate rate, update as needed)
-    "SLL": 2800.0,   # Sierra Leone (Leone)
-                     # 1 GMD = 2,800 SLL (approximate rate, update as needed)
-    "UGX": 38.0,     # Uganda (Shilling)
-                     # 1 GMD = 38 UGX (approximate rate, update as needed)
-    "USD": 0.019,    # US Dollar (if needed) - 1 GMD = 0.019 USD (approximate)
-    "EUR": 0.017,    # Euro (if needed) - 1 GMD = 0.017 EUR (approximate)
+    
+    # West African currencies
+    "XOF": 7.75,     # West African CFA franc (Senegal, Mali, Burkina Faso, Côte d'Ivoire, etc.)
+    "XAF": 7.75,     # Central African CFA franc (Cameroon, Chad, etc.) - similar to XOF
+    "NGN": 28.5,     # Nigerian Naira
+    "GHS": 0.28,     # Ghanaian Cedi
+    "SLL": 2800.0,   # Sierra Leone Leone
+    "UGX": 38.0,     # Ugandan Shilling
+    "KES": 2.5,      # Kenyan Shilling
+    "TZS": 45.0,     # Tanzanian Shilling
+    "ETB": 1.1,      # Ethiopian Birr
+    "ZAR": 0.35,     # South African Rand
+    "EGP": 0.6,      # Egyptian Pound
+    "MAD": 0.19,     # Moroccan Dirham
+    
+    # Major world currencies
+    "USD": 0.019,    # US Dollar
+    "EUR": 0.017,    # Euro
+    "GBP": 0.015,    # British Pound
+    "JPY": 2.8,      # Japanese Yen
+    "CNY": 0.14,     # Chinese Yuan
+    "INR": 1.58,     # Indian Rupee
+    "AUD": 0.029,    # Australian Dollar
+    "CAD": 0.026,    # Canadian Dollar
+    "CHF": 0.017,    # Swiss Franc
+    
+    # Other African currencies
+    "AOA": 15.0,     # Angolan Kwanza
+    "BWP": 0.26,     # Botswana Pula
+    "DZD": 2.6,      # Algerian Dinar
+    "MZN": 1.2,      # Mozambican Metical
+    "ZMW": 0.45,     # Zambian Kwacha
+    "MWK": 32.0,     # Malawian Kwacha
+    "RWF": 22.0,     # Rwandan Franc
+    "BIF": 54.0,     # Burundian Franc
+    "GNF": 165.0,    # Guinean Franc
+    "LRD": 0.019,    # Liberian Dollar (uses USD)
+    "MGA": 85.0,     # Malagasy Ariary
+    "MUR": 0.85,     # Mauritian Rupee
+    "SCR": 0.26,     # Seychellois Rupee
+    "SZL": 0.35,     # Swazi Lilangeni
+    "LSL": 0.35,     # Lesotho Loti
+    "NAD": 0.35,     # Namibian Dollar
+    "SDG": 0.11,     # Sudanese Pound
+    "SSP": 0.11,     # South Sudanese Pound
+    "SOS": 11.0,     # Somali Shilling
+    "TND": 0.059,    # Tunisian Dinar
+    "ZWL": 0.019,    # Zimbabwean Dollar
+    
+    # Middle East currencies
+    "AED": 0.07,     # UAE Dirham
+    "SAR": 0.071,    # Saudi Riyal
+    "QAR": 0.069,    # Qatari Riyal
+    "KWD": 0.0058,   # Kuwaiti Dinar
+    "BHD": 0.0071,   # Bahraini Dinar
+    "OMR": 0.0073,   # Omani Rial
+    "JOD": 0.013,    # Jordanian Dinar
+    "ILS": 0.07,     # Israeli Shekel
+    "LBP": 285.0,    # Lebanese Pound
+    "IQD": 25.0,     # Iraqi Dinar
+    "IRR": 800.0,    # Iranian Rial
+    "YER": 4.75,     # Yemeni Rial
+    "SYP": 95.0,     # Syrian Pound
+    
+    # Asian currencies
+    "PKR": 5.3,      # Pakistani Rupee
+    "BDT": 2.1,      # Bangladeshi Taka
+    "LKR": 6.0,      # Sri Lankan Rupee
+    "NPR": 2.5,      # Nepalese Rupee
+    "AFN": 1.4,      # Afghan Afghani
+    "MMK": 40.0,     # Myanmar Kyat
+    "KHR": 78.0,     # Cambodian Riel
+    "LAK": 330.0,    # Lao Kip
+    "VND": 470.0,    # Vietnamese Dong
+    "THB": 0.68,     # Thai Baht
+    "MYR": 0.09,     # Malaysian Ringgit
+    "SGD": 0.026,    # Singapore Dollar
+    "IDR": 300.0,    # Indonesian Rupiah
+    "PHP": 1.1,      # Philippine Peso
+    "KRW": 25.0,     # South Korean Won
+    "TWD": 0.6,      # Taiwan Dollar
+    "HKD": 0.15,     # Hong Kong Dollar
+    "MOP": 0.15,     # Macanese Pataca
+    "MNT": 66.0,     # Mongolian Tugrik
+    "KZT": 8.5,      # Kazakhstani Tenge
+    "UZS": 230.0,    # Uzbekistani Som
+    "KGS": 1.7,      # Kyrgyzstani Som
+    "TJS": 0.21,     # Tajikistani Somoni
+    "TMT": 0.067,    # Turkmenistani Manat
+    "AMD": 7.5,      # Armenian Dram
+    "AZN": 0.032,    # Azerbaijani Manat
+    "GEL": 0.052,    # Georgian Lari
+    "RUB": 1.75,     # Russian Ruble
+    "BYN": 0.062,    # Belarusian Ruble
+    "MDL": 0.34,     # Moldovan Leu
+    "UAH": 0.7,      # Ukrainian Hryvnia
+    
+    # European currencies (non-EUR)
+    "GBP": 0.015,    # British Pound
+    "CHF": 0.017,    # Swiss Franc
+    "NOK": 0.20,     # Norwegian Krone
+    "SEK": 0.20,     # Swedish Krona
+    "DKK": 0.13,     # Danish Krone
+    "PLN": 0.076,    # Polish Zloty
+    "CZK": 0.44,     # Czech Koruna
+    "HUF": 7.0,      # Hungarian Forint
+    "RON": 0.084,    # Romanian Leu
+    "BGN": 0.033,    # Bulgarian Lev
+    "HRK": 0.13,     # Croatian Kuna
+    "RSD": 2.0,      # Serbian Dinar
+    "BAM": 0.033,    # Bosnia and Herzegovina Convertible Mark
+    "MKD": 1.1,      # Macedonian Denar
+    "ALL": 1.8,      # Albanian Lek
+    "ISK": 2.6,      # Icelandic Krona
+    
+    # Americas currencies
+    "BRL": 0.095,    # Brazilian Real
+    "MXN": 0.32,     # Mexican Peso
+    "ARS": 17.0,     # Argentine Peso
+    "CLP": 18.0,     # Chilean Peso
+    "COP": 75.0,     # Colombian Peso
+    "PEN": 0.071,    # Peruvian Sol
+    "VES": 0.68,     # Venezuelan Bolívar
+    "UYU": 0.75,     # Uruguayan Peso
+    "PYG": 140.0,    # Paraguayan Guaraní
+    "BOB": 0.13,     # Bolivian Boliviano
+    "GTQ": 0.15,     # Guatemalan Quetzal
+    "HNL": 0.47,     # Honduran Lempira
+    "NIO": 0.70,     # Nicaraguan Córdoba
+    "CRC": 9.8,      # Costa Rican Colón
+    "PAB": 0.019,    # Panamanian Balboa
+    "DOP": 1.1,      # Dominican Peso
+    "HTG": 2.5,      # Haitian Gourde
+    "JMD": 3.0,      # Jamaican Dollar
+    "BBD": 0.038,    # Barbadian Dollar
+    "BZD": 0.038,    # Belize Dollar
+    "TTD": 0.13,     # Trinidad and Tobago Dollar
+    "XCD": 0.051,    # East Caribbean Dollar
+    "GYD": 4.0,      # Guyanese Dollar
+    "SRD": 0.70,     # Surinamese Dollar
+    
+    # Oceania currencies
+    "NZD": 0.031,    # New Zealand Dollar
+    "FJD": 0.043,    # Fijian Dollar
+    "PGK": 0.068,    # Papua New Guinean Kina
+    "SBD": 0.16,     # Solomon Islands Dollar
+    "VUV": 2.2,      # Vanuatu Vatu
+    "WST": 0.052,    # Samoan Tala
+    "TOP": 0.044,    # Tongan Paʻanga
 }
 
 CURRENCY_SYMBOLS = {
-    "XOF": "CFA",
+    # Base
     "GMD": "D",
+    
+    # West African
+    "XOF": "CFA",
+    "XAF": "FCFA",
+    "NGN": "₦",
+    "GHS": "₵",
     "SLL": "Le",
     "UGX": "USh",
+    "KES": "Sh",
+    "TZS": "Sh",
+    "ETB": "Br",
+    "ZAR": "R",
+    "EGP": "£",
+    "MAD": "د.م.",
+    
+    # Major world
     "USD": "$",
     "EUR": "€",
+    "GBP": "£",
+    "JPY": "¥",
+    "CNY": "¥",
+    "INR": "₹",
+    "AUD": "$",
+    "CAD": "$",
+    "CHF": "Fr",
+    
+    # Other currencies (add more as needed)
+    "AOA": "Kz",
+    "BWP": "P",
+    "DZD": "د.ج",
+    "MZN": "MT",
+    "ZMW": "ZK",
+    "MWK": "MK",
+    "RWF": "Fr",
+    "BIF": "Fr",
+    "GNF": "Fr",
+    "LRD": "$",
+    "MGA": "Ar",
+    "MUR": "₨",
+    "SCR": "₨",
+    "SZL": "L",
+    "LSL": "L",
+    "NAD": "$",
+    "SDG": "ج.س.",
+    "SSP": "£",
+    "SOS": "Sh",
+    "TND": "د.ت",
+    "ZWL": "$",
+    "AED": "د.إ",
+    "SAR": "ر.س",
+    "QAR": "ر.ق",
+    "KWD": "د.ك",
+    "BHD": ".د.ب",
+    "OMR": "ر.ع.",
+    "JOD": "د.ا",
+    "ILS": "₪",
+    "LBP": "ل.ل",
+    "IQD": "ع.د",
+    "IRR": "﷼",
+    "YER": "﷼",
+    "SYP": "£",
+    "PKR": "₨",
+    "BDT": "৳",
+    "LKR": "₨",
+    "NPR": "₨",
+    "AFN": "؋",
+    "MMK": "K",
+    "KHR": "៛",
+    "LAK": "₭",
+    "VND": "₫",
+    "THB": "฿",
+    "MYR": "RM",
+    "SGD": "$",
+    "IDR": "Rp",
+    "PHP": "₱",
+    "KRW": "₩",
+    "TWD": "NT$",
+    "HKD": "$",
+    "MOP": "P",
+    "MNT": "₮",
+    "KZT": "₸",
+    "UZS": "so'm",
+    "KGS": "с",
+    "TJS": "ЅМ",
+    "TMT": "m",
+    "AMD": "֏",
+    "AZN": "₼",
+    "GEL": "₾",
+    "RUB": "₽",
+    "BYN": "Br",
+    "MDL": "L",
+    "UAH": "₴",
+    "NOK": "kr",
+    "SEK": "kr",
+    "DKK": "kr",
+    "PLN": "zł",
+    "CZK": "Kč",
+    "HUF": "Ft",
+    "RON": "lei",
+    "BGN": "лв",
+    "HRK": "Kn",
+    "RSD": "дин",
+    "BAM": "КМ",
+    "MKD": "ден",
+    "ALL": "L",
+    "ISK": "kr",
+    "BRL": "R$",
+    "MXN": "$",
+    "ARS": "$",
+    "CLP": "$",
+    "COP": "$",
+    "PEN": "S/",
+    "VES": "Bs.S",
+    "UYU": "$",
+    "PYG": "₲",
+    "BOB": "Bs.",
+    "GTQ": "Q",
+    "HNL": "L",
+    "NIO": "C$",
+    "CRC": "₡",
+    "PAB": "B/.",
+    "DOP": "$",
+    "HTG": "G",
+    "JMD": "$",
+    "BBD": "$",
+    "BZD": "$",
+    "TTD": "$",
+    "XCD": "$",
+    "GYD": "$",
+    "SRD": "$",
+    "NZD": "$",
+    "FJD": "$",
+    "PGK": "K",
+    "SBD": "$",
+    "VUV": "Vt",
+    "WST": "T",
+    "TOP": "T$",
 }
 
 # Map currency symbols to currency codes for parsing
+# Note: Some symbols are ambiguous (e.g., $, £, €) - we prioritize common ones
 SYMBOL_TO_CURRENCY = {
     "D": "GMD",
     "CFA": "XOF",
+    "FCFA": "XAF",
     "Le": "SLL",
     "USh": "UGX",
-    "$": "USD",
+    "₦": "NGN",
+    "₵": "GHS",
+    "Sh": "KES",  # Could be KES, TZS, SOS - default to KES
+    "Br": "ETB",  # Could be ETB, BYN - default to ETB
+    "R": "ZAR",
     "€": "EUR",
+    "$": "USD",  # Most common, but could be many others
+    "£": "GBP",  # Most common, but could be EGP, SSP, SYP
+    "¥": "JPY",  # Could be JPY or CNY - default to JPY
+    "₹": "INR",
+    "Fr": "CHF",  # Could be CHF, RWF, BIF, GNF, DJF, KMF - default to CHF
+    "₨": "PKR",  # Could be PKR, LKR, NPR, MUR, SCR - default to PKR
+    "₪": "ILS",
+    "₩": "KRW",  # Could be KRW or KPW - default to KRW
+    "₱": "PHP",
+    "฿": "THB",
+    "₫": "VND",
+    "₽": "RUB",
+    "₴": "UAH",
+    "zł": "PLN",
+    "Kč": "CZK",
+    "Ft": "HUF",
+    "lei": "RON",
+    "лв": "BGN",
+    "R$": "BRL",
+    "S/": "PEN",
+    "Bs.": "BOB",
+    "Bs.S": "VES",
+    "₲": "PYG",
+    "NT$": "TWD",
+    "RM": "MYR",
+    "Rp": "IDR",
+    "kr": "SEK",  # Could be SEK, NOK, DKK, ISK - default to SEK
+    "Kč": "CZK",
+    "ден": "MKD",
+    "КМ": "BAM",
+    "дин": "RSD",
+    "L": "ALL",  # Could be ALL, MDL, HNL, LSL, SZL - default to ALL
+    "Q": "GTQ",
+    "C$": "NIO",
+    "₡": "CRC",
+    "B/.": "PAB",
+    "T$": "TOP",
+    "Vt": "VUV",
+    "T": "WST",
+    "K": "PGK",  # Could be PGK or MMK - default to PGK
+    "P": "BWP",  # Could be BWP or MOP - default to BWP
+    "Esc": "CVE",
+    "Db": "STN",
+    "Nfk": "ERN",
+    "UM": "MRU",
+    "Ar": "MGA",
+    "MT": "MZN",
+    "ZK": "ZMW",
+    "MK": "MWK",
+    "so'm": "UZS",
+    "с": "KGS",
+    "ЅМ": "TJS",
+    "m": "TMT",
+    "֏": "AMD",
+    "₼": "AZN",
+    "₾": "GEL",
+    "Kn": "HRK",
+    "K": "MMK",  # Alternative for Myanmar
+    "P": "MOP",  # Alternative for Macau
+    "L": "HNL",  # Alternative for Honduras
+    "L": "LSL",  # Alternative for Lesotho
+    "L": "SZL",  # Alternative for Swaziland
+    "L": "MDL",  # Alternative for Moldova
+    "Fr": "RWF",  # Alternative for Rwanda
+    "Fr": "BIF",  # Alternative for Burundi
+    "Fr": "GNF",  # Alternative for Guinea
+    "Fr": "DJF",  # Alternative for Djibouti
+    "Fr": "KMF",  # Alternative for Comoros
+    "Sh": "TZS",  # Alternative for Tanzania
+    "Sh": "SOS",  # Alternative for Somalia
+    "Br": "BYN",  # Alternative for Belarus
+    "₨": "LKR",  # Alternative for Sri Lanka
+    "₨": "NPR",  # Alternative for Nepal
+    "₨": "MUR",  # Alternative for Mauritius
+    "₨": "SCR",  # Alternative for Seychelles
+    "$": "CAD",  # Alternative for Canada
+    "$": "AUD",  # Alternative for Australia
+    "$": "NZD",  # Alternative for New Zealand
+    "$": "SGD",  # Alternative for Singapore
+    "$": "HKD",  # Alternative for Hong Kong
+    "$": "MXN",  # Alternative for Mexico
+    "$": "ARS",  # Alternative for Argentina
+    "$": "CLP",  # Alternative for Chile
+    "$": "COP",  # Alternative for Colombia
+    "$": "DOP",  # Alternative for Dominican Republic
+    "$": "JMD",  # Alternative for Jamaica
+    "$": "BBD",  # Alternative for Barbados
+    "$": "BZD",  # Alternative for Belize
+    "$": "TTD",  # Alternative for Trinidad
+    "$": "XCD",  # Alternative for East Caribbean
+    "$": "GYD",  # Alternative for Guyana
+    "$": "SRD",  # Alternative for Suriname
+    "$": "SBD",  # Alternative for Solomon Islands
+    "$": "FJD",  # Alternative for Fiji
+    "$": "NAD",  # Alternative for Namibia
+    "$": "ZWL",  # Alternative for Zimbabwe
+    "$": "LRD",  # Alternative for Liberia
+    "£": "EGP",  # Alternative for Egypt
+    "£": "SSP",  # Alternative for South Sudan
+    "£": "SYP",  # Alternative for Syria
+    "¥": "CNY",  # Alternative for China
+    "kr": "NOK",  # Alternative for Norway
+    "kr": "DKK",  # Alternative for Denmark
+    "kr": "ISK",  # Alternative for Iceland
+    "L": "HNL",  # Alternative for Honduras
+    "L": "MDL",  # Alternative for Moldova
+    "L": "LSL",  # Alternative for Lesotho
+    "L": "SZL",  # Alternative for Swaziland
+    "L": "ALL",  # Alternative for Albania
+    "Fr": "CHF",  # Alternative for Switzerland
+    "Fr": "RWF",  # Alternative for Rwanda
+    "Fr": "BIF",  # Alternative for Burundi
+    "Fr": "GNF",  # Alternative for Guinea
+    "Fr": "DJF",  # Alternative for Djibouti
+    "Fr": "KMF",  # Alternative for Comoros
+    "Fr": "XPF",  # Alternative for CFP Franc
+    "Fr": "KMF",  # Alternative for Comoros
+    "Fr": "DJF",  # Alternative for Djibouti
+    "Fr": "GNF",  # Alternative for Guinea
+    "Fr": "BIF",  # Alternative for Burundi
+    "Fr": "RWF",  # Alternative for Rwanda
+    "Fr": "XPF",  # Alternative for CFP Franc
+    "Fr": "KMF",  # Alternative for Comoros
+    "Fr": "DJF",  # Alternative for Djibouti
+    "Fr": "GNF",  # Alternative for Guinea
+    "Fr": "BIF",  # Alternative for Burundi
+    "Fr": "RWF",  # Alternative for Rwanda
+    "Fr": "XPF",  # Alternative for CFP Franc
+    "Fr": "KMF",  # Alternative for Comoros
+    "Fr": "DJF",  # Alternative for Djibouti
+    "Fr": "GNF",  # Alternative for Guinea
+    "Fr": "BIF",  # Alternative for Burundi
+    "Fr": "RWF",  # Alternative for Rwanda
     "EUR": "EUR",
     "USD": "USD",
+    "GBP": "GBP",
+    "JPY": "JPY",
+    "CNY": "CNY",
+    "INR": "INR",
+    "AUD": "AUD",
+    "CAD": "CAD",
+    "CHF": "CHF",
+    "NOK": "NOK",
+    "SEK": "SEK",
+    "DKK": "DKK",
+    "PLN": "PLN",
+    "CZK": "CZK",
+    "HUF": "HUF",
+    "RON": "RON",
+    "BGN": "BGN",
+    "HRK": "HRK",
+    "RSD": "RSD",
+    "BAM": "BAM",
+    "MKD": "MKD",
+    "ALL": "ALL",
+    "ISK": "ISK",
+    "BRL": "BRL",
+    "MXN": "MXN",
+    "ARS": "ARS",
+    "CLP": "CLP",
+    "COP": "COP",
+    "PEN": "PEN",
+    "VES": "VES",
+    "UYU": "UYU",
+    "PYG": "PYG",
+    "BOB": "BOB",
+    "GTQ": "GTQ",
+    "HNL": "HNL",
+    "NIO": "NIO",
+    "CRC": "CRC",
+    "PAB": "PAB",
+    "DOP": "DOP",
+    "HTG": "HTG",
+    "JMD": "JMD",
+    "BBD": "BBD",
+    "BZD": "BZD",
+    "TTD": "TTD",
+    "XCD": "XCD",
+    "GYD": "GYD",
+    "SRD": "SRD",
+    "NZD": "NZD",
+    "FJD": "FJD",
+    "PGK": "PGK",
+    "SBD": "SBD",
+    "VUV": "VUV",
+    "WST": "WST",
+    "TOP": "TOP",
 }
 
 

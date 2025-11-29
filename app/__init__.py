@@ -4454,9 +4454,63 @@ def admin_settings_clear_cache():
 @login_required
 @admin_required
 def admin_countries():
-    """Admin page for managing countries."""
-    countries = Country.query.order_by(Country.name).all()
-    return render_template('admin/admin/countries.html', countries=countries)
+    """Admin page for managing countries with search, sorting, and pagination."""
+    # Get query parameters
+    search = request.args.get('search', '').strip()
+    sort_by = request.args.get('sort', 'name')  # name, code, currency, language, status
+    order = request.args.get('order', 'asc')  # asc or desc
+    status_filter = request.args.get('status', 'all')  # all, active, inactive
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    
+    # Build query
+    query = Country.query
+    
+    # Apply search filter
+    if search:
+        query = query.filter(
+            db.or_(
+                Country.name.ilike(f'%{search}%'),
+                Country.code.ilike(f'%{search}%'),
+                Country.currency.ilike(f'%{search}%'),
+                Country.language.ilike(f'%{search}%')
+            )
+        )
+    
+    # Apply status filter
+    if status_filter == 'active':
+        query = query.filter(Country.is_active == True)
+    elif status_filter == 'inactive':
+        query = query.filter(Country.is_active == False)
+    
+    # Apply sorting
+    if sort_by == 'name':
+        order_by = Country.name.asc() if order == 'asc' else Country.name.desc()
+    elif sort_by == 'code':
+        order_by = Country.code.asc() if order == 'asc' else Country.code.desc()
+    elif sort_by == 'currency':
+        order_by = Country.currency.asc() if order == 'asc' else Country.currency.desc()
+    elif sort_by == 'language':
+        order_by = Country.language.asc() if order == 'asc' else Country.language.desc()
+    elif sort_by == 'status':
+        order_by = Country.is_active.asc() if order == 'asc' else Country.is_active.desc()
+    else:
+        order_by = Country.name.asc()
+    
+    query = query.order_by(order_by)
+    
+    # Paginate
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    countries = pagination.items
+    
+    return render_template('admin/admin/countries.html', 
+                         countries=countries,
+                         pagination=pagination,
+                         search=search,
+                         sort_by=sort_by,
+                         order=order,
+                         status_filter=status_filter,
+                         per_page=per_page)
 
 @app.route('/admin/countries/add', methods=['GET', 'POST'])
 @login_required
@@ -4559,6 +4613,134 @@ def admin_edit_country(country_id):
             return redirect(url_for('admin_edit_country', country_id=country_id))
     
     return render_template('admin/admin/country_form.html', country=country)
+
+@app.route('/admin/countries/<int:country_id>/toggle', methods=['POST'])
+@login_required
+@admin_required
+def admin_toggle_country(country_id):
+    """Toggle country active/inactive status."""
+    country = Country.query.get_or_404(country_id)
+    
+    try:
+        country.is_active = not country.is_active
+        db.session.commit()
+        status = "activated" if country.is_active else "deactivated"
+        flash(f'Country {country.name} {status} successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error toggling country: {e}")
+        flash('Failed to toggle country status. Please try again.', 'error')
+    
+    return redirect(url_for('admin_countries'))
+
+@app.route('/admin/countries/export', methods=['GET'])
+@login_required
+@admin_required
+def admin_export_countries():
+    """Export countries as JSON or CSV."""
+    format_type = request.args.get('format', 'json')  # json or csv
+    
+    countries = Country.query.order_by(Country.name).all()
+    countries_data = [country.to_dict() for country in countries]
+    
+    if format_type == 'csv':
+        output = StringIO()
+        writer = csv.DictWriter(output, fieldnames=['id', 'name', 'code', 'currency', 'currency_symbol', 'language', 'flag_image_path', 'is_active'])
+        writer.writeheader()
+        for country in countries_data:
+            writer.writerow(country)
+        
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = 'attachment; filename=countries_export.csv'
+        return response
+    else:
+        # JSON export
+        response = make_response(json.dumps(countries_data, indent=2))
+        response.headers['Content-Type'] = 'application/json'
+        response.headers['Content-Disposition'] = 'attachment; filename=countries_export.json'
+        return response
+
+@app.route('/admin/countries/import', methods=['POST'])
+@login_required
+@admin_required
+def admin_import_countries():
+    """Import countries from JSON or CSV file."""
+    if 'file' not in request.files:
+        flash('No file provided', 'error')
+        return redirect(url_for('admin_countries'))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('No file selected', 'error')
+        return redirect(url_for('admin_countries'))
+    
+    try:
+        filename = file.filename.lower()
+        if filename.endswith('.json'):
+            data = json.load(file)
+        elif filename.endswith('.csv'):
+            csv_data = file.read().decode('utf-8')
+            reader = csv.DictReader(StringIO(csv_data))
+            data = list(reader)
+        else:
+            flash('Unsupported file format. Please use JSON or CSV.', 'error')
+            return redirect(url_for('admin_countries'))
+        
+        imported = 0
+        updated = 0
+        errors = []
+        
+        for item in data:
+            try:
+                code = item.get('code', '').strip().upper()
+                if not code:
+                    errors.append(f"Missing code for item: {item.get('name', 'Unknown')}")
+                    continue
+                
+                country = Country.query.filter_by(code=code).first()
+                if country:
+                    # Update existing
+                    country.name = item.get('name', country.name)
+                    country.currency = item.get('currency', country.currency)
+                    country.currency_symbol = item.get('currency_symbol', country.currency_symbol)
+                    country.language = item.get('language', country.language)
+                    country.flag_image_path = item.get('flag_image_path', country.flag_image_path)
+                    if 'is_active' in item:
+                        country.is_active = bool(item['is_active'])
+                    updated += 1
+                else:
+                    # Create new
+                    country = Country(
+                        name=item.get('name', ''),
+                        code=code,
+                        currency=item.get('currency', 'USD'),
+                        currency_symbol=item.get('currency_symbol', ''),
+                        language=item.get('language', 'en'),
+                        flag_image_path=item.get('flag_image_path'),
+                        is_active=bool(item.get('is_active', False))
+                    )
+                    db.session.add(country)
+                    imported += 1
+            except Exception as e:
+                errors.append(f"Error processing {item.get('name', 'Unknown')}: {str(e)}")
+        
+        db.session.commit()
+        
+        message = f'Successfully imported {imported} countries and updated {updated} countries.'
+        if errors:
+            message += f' {len(errors)} errors occurred.'
+        flash(message, 'success' if not errors else 'error')
+        
+        if errors:
+            current_app.logger.warning(f"Import errors: {errors}")
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error importing countries: {e}")
+        flash(f'Failed to import countries: {str(e)}', 'error')
+    
+    return redirect(url_for('admin_countries'))
 
 @app.route('/admin/countries/<int:country_id>/delete', methods=['POST'])
 @login_required

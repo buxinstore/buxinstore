@@ -9,10 +9,27 @@
             <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Country Settings</h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage countries, currencies, and languages for localization</p>
         </div>
-        <a href="{{ url_for('admin_add_country') }}" 
-           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-            <i class="fas fa-plus mr-2"></i> Add Country
-        </a>
+        <div class="flex gap-2">
+            <a href="{{ url_for('admin_export_countries', format='json') }}" 
+               class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                <i class="fas fa-download mr-2"></i> Export JSON
+            </a>
+            <a href="{{ url_for('admin_export_countries', format='csv') }}" 
+               class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                <i class="fas fa-file-csv mr-2"></i> Export CSV
+            </a>
+            <form method="POST" action="{{ url_for('admin_import_countries') }}" enctype="multipart/form-data" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
+                    <i class="fas fa-upload mr-2"></i> Import
+                    <input type="file" name="file" accept=".json,.csv" class="hidden" onchange="this.form.submit()">
+                </label>
+            </form>
+            <a href="{{ url_for('admin_add_country') }}" 
+               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <i class="fas fa-plus mr-2"></i> Add Country
+            </a>
+        </div>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -27,89 +44,276 @@
         {% endif %}
     {% endwith %}
 
+    <!-- Search and Filter Bar -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mb-4">
+        <form method="GET" action="{{ url_for('admin_countries') }}" class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
+                <input type="text" 
+                       id="search" 
+                       name="search" 
+                       value="{{ search }}" 
+                       placeholder="Search by name, code, currency, or language..."
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+            </div>
+            <div class="min-w-[150px]">
+                <label for="status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                <select id="status" 
+                        name="status" 
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="min-w-[150px]">
+                <label for="sort" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sort By</label>
+                <select id="sort" 
+                        name="sort" 
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Name</option>
+                    <option value="code" {% if sort_by == 'code' %}selected{% endif %}>Code</option>
+                    <option value="currency" {% if sort_by == 'currency' %}selected{% endif %}>Currency</option>
+                    <option value="language" {% if sort_by == 'language' %}selected{% endif %}>Language</option>
+                    <option value="status" {% if sort_by == 'status' %}selected{% endif %}>Status</option>
+                </select>
+            </div>
+            <div class="min-w-[120px]">
+                <label for="order" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Order</label>
+                <select id="order" 
+                        name="order" 
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="asc" {% if order == 'asc' %}selected{% endif %}>Ascending</option>
+                    <option value="desc" {% if order == 'desc' %}selected{% endif %}>Descending</option>
+                </select>
+            </div>
+            <div class="min-w-[100px]">
+                <label for="per_page" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Per Page</label>
+                <select id="per_page" 
+                        name="per_page" 
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                    <option value="200" {% if per_page == 200 %}selected{% endif %}>200</option>
+                </select>
+            </div>
+            <div>
+                <button type="submit" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <i class="fas fa-search mr-2"></i> Filter
+                </button>
+            </div>
+            {% if search or status_filter != 'all' %}
+            <div>
+                <a href="{{ url_for('admin_countries') }}" 
+                   class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">
+                    <i class="fas fa-times mr-2"></i> Clear
+                </a>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Countries Table -->
     <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead class="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Flag</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Country</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Code</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Currency</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Language</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {% for country in countries %}
-                <tr>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        {% if country.flag_image_path %}
-                            <img src="{{ country.get_flag_url() }}" 
-                                 alt="{{ country.name }}" 
-                                 class="w-8 h-8 rounded-sm object-cover border border-gray-300 dark:border-gray-600">
-                        {% else %}
-                            <i class="fas fa-globe text-gray-400 text-xl"></i>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ country.name }}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm text-gray-500 dark:text-gray-400">{{ country.code }}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm text-gray-900 dark:text-white">
-                            {{ country.currency_symbol or country.currency }} ({{ country.currency }})
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm text-gray-500 dark:text-gray-400 uppercase">{{ country.language }}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        {% if country.is_active %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">
-                                Active
-                            </span>
-                        {% else %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                Inactive
-                            </span>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <a href="{{ url_for('admin_edit_country', country_id=country.id) }}" 
-                           class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-4">
-                            <i class="fas fa-edit mr-1"></i> Edit
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-900">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Flag</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                            <a href="{{ url_for('admin_countries', search=search, status=status_filter, sort='name', order='asc' if sort_by == 'name' and order == 'desc' else 'desc', per_page=per_page) }}" class="flex items-center">
+                                Country
+                                {% if sort_by == 'name' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }} ml-1"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                            <a href="{{ url_for('admin_countries', search=search, status=status_filter, sort='code', order='asc' if sort_by == 'code' and order == 'desc' else 'desc', per_page=per_page) }}" class="flex items-center">
+                                Code
+                                {% if sort_by == 'code' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }} ml-1"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                            <a href="{{ url_for('admin_countries', search=search, status=status_filter, sort='currency', order='asc' if sort_by == 'currency' and order == 'desc' else 'desc', per_page=per_page) }}" class="flex items-center">
+                                Currency
+                                {% if sort_by == 'currency' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }} ml-1"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                            <a href="{{ url_for('admin_countries', search=search, status=status_filter, sort='language', order='asc' if sort_by == 'language' and order == 'desc' else 'desc', per_page=per_page) }}" class="flex items-center">
+                                Language
+                                {% if sort_by == 'language' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }} ml-1"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                            <a href="{{ url_for('admin_countries', search=search, status=status_filter, sort='status', order='asc' if sort_by == 'status' and order == 'desc' else 'desc', per_page=per_page) }}" class="flex items-center">
+                                Status
+                                {% if sort_by == 'status' %}
+                                    <i class="fas fa-sort-{{ 'up' if order == 'asc' else 'down' }} ml-1"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for country in countries %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if country.flag_image_path %}
+                                <img src="{{ country.get_flag_url() }}" 
+                                     alt="{{ country.name }}" 
+                                     class="w-8 h-8 rounded-sm object-cover border border-gray-300 dark:border-gray-600"
+                                     onerror="this.src='https://flagcdn.com/w40/{{ country.code.lower() }}.png'; this.onerror=null;">
+                            {% else %}
+                                <img src="https://flagcdn.com/w40/{{ country.code.lower() }}.png" 
+                                     alt="{{ country.name }}" 
+                                     class="w-8 h-8 rounded-sm object-cover border border-gray-300 dark:border-gray-600"
+                                     onerror="this.innerHTML='<i class=\'fas fa-globe text-gray-400 text-xl\'></i>';">
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900 dark:text-white">{{ country.name }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-500 dark:text-gray-400 font-mono">{{ country.code }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900 dark:text-white">
+                                {{ country.currency_symbol or country.currency }} ({{ country.currency }})
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-500 dark:text-gray-400 uppercase">{{ country.language }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <form method="POST" action="{{ url_for('admin_toggle_country', country_id=country.id) }}" class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" 
+                                        class="px-2 py-1 text-xs font-semibold rounded-full {% if country.is_active %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %} hover:opacity-80">
+                                    {% if country.is_active %}
+                                        <i class="fas fa-check-circle mr-1"></i> Active
+                                    {% else %}
+                                        <i class="fas fa-times-circle mr-1"></i> Inactive
+                                    {% endif %}
+                                </button>
+                            </form>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <a href="{{ url_for('admin_edit_country', country_id=country.id) }}" 
+                               class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-4">
+                                <i class="fas fa-edit mr-1"></i> Edit
+                            </a>
+                            <form method="POST" 
+                                  action="{{ url_for('admin_delete_country', country_id=country.id) }}" 
+                                  class="inline"
+                                  onsubmit="return confirm('Are you sure you want to delete {{ country.name }}? This action cannot be undone.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" 
+                                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                                    <i class="fas fa-trash mr-1"></i> Delete
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if pagination.pages > 1 %}
+        <div class="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
+            <div class="flex-1 flex justify-between sm:hidden">
+                {% if pagination.has_prev %}
+                <a href="{{ url_for('admin_countries', page=pagination.prev_num, search=search, status=status_filter, sort=sort_by, order=order, per_page=per_page) }}" 
+                   class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Previous
+                </a>
+                {% endif %}
+                {% if pagination.has_next %}
+                <a href="{{ url_for('admin_countries', page=pagination.next_num, search=search, status=status_filter, sort=sort_by, order=order, per_page=per_page) }}" 
+                   class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Next
+                </a>
+                {% endif %}
+            </div>
+            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-gray-700 dark:text-gray-300">
+                        Showing <span class="font-medium">{{ (pagination.page - 1) * pagination.per_page + 1 }}</span>
+                        to <span class="font-medium">{{ pagination.page * pagination.per_page if pagination.page * pagination.per_page < pagination.total else pagination.total }}</span>
+                        of <span class="font-medium">{{ pagination.total }}</span> results
+                    </p>
+                </div>
+                <div>
+                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        {% if pagination.has_prev %}
+                        <a href="{{ url_for('admin_countries', page=pagination.prev_num, search=search, status=status_filter, sort=sort_by, order=order, per_page=per_page) }}" 
+                           class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                            <i class="fas fa-chevron-left"></i>
                         </a>
-                        <form method="POST" 
-                              action="{{ url_for('admin_delete_country', country_id=country.id) }}" 
-                              class="inline"
-                              onsubmit="return confirm('Are you sure you want to delete {{ country.name }}? This action cannot be undone.');">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" 
-                                    class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-                                <i class="fas fa-trash mr-1"></i> Delete
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        {% endif %}
+                        
+                        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                {% if page_num == pagination.page %}
+                                <span class="relative inline-flex items-center px-4 py-2 border border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-sm font-medium text-blue-600 dark:text-blue-300">
+                                    {{ page_num }}
+                                </span>
+                                {% else %}
+                                <a href="{{ url_for('admin_countries', page=page_num, search=search, status=status_filter, sort=sort_by, order=order, per_page=per_page) }}" 
+                                   class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                    {{ page_num }}
+                                </a>
+                                {% endif %}
+                            {% else %}
+                                <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    ...
+                                </span>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if pagination.has_next %}
+                        <a href="{{ url_for('admin_countries', page=pagination.next_num, search=search, status=status_filter, sort=sort_by, order=order, per_page=per_page) }}" 
+                           class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                        {% endif %}
+                    </nav>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     {% if countries|length == 0 %}
     <div class="text-center py-12 bg-white dark:bg-gray-800 rounded-md shadow">
         <i class="fas fa-globe text-gray-400 text-6xl mb-4"></i>
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No countries</h3>
-        <p class="text-gray-500 dark:text-gray-400 mb-4">Get started by adding your first country.</p>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No countries found</h3>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">
+            {% if search or status_filter != 'all' %}
+                Try adjusting your search or filter criteria.
+            {% else %}
+                Get started by adding your first country or importing countries from a file.
+            {% endif %}
+        </p>
+        {% if not search and status_filter == 'all' %}
         <a href="{{ url_for('admin_add_country') }}" 
            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">
             <i class="fas fa-plus mr-2"></i> Add Country
         </a>
+        {% endif %}
     </div>
     {% endif %}
 </div>
 {% endblock %}
-
