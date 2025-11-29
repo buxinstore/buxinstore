@@ -206,11 +206,18 @@ def create_app(config_class: type[Config] | None = None):
             return language
         
         # Try to get from current country (function defined later in file)
+        # Use a try-except to handle cases where function isn't available yet
         try:
+            # Import here to avoid potential circular dependency
+            from flask import g
+            if hasattr(g, 'current_country') and g.current_country:
+                return g.current_country.language
+            # Fallback: try calling the function directly
             country = get_current_country()
             if country and country.language:
                 return country.language
-        except Exception:
+        except (NameError, AttributeError, Exception):
+            # Function not defined yet or other error - use default
             pass
         
         # Default to English
