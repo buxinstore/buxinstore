@@ -34,7 +34,9 @@ def init_extensions(app):
 
     csrf.init_app(app)
     
-    babel.init_app(app)
+    # Initialize Babel with locale selector (Flask-Babel 3.0+ requires passing selector functions)
+    # The get_locale function will be defined in app/__init__.py before this is called
+    # We'll initialize it after the app is created and get_locale is defined
 
     # Flask-Mail removed - using Resend API instead
     app.logger.info("✅ Email system: Using Resend API (Flask-Mail disabled)")

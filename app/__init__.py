@@ -195,6 +195,35 @@ def create_app(config_class: type[Config] | None = None):
     init_extensions(app)
     oauth.init_app(app)
     
+    # Configure Babel locale and timezone selectors (Flask-Babel 3.0+ API)
+    # Define locale selector function
+    def get_locale():
+        """Get the locale for Babel based on session or default."""
+        from flask import session
+        # Try to get language from session
+        language = session.get('language')
+        if language:
+            return language
+        
+        # Try to get from current country (function defined later in file)
+        try:
+            country = get_current_country()
+            if country and country.language:
+                return country.language
+        except Exception:
+            pass
+        
+        # Default to English
+        return 'en'
+    
+    def get_timezone():
+        """Get the timezone for Babel."""
+        return 'UTC'
+    
+    # Initialize Babel with selector functions (Flask-Babel 3.0+ requires this)
+    # This must be done after init_extensions but before any routes that use translations
+    babel.init_app(app, locale_selector=get_locale, timezone_selector=get_timezone)
+    
     # Initialize Cloudinary
     from .utils.cloudinary_utils import init_cloudinary
     init_cloudinary(app)
@@ -383,25 +412,6 @@ def category_image_url_filter(image_path):
     
     # Otherwise, use url_for to generate the correct URL
     return url_for('static', filename=image_path)
-
-@babel.localeselector
-def get_locale():
-    """Get the locale for Babel based on session or default."""
-    # Try to get language from session
-    language = session.get('language')
-    if language:
-        return language
-    
-    # Try to get from current country
-    try:
-        country = get_current_country()
-        if country and country.language:
-            return country.language
-    except Exception:
-        pass
-    
-    # Default to English
-    return 'en'
 
 @app.context_processor
 def inject_site_settings():
