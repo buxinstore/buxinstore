@@ -6920,7 +6920,7 @@ def admin_orders():
     
     # Country filtering - filter by user profile country
     if country_filter:
-        query = query.join(User).join(UserProfile).filter(UserProfile.country == country_filter)
+        query = query.join(User, Order.user_id == User.id).join(UserProfile, User.id == UserProfile.user_id).filter(UserProfile.country == country_filter).distinct()
     
     # CSV Export
     if request.args.get('export') == 'csv':
@@ -6987,7 +6987,7 @@ def admin_orders():
     
     # Apply country filter to totals if set
     if country_filter:
-        totals_query = totals_query.join(User, Order.user_id == User.id).join(UserProfile, User.id == UserProfile.user_id).filter(UserProfile.country == country_filter)
+        totals_query = totals_query.join(User, Order.user_id == User.id).join(UserProfile, User.id == UserProfile.user_id).filter(UserProfile.country == country_filter).distinct()
     
     # Total Sales - optimized using COALESCE
     total_sales_result = totals_query.with_entities(db.func.coalesce(db.func.sum(Order.total), 0)).scalar()
