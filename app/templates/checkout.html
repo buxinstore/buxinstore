@@ -145,20 +145,46 @@
                                 <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="phone-error"></p>
                             </div>
 
-                            <!-- Country -->
+                            <!-- Country Dropdown -->
                             <div>
                                 <label for="country" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                                     Country <span class="text-red-500">*</span>
                                 </label>
-                                <input 
-                                    type="text" 
-                                    id="country" 
-                                    name="country" 
-                                    value="{{ form.country.data or '' }}"
-                                    required
-                                    class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-                                    placeholder="Gambia"
-                                >
+                                <div class="relative">
+                                    <button 
+                                        type="button"
+                                        id="checkout-country-toggle"
+                                        class="w-full flex items-center justify-between rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all text-left"
+                                        aria-haspopup="true"
+                                        aria-expanded="false"
+                                    >
+                                        <span class="flex items-center gap-3 flex-1 min-w-0">
+                                            <span id="checkout-country-flag" class="flex-shrink-0 w-6 h-6 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+                                                <i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>
+                                            </span>
+                                            <span id="checkout-country-name" class="flex-1 truncate text-slate-500 dark:text-slate-400">Select a country</span>
+                                        </span>
+                                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 flex-shrink-0 ml-2 transition-transform"></i>
+                                    </button>
+                                    <input type="hidden" id="country" name="country" value="{{ form.country.data or '' }}" required>
+                                    
+                                    <!-- Country Dropdown Menu -->
+                                    <div id="checkout-country-dropdown" class="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl shadow-lg hidden max-h-80 overflow-hidden flex flex-col">
+                                        <!-- Search Input -->
+                                        <div class="p-3 border-b border-slate-200 dark:border-slate-700">
+                                            <input 
+                                                type="text" 
+                                                id="checkout-country-search"
+                                                placeholder="Search countries..."
+                                                class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                            >
+                                        </div>
+                                        <!-- Country List -->
+                                        <div id="checkout-country-list" class="overflow-y-auto overscroll-contain p-2 space-y-1 flex-1 min-h-0">
+                                            <!-- Countries will be loaded via JavaScript -->
+                                        </div>
+                                    </div>
+                                </div>
                                 <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="country-error"></p>
                             </div>
 
@@ -326,7 +352,17 @@
         function showError(fieldName, message) {
             const field = fields[fieldName];
             const errorEl = document.getElementById(`${fieldName}-error`);
-            if (field && errorEl) {
+            if (fieldName === 'country') {
+                // For country dropdown, update toggle button border
+                const toggle = document.getElementById('checkout-country-toggle');
+                if (toggle && errorEl) {
+                    toggle.classList.add('border-red-500', 'dark:border-red-500');
+                    toggle.classList.remove('border-slate-300', 'dark:border-slate-600');
+                    errorEl.textContent = message;
+                    errorEl.classList.remove('hidden');
+                    validationState[fieldName] = false;
+                }
+            } else if (field && errorEl) {
                 field.classList.add('border-red-500', 'dark:border-red-500');
                 field.classList.remove('border-slate-300', 'dark:border-slate-600');
                 errorEl.textContent = message;
@@ -404,8 +440,10 @@
             proceedButton.disabled = !isValid;
         }
         
-        // Real-time validation
+        // Real-time validation (excluding country which is handled by dropdown)
         Object.entries(fields).forEach(([fieldName, field]) => {
+            if (fieldName === 'country') return; // Skip country, handled by dropdown
+            
             field.addEventListener('blur', () => {
                 validateField(fieldName, field.value);
                 updateButtonState();
@@ -419,6 +457,189 @@
                 updateButtonState();
             });
         });
+        
+        // Country dropdown functionality
+        let checkoutCountries = [];
+        let selectedCountry = null;
+        const countryToggle = document.getElementById('checkout-country-toggle');
+        const countryDropdown = document.getElementById('checkout-country-dropdown');
+        const countryList = document.getElementById('checkout-country-list');
+        const countrySearch = document.getElementById('checkout-country-search');
+        const countryName = document.getElementById('checkout-country-name');
+        const countryFlag = document.getElementById('checkout-country-flag');
+        const countryInput = document.getElementById('country');
+        const savedCountryName = '{{ form.country.data or '' }}';
+        
+        // Load countries from API
+        async function loadCheckoutCountries() {
+            try {
+                const response = await fetch('/api/countries');
+                const data = await response.json();
+                if (data.success) {
+                    checkoutCountries = data.countries;
+                    renderCheckoutCountryList();
+                    // Auto-select saved country
+                    if (savedCountryName) {
+                        const savedCountry = checkoutCountries.find(c => c.name === savedCountryName);
+                        if (savedCountry) {
+                            selectCheckoutCountry(savedCountry);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading countries:', error);
+            }
+        }
+        
+        // Render country list
+        function renderCheckoutCountryList(filter = '') {
+            if (!countryList) return;
+            
+            const filtered = filter 
+                ? checkoutCountries.filter(c => 
+                    c.name.toLowerCase().includes(filter.toLowerCase()) ||
+                    c.code.toLowerCase().includes(filter.toLowerCase())
+                  )
+                : checkoutCountries;
+            
+            countryList.innerHTML = filtered.map(country => {
+                const flagUrl = country.flag_url || 
+                    (country.flag_image_path ? 
+                        (country.flag_image_path.startsWith('http') ? country.flag_image_path : `/static/${country.flag_image_path}`) :
+                        (country.code ? `https://flagcdn.com/w40/${country.code.toLowerCase()}.png` : ''));
+                
+                const isSelected = selectedCountry && selectedCountry.id === country.id;
+                
+                return `
+                    <button 
+                        type="button"
+                        class="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors ${isSelected ? 'bg-slate-100 dark:bg-slate-700/50 ring-2 ring-cyan-500/30' : ''}"
+                        data-country-id="${country.id}"
+                        data-country-name="${country.name}"
+                    >
+                        <div class="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+                            ${flagUrl ? `<img src="${flagUrl}" alt="${country.name}" class="w-full h-full object-cover" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<i data-lucide=\\'globe\\' class=\\'w-4 h-4 text-slate-400\\'></i>'; if(window.lucide) window.lucide.createIcons();">` : '<i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>'}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium text-slate-900 dark:text-white truncate">${country.name}</div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400">${country.code}</div>
+                        </div>
+                        ${isSelected ? '<i data-lucide="check" class="w-4 h-4 text-cyan-500 flex-shrink-0"></i>' : ''}
+                    </button>
+                `;
+            }).join('');
+            
+            // Re-render Lucide icons
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+            
+            // Add click handlers
+            countryList.querySelectorAll('button[data-country-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const countryId = parseInt(btn.dataset.countryId);
+                    const country = checkoutCountries.find(c => c.id === countryId);
+                    if (country) {
+                        selectCheckoutCountry(country);
+                    }
+                });
+            });
+        }
+        
+        // Select country
+        function selectCheckoutCountry(country) {
+            selectedCountry = country;
+            countryInput.value = country.name;
+            
+            // Update display
+            const flagUrl = country.flag_url || 
+                (country.flag_image_path ? 
+                    (country.flag_image_path.startsWith('http') ? country.flag_image_path : `/static/${country.flag_image_path}`) :
+                    (country.code ? `https://flagcdn.com/w40/${country.code.toLowerCase()}.png` : ''));
+            
+            if (flagUrl) {
+                countryFlag.innerHTML = `<img src="${flagUrl}" alt="${country.name}" class="w-full h-full object-cover" onerror="this.onerror=null; this.innerHTML='<i data-lucide=\\'globe\\' class=\\'w-4 h-4 text-slate-400\\'></i>'; if(window.lucide) window.lucide.createIcons();">`;
+            } else {
+                countryFlag.innerHTML = '<i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>';
+            }
+            
+            countryName.textContent = country.name;
+            countryName.classList.remove('text-slate-500', 'dark:text-slate-400');
+            countryName.classList.add('text-slate-900', 'dark:text-white');
+            
+            // Close dropdown
+            countryDropdown.classList.add('hidden');
+            countryToggle.setAttribute('aria-expanded', 'false');
+            const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
+            if (chevron) {
+                chevron.style.transform = '';
+            }
+            
+            // Re-render Lucide icons
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+            
+            // Validate and update button state
+            clearError('country');
+            validationState.country = true;
+            updateButtonState();
+            
+            // Trigger auto-save
+            autoSaveAddress();
+        }
+        
+        // Toggle dropdown
+        if (countryToggle && countryDropdown) {
+            countryToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = countryDropdown.classList.contains('hidden');
+                
+                if (isHidden) {
+                    countryDropdown.classList.remove('hidden');
+                    countryToggle.setAttribute('aria-expanded', 'true');
+                    const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
+                    if (chevron) {
+                        chevron.style.transform = 'rotate(180deg)';
+                    }
+                    // Focus search input
+                    if (countrySearch) {
+                        setTimeout(() => countrySearch.focus(), 100);
+                    }
+                } else {
+                    countryDropdown.classList.add('hidden');
+                    countryToggle.setAttribute('aria-expanded', 'false');
+                    const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
+                    if (chevron) {
+                        chevron.style.transform = '';
+                    }
+                }
+            });
+        }
+        
+        // Search functionality
+        if (countrySearch) {
+            countrySearch.addEventListener('input', (e) => {
+                renderCheckoutCountryList(e.target.value);
+            });
+        }
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (countryDropdown && countryToggle && 
+                !countryDropdown.contains(e.target) && 
+                !countryToggle.contains(e.target)) {
+                countryDropdown.classList.add('hidden');
+                countryToggle.setAttribute('aria-expanded', 'false');
+                const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
+                if (chevron) {
+                    chevron.style.transform = '';
+                }
+            }
+        });
+        
+        // Load countries on page load
+        loadCheckoutCountries();
         
         // Auto-save address on blur (debounced)
         let saveTimeout;
