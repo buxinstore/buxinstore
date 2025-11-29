@@ -1707,7 +1707,7 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     
     Args:
         total_weight_kg: Total weight of cart in kilograms
-        country_id: Optional country ID to filter rules
+        country_id: Optional country ID to filter rules (must be integer or None)
         default_weight: Default weight to use if total_weight_kg is 0 or None
     
     Returns:
@@ -1719,6 +1719,13 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     
     # Convert to Decimal for precise comparison
     weight = Decimal(str(total_weight_kg))
+    
+    # Ensure country_id is always an integer or None - never a string
+    if country_id is not None:
+        try:
+            country_id = int(country_id)
+        except (ValueError, TypeError):
+            country_id = None
     
     # Step 1: Try country-specific rules with exact match
     if country_id:
@@ -2483,8 +2490,9 @@ def api_shipping_estimate():
     try:
         data = request.get_json() if request.is_json else request.form.to_dict()
         
+        # Ensure country_id is always an integer or None - never a string
         country_id = data.get('country_id')
-        if country_id:
+        if country_id is not None:
             try:
                 country_id = int(country_id)
             except (ValueError, TypeError):
@@ -2512,8 +2520,9 @@ def api_shipping_estimate():
             })
         else:
             # Try to find nearest suggestion
+            # country_id is already validated as integer above
             nearest_rule = None
-            if country_id:
+            if country_id is not None:
                 country_rule = ShippingRule.query.filter(
                     ShippingRule.rule_type == 'country',
                     ShippingRule.country_id == country_id,
@@ -3278,7 +3287,13 @@ def get_current_country():
         # Fall back to session
         country_id = session.get('selected_country_id')
         if country_id:
-            country = Country.query.get(country_id)
+            # Ensure country_id is always an integer - never a string
+            try:
+                country_id = int(country_id)
+            except (ValueError, TypeError):
+                country_id = None
+            if country_id:
+                country = Country.query.get(country_id)
             if country and country.is_active:
                 return country
         
@@ -3329,6 +3344,12 @@ def api_select_country():
         
         if not country_id:
             return jsonify({'success': False, 'message': 'Country ID is required'}), 400
+        
+        # Ensure country_id is always an integer - never a string
+        try:
+            country_id = int(country_id)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid country ID. Must be a number.'}), 400
         
         country = Country.query.get(country_id)
         if not country:
@@ -4938,7 +4959,13 @@ def admin_shipping_rules():
     # Get filter parameters
     search = request.args.get('search', '').strip()
     rule_type = request.args.get('type', '')  # 'country' or 'global'
-    country_id = request.args.get('country_id', type=int)
+    country_id = request.args.get('country_id', type=int)  # type=int ensures it's an integer or None
+    # Ensure country_id is always an integer or None - never a string
+    if country_id is not None:
+        try:
+            country_id = int(country_id)
+        except (ValueError, TypeError):
+            country_id = None
     status_filter = request.args.get('status', '')  # 'active' or 'inactive'
     sort_by = request.args.get('sort', 'priority')  # 'priority', 'country', 'min_weight', 'price'
     sort_order = request.args.get('order', 'desc')  # 'asc' or 'desc'
@@ -5067,6 +5094,13 @@ def admin_new_shipping_rule():
             elif not country_id:
                 flash('Country is required for country-specific rules', 'error')
                 return redirect(url_for('admin_new_shipping_rule'))
+            else:
+                # Ensure country_id is always an integer - never a string
+                try:
+                    country_id = int(country_id)
+                except (ValueError, TypeError):
+                    flash('Invalid country ID. Must be a number.', 'error')
+                    return redirect(url_for('admin_new_shipping_rule'))
             
             # Check for overlapping rules (same country/global and overlapping weight ranges)
             if rule_type == 'country' and country_id:
@@ -5097,10 +5131,10 @@ def admin_new_shipping_rule():
                 if overlapping:
                     flash(f'Warning: Overlapping global rule exists for this weight range. Rule created anyway.', 'warning')
             
-            # Create rule
+            # Create rule (country_id is already validated as integer above)
             rule = ShippingRule(
                 rule_type=rule_type,
-                country_id=int(country_id) if country_id else None,
+                country_id=country_id,
                 min_weight=min_weight,
                 max_weight=max_weight,
                 price_gmd=price_gmd,
@@ -5173,6 +5207,13 @@ def admin_edit_shipping_rule(rule_id):
             elif not country_id:
                 flash('Country is required for country-specific rules', 'error')
                 return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
+            else:
+                # Ensure country_id is always an integer - never a string
+                try:
+                    country_id = int(country_id)
+                except (ValueError, TypeError):
+                    flash('Invalid country ID. Must be a number.', 'error')
+                    return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
             
             # Check for overlapping rules (excluding current rule)
             if rule_type == 'country' and country_id:
@@ -5205,9 +5246,9 @@ def admin_edit_shipping_rule(rule_id):
                 if overlapping:
                     flash(f'Warning: Overlapping global rule exists for this weight range. Rule updated anyway.', 'warning')
             
-            # Update rule
+            # Update rule (country_id is already validated as integer above)
             rule.rule_type = rule_type
-            rule.country_id = int(country_id) if country_id else None
+            rule.country_id = country_id
             rule.min_weight = min_weight
             rule.max_weight = max_weight
             rule.price_gmd = price_gmd
