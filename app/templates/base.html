@@ -195,8 +195,18 @@
       from { transform: translateY(-0.5rem); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
+    @keyframes slideDown {
+      from { transform: translate(-50%, -1rem); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
     .animate-in-custom {
       animation: fadeIn 200ms ease-out, slideInFromTop 200ms ease-out;
+    }
+    /* Mobile-specific animation for country dropdown */
+    @media (max-width: 767px) {
+      #country-dropdown.animate-in-custom {
+        animation: fadeIn 250ms ease-out, slideDown 250ms ease-out;
+      }
     }
     
     /* Polyfill for scrollbar-hide */
@@ -437,12 +447,13 @@
               <!-- Country Dropdown - Responsive: Mobile (centered modal) / Desktop (normal dropdown) -->
               <div id="country-dropdown" class="
                 fixed md:absolute 
-                top-1/2 md:top-auto 
+                top-[10%] md:top-auto 
                 left-1/2 md:left-auto 
                 right-auto md:right-0 
                 -translate-x-1/2 md:translate-x-0 
-                -translate-y-1/2 md:translate-y-0 
-                mt-0 md:mt-3 
+                translate-y-0 md:translate-y-0 
+                mt-4 md:mt-3 
+                mb-4 md:mb-0
                 w-[90%] md:w-72 
                 max-w-md md:max-w-none
                 bg-white dark:bg-slate-800 
@@ -452,15 +463,15 @@
                 shadow-lg md:shadow-2xl 
                 hidden 
                 z-[70] md:z-50 
-                max-h-[80vh] md:max-h-[32rem] 
+                max-h-[75vh] md:max-h-[32rem] 
                 overflow-hidden 
                 flex flex-col
                 animate-in-custom
               ">
-                <div class="px-4 py-3 border-b border-[color:var(--app-border)] bg-slate-50 dark:bg-slate-900/50">
+                <div class="px-4 py-3 border-b border-[color:var(--app-border)] bg-slate-50 dark:bg-slate-900/50 flex-shrink-0">
                   <p class="text-sm font-semibold text-[color:var(--app-text)]">{{ _('Select Country') }}</p>
                 </div>
-                <div id="country-list" class="overflow-y-auto p-3 md:p-2 space-y-1.5 md:space-y-1">
+                <div id="country-list" class="overflow-y-auto overscroll-contain p-3 md:p-2 space-y-1.5 md:space-y-1 flex-1 min-h-0">
                   <!-- Countries will be loaded via JavaScript -->
                 </div>
               </div>
