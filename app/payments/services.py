@@ -298,7 +298,7 @@ class PaymentService:
     @staticmethod
     def start_modempay_payment(pending_payment_id: Optional[int] = None, order_id: Optional[int] = None, 
                               amount: float = None, phone: str = None, 
-                              provider: str = 'wave',
+                              provider: str = 'modempay',
                               customer_name: Optional[str] = None,
                               customer_email: Optional[str] = None) -> Dict[str, Any]:
         """

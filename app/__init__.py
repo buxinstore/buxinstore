@@ -3655,15 +3655,6 @@ class CheckoutForm(FlaskForm):
     city = StringField('City / Region', validators=[DataRequired(message='City or region is required')])
     delivery_address = TextAreaField('Full Delivery Address', validators=[DataRequired(message='Delivery address is required')])
     delivery_notes = TextAreaField('Delivery Notes (Optional)', validators=[])
-    payment_method = SelectField('Payment Method', 
-                               choices=[
-                                   ('', 'Select a payment method'),
-                                   ('wave', 'Wave Money'),
-                                   ('qmoney', 'QMoney'),
-                                   ('afrimoney', 'AfriMoney'),
-                                   ('ecobank', 'ECOBANK Mobile')
-                               ],
-                               validators=[DataRequired(message='Please select a payment method')])
     submit = SubmitField('Proceed to Payment')
 
 
@@ -3949,11 +3940,12 @@ def checkout():
             
             # Create PendingPayment instead of Order
             # Orders will only be created AFTER successful payment confirmation
+            # Always use ModemPay as the payment method
             pending_payment = PendingPayment(
                 user_id=current_user.id,
                 amount=float(total_cost),  # Total including shipping in display currency
                 status='waiting',
-                payment_method=form.payment_method.data,
+                payment_method='modempay',  # Always use ModemPay
                 delivery_address=form.delivery_address.data,
                 customer_name=form.full_name.data if hasattr(form, 'full_name') else current_user.username,
                 customer_phone=form.phone.data if hasattr(form, 'phone') else None,
@@ -3971,12 +3963,12 @@ def checkout():
             db.session.commit()  # Commit to get the pending_payment.id
             
             # Initiate ModemPay payment using pending_payment_id
-            # Payment service will be updated to work with pending_payment_id
+            # Automatically use ModemPay - no user selection needed
             payment_result = PaymentService.start_modempay_payment(
                 pending_payment_id=pending_payment.id,  # Changed from order_id
                 amount=float(total_cost),  # Use total including shipping
                 phone=form.phone.data,
-                provider=form.payment_method.data,
+                provider='modempay',  # Always use ModemPay
                 customer_name=form.full_name.data if hasattr(form, 'full_name') else None,
                 customer_email=form.email.data if hasattr(form, 'email') else None
             )

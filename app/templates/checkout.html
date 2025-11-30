@@ -260,26 +260,6 @@
                                 >{{ form.delivery_notes.data or '' }}</textarea>
                                 </div>
 
-                            <!-- Payment Method -->
-                            <div>
-                                <label for="payment_method" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                                    Payment Method <span class="text-red-500">*</span>
-                                </label>
-                                <select 
-                                    id="payment_method" 
-                                    name="payment_method" 
-                                    required
-                                    class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-                                >
-                                    <option value="">Select a payment method</option>
-                                    <option value="wave" {% if form.payment_method.data == 'wave' %}selected{% endif %}>Wave Money</option>
-                                    <option value="qmoney" {% if form.payment_method.data == 'qmoney' %}selected{% endif %}>QMoney</option>
-                                    <option value="afrimoney" {% if form.payment_method.data == 'afrimoney' %}selected{% endif %}>AfriMoney</option>
-                                    <option value="ecobank" {% if form.payment_method.data == 'ecobank' %}selected{% endif %}>ECOBANK Mobile</option>
-                                </select>
-                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="payment_method-error"></p>
-                            </div>
-
                             <!-- Amount (hidden, from cart total) -->
                             <input type="hidden" id="amount" name="amount" value="{{ "%.2f"|format(checkout_summary.total) }}">
                             <input type="hidden" id="pending_payment_id" name="pending_payment_id" value="{{ pending_payment_id or '' }}">
@@ -359,8 +339,7 @@
             phone: document.getElementById('phone'),
             country: document.getElementById('country'),
             city: document.getElementById('city'),
-            delivery_address: document.getElementById('delivery_address'),
-            payment_method: document.getElementById('payment_method')
+            delivery_address: document.getElementById('delivery_address')
         };
         
         // Validation state
@@ -370,8 +349,7 @@
             phone: false,
             country: false,
             city: false,
-            delivery_address: false,
-            payment_method: false
+            delivery_address: false
         };
         
         // Validation functions
@@ -470,12 +448,6 @@
                 case 'delivery_address':
                     if (!validateRequired(value)) {
                         showError(fieldName, 'This field is required');
-                        return false;
-                    }
-                    break;
-                case 'payment_method':
-                    if (!validateRequired(value)) {
-                        showError(fieldName, 'Please select a payment method');
                         return false;
                     }
                     break;
@@ -864,9 +836,7 @@
         
         // Auto-save on field changes
         Object.values(fields).forEach(field => {
-            if (field.id !== 'payment_method') {
-                field.addEventListener('input', autoSaveAddress);
-            }
+            field.addEventListener('input', autoSaveAddress);
         });
         
         // Form submission
@@ -912,7 +882,7 @@
             // Get form values
             const pendingPaymentId = document.getElementById('pending_payment_id').value;
             const amount = parseFloat(document.getElementById('amount').value);
-            const provider = fields.payment_method.value;
+            const provider = 'modempay'; // Always use ModemPay
             
             // Validation - ModemPay requires minimum 10 GMD
             const MIN_AMOUNT = 10.0;

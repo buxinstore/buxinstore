@@ -484,7 +484,7 @@ def modempay_pay():
     try:
         data = request.get_json()
         
-        # Normalize provider (not strictly required for ModemPay unified flow)
+        # Normalize provider - always use ModemPay (unified gateway)
         provider_value = (data.get('provider') or 'modempay').lower()
         
         # Check for pending_payment_id (new flow)
