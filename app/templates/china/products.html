@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Upload - China Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <div class="min-h-screen">
+        <!-- Page Header -->
+        <header class="bg-white dark:bg-gray-800 shadow">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">🇨🇳 China Portal</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Welcome, {{ current_user.username }}</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="{{ url_for('logout') }}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                            <i class="fas fa-sign-out-alt mr-1"></i> 🔐 Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Segmented Control / Tabs -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            <div class="border-b border-gray-200 dark:border-gray-700">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <a href="{{ url_for('china_orders') }}" 
+                       class="{% if request.endpoint == 'china_orders' %}border-blue-500 text-blue-600 dark:text-blue-400{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                        <i class="fas fa-shopping-cart mr-2"></i>
+                        Orders
+                    </a>
+                    <a href="{{ url_for('china_products') }}" 
+                       class="{% if request.endpoint == 'china_products' %}border-blue-500 text-blue-600 dark:text-blue-400{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300{% endif %} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                        <i class="fas fa-upload mr-2"></i>
+                        Upload Products
+                    </a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mb-4 rounded-md bg-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-50 dark:bg-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-900 p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="h-5 w-5 text-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-400 fas {{ 'fa-exclamation-circle' if category == 'error' else 'fa-check-circle' if category == 'success' else 'fa-exclamation-triangle' }}"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm font-medium text-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-800 dark:text-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-200">
+                                        {{ message }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Search + Add Product Header -->
+            <div class="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                    <div class="flex-1 w-full sm:w-auto">
+                        <input type="text" 
+                               id="productSearch" 
+                               placeholder="Search products..." 
+                               class="w-full sm:w-64 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" 
+                                id="addProductBtn"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 inline-flex items-center">
+                            <i class="fas fa-plus mr-2"></i>
+                            Add Product
+                        </button>
+                        <button type="button" 
+                                id="bulkUploadBtn"
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 inline-flex items-center">
+                            <i class="fas fa-file-upload mr-2"></i>
+                            Bulk Upload
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Product Upload Section -->
+            <div class="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+                <div class="mb-4">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-1">
+                        Bulk Product Upload
+                    </h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Upload Products
+                    </p>
+                </div>
+
+                <form id="bulkUploadForm" method="POST" action="{{ url_for('china_products_upload') }}" enctype="multipart/form-data" class="space-y-6">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <!-- File Upload Area -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            📄 Upload CSV/XLSX File
+                        </label>
+                        <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
+                            <div class="space-y-1 text-center">
+                                <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 dark:text-gray-500"></i>
+                                <div class="flex text-sm text-gray-600 dark:text-gray-400">
+                                    <label for="file-upload" class="relative cursor-pointer bg-white dark:bg-gray-800 rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                        <span>Upload a file</span>
+                                        <input id="file-upload" name="file" type="file" accept=".csv,.xlsx,.xls" class="sr-only" required>
+                                    </label>
+                                    <p class="pl-1">or drag and drop</p>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    XLSX or CSV up to 10MB
+                                </p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                    <strong>Required columns:</strong> Product Name, Category, Weight (kg)<br>
+                                    <strong>Optional columns:</strong> Price, Stock, Description, Image URL, Image Filename
+                                </p>
+                            </div>
+                        </div>
+                        <div id="file-name" class="mt-2 text-sm text-gray-600 dark:text-gray-400"></div>
+                    </div>
+
+                    <!-- Image Upload Area -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            🖼️ Upload Product Images
+                        </label>
+                        <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
+                            <div class="space-y-1 text-center">
+                                <i class="fas fa-images text-4xl text-gray-400 dark:text-gray-500"></i>
+                                <div class="flex text-sm text-gray-600 dark:text-gray-400">
+                                    <label for="image-upload" class="relative cursor-pointer bg-white dark:bg-gray-800 rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                        <span>Upload images</span>
+                                        <input id="image-upload" name="images" type="file" accept=".png,.jpg,.jpeg,.webp" multiple class="sr-only">
+                                    </label>
+                                    <p class="pl-1">or drag and drop</p>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    PNG, JPG, JPEG, WEBP (multiple files allowed)
+                                </p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                    Images will be matched by filename with the "Image Filename" column in your CSV/XLSX
+                                </p>
+                            </div>
+                        </div>
+                        <div id="image-names" class="mt-2 text-sm text-gray-600 dark:text-gray-400"></div>
+                    </div>
+
+                    <!-- Template Download -->
+                    <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                <strong>Weight validation:</strong> Between 0.00001 and 500 kg. If weight is missing or invalid → row will be skipped.
+                            </p>
+                        </div>
+                        <a href="{{ url_for('china_products_template') }}" 
+                           class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:ring-2 focus:ring-gray-500 inline-flex items-center">
+                            <i class="fas fa-download mr-2"></i>
+                            Download Template File
+                        </a>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <button type="button" 
+                                id="cancelBtn"
+                                class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-2 focus:ring-gray-500">
+                            Cancel
+                        </button>
+                        <button type="submit" 
+                                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 inline-flex items-center">
+                            <i class="fas fa-upload mr-2"></i>
+                            Upload Products
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // File upload display
+        const fileInput = document.getElementById('file-upload');
+        const fileName = document.getElementById('file-name');
+        
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    fileName.textContent = `Selected: ${e.target.files[0].name}`;
+                } else {
+                    fileName.textContent = '';
+                }
+            });
+        }
+
+        // Image upload display
+        const imageInput = document.getElementById('image-upload');
+        const imageNames = document.getElementById('image-names');
+        
+        if (imageInput) {
+            imageInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    const fileList = Array.from(e.target.files).map(f => f.name).join(', ');
+                    imageNames.textContent = `Selected ${e.target.files.length} file(s): ${fileList}`;
+                } else {
+                    imageNames.textContent = '';
+                }
+            });
+        }
+
+        // Cancel button
+        const cancelBtn = document.getElementById('cancelBtn');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to cancel? All form data will be lost.')) {
+                    document.getElementById('bulkUploadForm').reset();
+                    fileName.textContent = '';
+                    imageNames.textContent = '';
+                }
+            });
+        }
+
+        // Add Product button (placeholder for future single product form)
+        const addProductBtn = document.getElementById('addProductBtn');
+        if (addProductBtn) {
+            addProductBtn.addEventListener('click', function() {
+                alert('Single product upload feature coming soon!');
+            });
+        }
+
+        // Bulk Upload button (scroll to form)
+        const bulkUploadBtn = document.getElementById('bulkUploadBtn');
+        if (bulkUploadBtn) {
+            bulkUploadBtn.addEventListener('click', function() {
+                document.getElementById('bulkUploadForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                document.getElementById('file-upload').focus();
+            });
+        }
+
+        // Form submission with loading state
+        const bulkUploadForm = document.getElementById('bulkUploadForm');
+        if (bulkUploadForm) {
+            bulkUploadForm.addEventListener('submit', function(e) {
+                const submitBtn = this.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+

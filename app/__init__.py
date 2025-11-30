@@ -11009,6 +11009,221 @@ def china_mark_shipped(order_id):
     flash('订单已标记为已发货', 'success')
     return redirect(url_for('china_orders'))
 
+@app.route('/china/products', methods=['GET'])
+@login_required
+@china_partner_required
+def china_products():
+    """China Partner products upload page"""
+    return render_template('china/products.html')
+
+@app.route('/china/products/upload', methods=['POST'])
+@login_required
+@china_partner_required
+def china_products_upload():
+    """Handle bulk product upload from CSV/XLSX"""
+    try:
+        from .utils.cloudinary_utils import upload_to_cloudinary
+        
+        # Check if file is present
+        if 'file' not in request.files:
+            flash('No file uploaded', 'error')
+            return redirect(url_for('china_products'))
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected', 'error')
+            return redirect(url_for('china_products'))
+        
+        # Check file extension
+        filename = file.filename.lower()
+        if not (filename.endswith('.csv') or filename.endswith('.xlsx') or filename.endswith('.xls')):
+            flash('Invalid file type. Please upload CSV or XLSX file.', 'error')
+            return redirect(url_for('china_products'))
+        
+        # Check file size (10MB max)
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        if file_size > 10 * 1024 * 1024:  # 10MB
+            flash('File size exceeds 10MB limit', 'error')
+            return redirect(url_for('china_products'))
+        
+        # Read file based on extension
+        try:
+            if filename.endswith('.csv'):
+                df = pd.read_csv(file)
+            else:  # .xlsx or .xls
+                df = pd.read_excel(file, engine='openpyxl')
+        except Exception as e:
+            flash(f'Error reading file: {str(e)}', 'error')
+            return redirect(url_for('china_products'))
+        
+        # Normalize column names (strip whitespace, lowercase)
+        df.columns = df.columns.str.strip().str.lower()
+        
+        # Required columns
+        required_cols = ['product name', 'category', 'weight (kg)']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            flash(f'Missing required columns: {", ".join(missing_cols)}', 'error')
+            return redirect(url_for('china_products'))
+        
+        # Optional columns mapping
+        col_mapping = {
+            'product name': 'name',
+            'category': 'category',
+            'weight (kg)': 'weight_kg',
+            'price': 'price',
+            'stock': 'stock',
+            'description': 'description',
+            'image url': 'image_url',
+            'image filename': 'image_filename'
+        }
+        
+        # Process images if uploaded
+        image_files = {}
+        if 'images' in request.files:
+            uploaded_images = request.files.getlist('images')
+            for img_file in uploaded_images:
+                if img_file.filename:
+                    # Store image by filename for matching
+                    image_files[img_file.filename.lower()] = img_file
+        
+        # Process each row
+        success_count = 0
+        error_count = 0
+        errors = []
+        
+        for idx, row in df.iterrows():
+            try:
+                # Get required fields
+                name = str(row['product name']).strip()
+                category_name = str(row['category']).strip()
+                weight_kg = row['weight (kg)']
+                
+                # Validate weight
+                try:
+                    weight_kg = float(weight_kg)
+                    if weight_kg < 0.00001 or weight_kg > 500:
+                        error_count += 1
+                        errors.append(f"Row {idx + 2}: Weight {weight_kg} is out of range (0.00001-500 kg)")
+                        continue
+                except (ValueError, TypeError):
+                    error_count += 1
+                    errors.append(f"Row {idx + 2}: Invalid weight value")
+                    continue
+                
+                # Get or create category
+                category = Category.query.filter_by(name=category_name).first()
+                if not category:
+                    category = Category(name=category_name)
+                    db.session.add(category)
+                    db.session.flush()  # Get category ID
+                
+                # Get optional fields with defaults
+                price = float(row.get('price', 0)) if pd.notna(row.get('price')) else 0.0
+                stock = int(row.get('stock', 0)) if pd.notna(row.get('stock')) else 0
+                description = str(row.get('description', '')).strip() if pd.notna(row.get('description')) else ''
+                image_url = str(row.get('image url', '')).strip() if pd.notna(row.get('image url')) else None
+                image_filename = str(row.get('image filename', '')).strip() if pd.notna(row.get('image filename')) else None
+                
+                # Handle image upload
+                final_image_url = image_url
+                if image_filename:
+                    # Check if we have an uploaded file matching this filename
+                    matching_file = image_files.get(image_filename.lower())
+                    if matching_file:
+                        # Upload to Cloudinary
+                        upload_result = upload_to_cloudinary(matching_file, folder='products')
+                        if upload_result and upload_result.get('url'):
+                            final_image_url = upload_result['url']
+                            current_app.logger.info(f"✅ Uploaded image {image_filename} to Cloudinary")
+                
+                # Create product
+                product = Product(
+                    name=name,
+                    description=description or 'No description provided',
+                    price=price,
+                    stock=stock,
+                    category_id=category.id,
+                    weight_kg=weight_kg,
+                    image=final_image_url,
+                    available_in_gambia=False,
+                    location='Outside The Gambia',  # Default for China products
+                    delivery_price=0.0,  # Default delivery price
+                    shipping_price=0.0  # Default shipping price
+                )
+                
+                db.session.add(product)
+                success_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                errors.append(f"Row {idx + 2}: {str(e)}")
+                current_app.logger.error(f"Error processing row {idx + 2}: {str(e)}")
+                continue
+        
+        # Commit all products
+        try:
+            db.session.commit()
+            if success_count > 0:
+                flash(f'Successfully uploaded {success_count} product(s)!', 'success')
+            if error_count > 0:
+                error_msg = f'{error_count} row(s) failed. '
+                if errors:
+                    error_msg += 'First few errors: ' + '; '.join(errors[:5])
+                    if len(errors) > 5:
+                        error_msg += f' (and {len(errors) - 5} more...)'
+                flash(error_msg, 'warning')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error saving products: {str(e)}', 'error')
+            current_app.logger.error(f"Error committing products: {str(e)}")
+        
+        return redirect(url_for('china_products'))
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Upload failed: {str(e)}', 'error')
+        current_app.logger.error(f"Bulk upload error: {str(e)}")
+        return redirect(url_for('china_products'))
+
+@app.route('/china/products/template', methods=['GET'])
+@login_required
+@china_partner_required
+def china_products_template():
+    """Download template CSV file for bulk product upload"""
+    try:
+        # Create template data
+        template_data = {
+            'Product Name': ['Example Product 1', 'Example Product 2'],
+            'Category': ['Electronics', 'Clothing'],
+            'Weight (kg)': [0.5, 0.2],
+            'Price': [100.00, 50.00],
+            'Stock': [10, 20],
+            'Description': ['Product description here', 'Another product description'],
+            'Image URL': ['https://example.com/image1.jpg', ''],
+            'Image Filename': ['product1.jpg', 'product2.jpg']
+        }
+        
+        df = pd.DataFrame(template_data)
+        
+        # Create CSV in memory
+        output = BytesIO()
+        df.to_csv(output, index=False, encoding='utf-8-sig')  # utf-8-sig for Excel compatibility
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name='product_upload_template.csv'
+        )
+    except Exception as e:
+        flash(f'Error generating template: {str(e)}', 'error')
+        current_app.logger.error(f"Template generation error: {str(e)}")
+        return redirect(url_for('china_products'))
+
 # Gambia Team Routes
 @app.route('/gambia/login', methods=['GET', 'POST'])
 def gambia_login():
