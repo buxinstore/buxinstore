@@ -116,6 +116,8 @@ from .models.forum import ForumPost, ForumFile, ForumLink, ForumComment, ForumRe
 from .models.bulk_email import BulkEmailJob, BulkEmailRecipient, BulkEmailJobLock
 # Import country model so Alembic can detect it
 from .models.country import Country
+# Import currency rate model so Alembic can detect it
+from .models.currency_rate import CurrencyRate
 from .utils.db_backup import (
     DatabaseBackupError,
     dump_database_to_file,
@@ -5807,6 +5809,356 @@ def admin_delete_country(country_id):
     
     return redirect(url_for('admin_countries'))
 
+# ==================== Currency Rates Admin Routes ====================
+
+@app.route('/admin/currencies')
+@login_required
+@admin_required
+def admin_currencies():
+    """Admin page for managing currency conversion rates with search, sorting, and pagination."""
+    # Get query parameters
+    search = request.args.get('search', '').strip()
+    sort_by = request.args.get('sort', 'from_currency')  # from_currency, to_currency, rate, last_updated, status
+    order = request.args.get('order', 'asc')  # asc or desc
+    status_filter = request.args.get('status', 'all')  # all, active, inactive
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    
+    # Build query
+    query = CurrencyRate.query
+    
+    # Apply search filter
+    if search:
+        query = query.filter(
+            db.or_(
+                CurrencyRate.from_currency.ilike(f'%{search}%'),
+                CurrencyRate.to_currency.ilike(f'%{search}%'),
+                CurrencyRate.notes.ilike(f'%{search}%')
+            )
+        )
+    
+    # Apply status filter
+    if status_filter == 'active':
+        query = query.filter(CurrencyRate.is_active == True)
+    elif status_filter == 'inactive':
+        query = query.filter(CurrencyRate.is_active == False)
+    
+    # Apply sorting
+    if sort_by == 'from_currency':
+        order_by = CurrencyRate.from_currency.asc() if order == 'asc' else CurrencyRate.from_currency.desc()
+    elif sort_by == 'to_currency':
+        order_by = CurrencyRate.to_currency.asc() if order == 'asc' else CurrencyRate.to_currency.desc()
+    elif sort_by == 'rate':
+        order_by = CurrencyRate.rate.asc() if order == 'asc' else CurrencyRate.rate.desc()
+    elif sort_by == 'last_updated':
+        order_by = CurrencyRate.last_updated.asc() if order == 'asc' else CurrencyRate.last_updated.desc()
+    elif sort_by == 'status':
+        order_by = CurrencyRate.is_active.asc() if order == 'asc' else CurrencyRate.is_active.desc()
+    else:
+        order_by = CurrencyRate.from_currency.asc()
+    
+    query = query.order_by(order_by)
+    
+    # Paginate
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    currency_rates = pagination.items
+    
+    return render_template('admin/admin/currencies.html',
+                         currency_rates=currency_rates,
+                         pagination=pagination,
+                         search=search,
+                         sort_by=sort_by,
+                         order=order,
+                         status_filter=status_filter,
+                         per_page=per_page)
+
+@app.route('/admin/currencies/add', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_add_currency_rate():
+    """Add a new currency conversion rate."""
+    if request.method == 'POST':
+        try:
+            from_currency = request.form.get('from_currency', '').strip().upper()
+            to_currency = request.form.get('to_currency', '').strip().upper()
+            rate_str = request.form.get('rate', '').strip()
+            is_active = request.form.get('is_active') == 'on'
+            notes = request.form.get('notes', '').strip()
+            api_sync_enabled = request.form.get('api_sync_enabled') == 'on'
+            api_provider = request.form.get('api_provider', '').strip() or None
+            
+            # Validate required fields
+            if not all([from_currency, to_currency, rate_str]):
+                flash('Please fill in all required fields (From Currency, To Currency, Rate).', 'error')
+                return redirect(url_for('admin_add_currency_rate'))
+            
+            # Validate currency pair (cannot be same)
+            if from_currency == to_currency:
+                flash('From Currency and To Currency cannot be the same.', 'error')
+                return redirect(url_for('admin_add_currency_rate'))
+            
+            # Validate and parse rate
+            try:
+                rate = Decimal(rate_str)
+                if rate <= 0:
+                    flash('Conversion rate must be a positive number.', 'error')
+                    return redirect(url_for('admin_add_currency_rate'))
+            except (ValueError, InvalidOperation):
+                flash('Invalid conversion rate. Please enter a valid decimal number.', 'error')
+                return redirect(url_for('admin_add_currency_rate'))
+            
+            # Check if currency pair already exists
+            existing = CurrencyRate.query.filter_by(
+                from_currency=from_currency,
+                to_currency=to_currency
+            ).first()
+            
+            if existing:
+                flash(f'Currency pair {from_currency} → {to_currency} already exists. Please edit it instead.', 'error')
+                return redirect(url_for('admin_edit_currency_rate', rate_id=existing.id))
+            
+            currency_rate = CurrencyRate(
+                from_currency=from_currency,
+                to_currency=to_currency,
+                rate=rate,
+                is_active=is_active,
+                notes=notes,
+                api_sync_enabled=api_sync_enabled,
+                api_provider=api_provider,
+                last_updated=datetime.utcnow()
+            )
+            
+            db.session.add(currency_rate)
+            db.session.commit()
+            
+            flash(f'Currency rate {from_currency} → {to_currency} added successfully!', 'success')
+            return redirect(url_for('admin_currencies'))
+            
+        except IntegrityError:
+            db.session.rollback()
+            flash('Currency pair already exists.', 'error')
+            return redirect(url_for('admin_add_currency_rate'))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error adding currency rate: {e}")
+            flash('Failed to add currency rate. Please try again.', 'error')
+            return redirect(url_for('admin_add_currency_rate'))
+    
+    return render_template('admin/admin/currency_rate_form.html', currency_rate=None)
+
+@app.route('/admin/currencies/<int:rate_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_edit_currency_rate(rate_id):
+    """Edit an existing currency conversion rate."""
+    currency_rate = CurrencyRate.query.get_or_404(rate_id)
+    
+    if request.method == 'POST':
+        try:
+            from_currency = request.form.get('from_currency', '').strip().upper()
+            to_currency = request.form.get('to_currency', '').strip().upper()
+            rate_str = request.form.get('rate', '').strip()
+            is_active = request.form.get('is_active') == 'on'
+            notes = request.form.get('notes', '').strip()
+            api_sync_enabled = request.form.get('api_sync_enabled') == 'on'
+            api_provider = request.form.get('api_provider', '').strip() or None
+            
+            # Validate required fields
+            if not all([from_currency, to_currency, rate_str]):
+                flash('Please fill in all required fields.', 'error')
+                return redirect(url_for('admin_edit_currency_rate', rate_id=rate_id))
+            
+            # Validate currency pair
+            if from_currency == to_currency:
+                flash('From Currency and To Currency cannot be the same.', 'error')
+                return redirect(url_for('admin_edit_currency_rate', rate_id=rate_id))
+            
+            # Validate and parse rate
+            try:
+                rate = Decimal(rate_str)
+                if rate <= 0:
+                    flash('Conversion rate must be a positive number.', 'error')
+                    return redirect(url_for('admin_edit_currency_rate', rate_id=rate_id))
+            except (ValueError, InvalidOperation):
+                flash('Invalid conversion rate. Please enter a valid decimal number.', 'error')
+                return redirect(url_for('admin_edit_currency_rate', rate_id=rate_id))
+            
+            # Check if currency pair already exists (and is not this one)
+            existing = CurrencyRate.query.filter(
+                CurrencyRate.from_currency == from_currency,
+                CurrencyRate.to_currency == to_currency,
+                CurrencyRate.id != rate_id
+            ).first()
+            
+            if existing:
+                flash(f'Currency pair {from_currency} → {to_currency} already exists.', 'error')
+                return redirect(url_for('admin_edit_currency_rate', rate_id=rate_id))
+            
+            # Update currency rate
+            currency_rate.from_currency = from_currency
+            currency_rate.to_currency = to_currency
+            currency_rate.rate = rate
+            currency_rate.is_active = is_active
+            currency_rate.notes = notes
+            currency_rate.api_sync_enabled = api_sync_enabled
+            currency_rate.api_provider = api_provider
+            currency_rate.last_updated = datetime.utcnow()
+            
+            db.session.commit()
+            flash(f'Currency rate {from_currency} → {to_currency} updated successfully!', 'success')
+            return redirect(url_for('admin_currencies'))
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error updating currency rate: {e}")
+            flash('Failed to update currency rate. Please try again.', 'error')
+            return redirect(url_for('admin_edit_currency_rate', rate_id=rate_id))
+    
+    return render_template('admin/admin/currency_rate_form.html', currency_rate=currency_rate)
+
+@app.route('/admin/currencies/<int:rate_id>/toggle', methods=['POST'])
+@login_required
+@admin_required
+def admin_toggle_currency_rate(rate_id):
+    """Toggle currency rate active/inactive status."""
+    currency_rate = CurrencyRate.query.get_or_404(rate_id)
+    
+    try:
+        currency_rate.is_active = not currency_rate.is_active
+        db.session.commit()
+        status = "activated" if currency_rate.is_active else "deactivated"
+        flash(f'Currency rate {currency_rate.from_currency} → {currency_rate.to_currency} {status} successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error toggling currency rate: {e}")
+        flash('Failed to toggle currency rate status. Please try again.', 'error')
+    
+    return redirect(url_for('admin_currencies'))
+
+@app.route('/admin/currencies/<int:rate_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_currency_rate(rate_id):
+    """Delete a currency conversion rate."""
+    currency_rate = CurrencyRate.query.get_or_404(rate_id)
+    
+    try:
+        pair_name = f"{currency_rate.from_currency} → {currency_rate.to_currency}"
+        db.session.delete(currency_rate)
+        db.session.commit()
+        flash(f'Currency rate {pair_name} deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting currency rate: {e}")
+        flash('Failed to delete currency rate. Please try again.', 'error')
+    
+    return redirect(url_for('admin_currencies'))
+
+@app.route('/admin/currencies/<int:rate_id>/refresh', methods=['POST'])
+@login_required
+@admin_required
+def admin_refresh_currency_rate(rate_id):
+    """Manually refresh a currency rate from API."""
+    currency_rate = CurrencyRate.query.get_or_404(rate_id)
+    
+    try:
+        from app.utils.currency_api import sync_currency_rate_from_api
+        import os
+        
+        # Get API key from form or environment
+        api_key = request.form.get('api_key', '').strip() or os.getenv(f'{currency_rate.api_provider.upper()}_API_KEY', '')
+        provider = currency_rate.api_provider or None
+        
+        success, error, rate = sync_currency_rate_from_api(
+            currency_rate.from_currency,
+            currency_rate.to_currency,
+            provider,
+            api_key
+        )
+        
+        if success and rate:
+            currency_rate.rate = rate
+            currency_rate.last_api_sync = datetime.utcnow()
+            currency_rate.api_sync_error = None
+            currency_rate.last_updated = datetime.utcnow()
+            db.session.commit()
+            flash(f'Currency rate {currency_rate.from_currency} → {currency_rate.to_currency} refreshed successfully! New rate: {rate}', 'success')
+        else:
+            currency_rate.api_sync_error = error or "Unknown error"
+            db.session.commit()
+            flash(f'Failed to refresh currency rate: {error or "Unknown error"}', 'error')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error refreshing currency rate: {e}")
+        flash(f'Failed to refresh currency rate: {str(e)}', 'error')
+    
+    return redirect(url_for('admin_currencies'))
+
+@app.route('/admin/currencies/bulk-refresh', methods=['POST'])
+@login_required
+@admin_required
+def admin_bulk_refresh_currency_rates():
+    """Bulk refresh all currency rates that have API sync enabled."""
+    try:
+        from app.utils.currency_api import sync_currency_rate_from_api
+        import os
+        
+        # Get rates with API sync enabled
+        rates_to_sync = CurrencyRate.query.filter_by(api_sync_enabled=True, is_active=True).all()
+        
+        if not rates_to_sync:
+            flash('No currency rates have API sync enabled.', 'info')
+            return redirect(url_for('admin_currencies'))
+        
+        updated = 0
+        failed = 0
+        errors = []
+        
+        for currency_rate in rates_to_sync:
+            try:
+                api_key = os.getenv(f'{currency_rate.api_provider.upper()}_API_KEY', '') if currency_rate.api_provider else None
+                provider = currency_rate.api_provider or None
+                
+                success, error, rate = sync_currency_rate_from_api(
+                    currency_rate.from_currency,
+                    currency_rate.to_currency,
+                    provider,
+                    api_key
+                )
+                
+                if success and rate:
+                    currency_rate.rate = rate
+                    currency_rate.last_api_sync = datetime.utcnow()
+                    currency_rate.api_sync_error = None
+                    currency_rate.last_updated = datetime.utcnow()
+                    updated += 1
+                else:
+                    currency_rate.api_sync_error = error or "Unknown error"
+                    failed += 1
+                    errors.append(f"{currency_rate.from_currency} → {currency_rate.to_currency}: {error or 'Unknown error'}")
+            except Exception as e:
+                failed += 1
+                error_msg = str(e)
+                errors.append(f"{currency_rate.from_currency} → {currency_rate.to_currency}: {error_msg}")
+                current_app.logger.error(f"Error refreshing {currency_rate.from_currency} → {currency_rate.to_currency}: {e}")
+        
+        db.session.commit()
+        
+        message = f'Bulk refresh completed: {updated} updated, {failed} failed.'
+        if errors:
+            message += f' Errors: {"; ".join(errors[:5])}'  # Show first 5 errors
+            if len(errors) > 5:
+                message += f' (and {len(errors) - 5} more...)'
+        
+        flash(message, 'success' if failed == 0 else 'error')
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in bulk refresh: {e}")
+        flash(f'Bulk refresh failed: {str(e)}', 'error')
+    
+    return redirect(url_for('admin_currencies'))
+
 @app.route('/admin/email/customers', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -11093,6 +11445,124 @@ def initialize_backup_scheduler():
     schedule_backup_job()
     app.config['BACKUP_SCHEDULER_STARTED'] = True
 
+# ==================== Currency Rate Sync Scheduler ====================
+
+CURRENCY_SYNC_JOB_ID = 'hourly_currency_rate_sync'
+_currency_sync_scheduler = None
+_currency_sync_scheduler_lock = threading.Lock()
+_currency_sync_shutdown_registered = False
+
+
+def _scheduled_currency_sync_job():
+    """Background job to sync all currency rates with API sync enabled."""
+    with app.app_context():
+        try:
+            from app.utils.currency_api import sync_currency_rate_from_api
+            import os
+            
+            # Get all active rates with API sync enabled
+            rates_to_sync = CurrencyRate.query.filter_by(
+                api_sync_enabled=True,
+                is_active=True
+            ).all()
+            
+            if not rates_to_sync:
+                app.logger.debug("No currency rates with API sync enabled.")
+                return
+            
+            updated = 0
+            failed = 0
+            
+            for currency_rate in rates_to_sync:
+                try:
+                    api_key = os.getenv(f'{currency_rate.api_provider.upper()}_API_KEY', '') if currency_rate.api_provider else None
+                    provider = currency_rate.api_provider or None
+                    
+                    success, error, rate = sync_currency_rate_from_api(
+                        currency_rate.from_currency,
+                        currency_rate.to_currency,
+                        provider,
+                        api_key
+                    )
+                    
+                    if success and rate:
+                        currency_rate.rate = rate
+                        currency_rate.last_api_sync = datetime.utcnow()
+                        currency_rate.api_sync_error = None
+                        currency_rate.last_updated = datetime.utcnow()
+                        updated += 1
+                    else:
+                        currency_rate.api_sync_error = error or "Unknown error"
+                        failed += 1
+                        app.logger.warning(f"Failed to sync {currency_rate.from_currency} → {currency_rate.to_currency}: {error}")
+                except Exception as e:
+                    failed += 1
+                    currency_rate.api_sync_error = str(e)
+                    app.logger.error(f"Error syncing {currency_rate.from_currency} → {currency_rate.to_currency}: {e}")
+            
+            db.session.commit()
+            app.logger.info(f"Currency sync completed: {updated} updated, {failed} failed")
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error in scheduled currency sync job: {e}")
+
+
+def schedule_currency_sync_job():
+    """Schedule the currency rate sync job (runs hourly)."""
+    global _currency_sync_scheduler, _currency_sync_shutdown_registered
+    
+    with _currency_sync_scheduler_lock:
+        if not _currency_sync_scheduler:
+            try:
+                import pytz
+                timezone = pytz.timezone('UTC')
+            except ImportError:
+                # Fallback if pytz not available
+                from datetime import timezone as dt_timezone
+                timezone = dt_timezone.utc
+            _currency_sync_scheduler = BackgroundScheduler(timezone=timezone)
+            _currency_sync_scheduler.start()
+            app.config['CURRENCY_SYNC_SCHEDULER_STARTED'] = True
+            if not _currency_sync_shutdown_registered:
+                atexit.register(shutdown_currency_sync_scheduler)
+                _currency_sync_shutdown_registered = True
+        
+        # Schedule to run every hour
+        trigger = CronTrigger(minute=0, timezone=_currency_sync_scheduler.timezone)
+        _currency_sync_scheduler.add_job(
+            _scheduled_currency_sync_job,
+            trigger=trigger,
+            id=CURRENCY_SYNC_JOB_ID,
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600
+        )
+        app.logger.info(f"Currency rate sync scheduled to run hourly ({_currency_sync_scheduler.timezone})")
+
+
+def shutdown_currency_sync_scheduler():
+    """Shutdown the currency sync scheduler."""
+    global _currency_sync_scheduler
+    if _currency_sync_scheduler and _currency_sync_scheduler.running:
+        _currency_sync_scheduler.shutdown(wait=False)
+        _currency_sync_scheduler = None
+
+
+def initialize_currency_sync_scheduler():
+    """Start currency sync scheduler once per process."""
+    if app.config.get('TESTING'):
+        return
+    if app.config.get('CURRENCY_SYNC_SCHEDULER_STARTED'):
+        return
+    if app.config.get('DEBUG') and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        # Avoid double-starting in debug reloader
+        return
+    schedule_currency_sync_job()
+    app.config['CURRENCY_SYNC_SCHEDULER_STARTED'] = True
+
+
 def get_table_info(table_name):
     """Get information about a table including columns and row count"""
     inspector = inspect(db.engine)
@@ -12058,6 +12528,13 @@ def bootstrap_app_context() -> None:
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Failed to initialize backup scheduler: {str(e)}")
+        
+        # Initialize currency rate sync scheduler
+        try:
+            initialize_currency_sync_scheduler()
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Failed to initialize currency sync scheduler: {str(e)}")
 
         # Create necessary directories
         os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'feedback'), exist_ok=True)

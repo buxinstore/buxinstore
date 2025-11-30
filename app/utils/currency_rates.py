@@ -8,6 +8,7 @@ Example: 1 GMD = 7.75 XOF, so 100 GMD = 775 XOF
 
 import re
 from decimal import Decimal, ROUND_HALF_UP
+from typing import Tuple, Optional
 
 # Exchange rates: 1 GMD = X units of target currency
 # These rates represent how many units of the target currency equal 1 GMD
@@ -567,6 +568,51 @@ def parse_price(price):
         return 0.0, detected_currency
 
 
+def get_rate_from_db_or_fallback(from_currency: str, to_currency: str) -> Tuple[Decimal, bool]:
+    """
+    Get conversion rate from database or fallback to hardcoded rates.
+    
+    Args:
+        from_currency: Source currency code
+        to_currency: Target currency code
+    
+    Returns:
+        Tuple of (rate as Decimal, is_from_db: bool)
+        Rate means: 1 from_currency = rate to_currency
+    """
+    from_upper = from_currency.upper()
+    to_upper = to_currency.upper()
+    
+    try:
+        from app.models.currency_rate import CurrencyRate
+        
+        # Try to get rate from database
+        rate = CurrencyRate.get_rate(from_upper, to_upper)
+        if rate is not None:
+            return rate, True
+    except Exception:
+        # If database lookup fails, fall back to hardcoded rates
+        pass
+    
+    # Fallback to hardcoded rates (all relative to GMD)
+    from_rate = CURRENCY_RATES.get(from_upper, None)
+    to_rate = CURRENCY_RATES.get(to_upper, None)
+    
+    # If converting from GMD to another currency
+    if from_upper == "GMD" and to_rate is not None:
+        return Decimal(str(to_rate)), False
+    # If converting to GMD from another currency
+    elif to_upper == "GMD" and from_rate is not None and from_rate != 0:
+        return Decimal('1.0') / Decimal(str(from_rate)), False
+    # If both currencies have rates relative to GMD, calculate cross rate
+    elif from_rate is not None and to_rate is not None and from_rate != 0:
+        # 1 from_currency = (to_rate / from_rate) to_currency
+        return Decimal(str(to_rate)) / Decimal(str(from_rate)), False
+    
+    # No rate found, return 1.0 (no conversion)
+    return Decimal('1.0'), False
+
+
 def convert_price(amount, from_currency="GMD", to_currency="GMD"):
     """
     Convert price from one currency to another.
@@ -574,6 +620,8 @@ def convert_price(amount, from_currency="GMD", to_currency="GMD"):
     
     All prices are stored in GMD (base currency).
     Rates represent: 1 GMD = X units of target currency
+    
+    This function now uses database rates with fallback to hardcoded rates.
     
     Args:
         amount: The price amount to convert (can be string with symbol or numeric)
@@ -597,30 +645,20 @@ def convert_price(amount, from_currency="GMD", to_currency="GMD"):
         from_currency = detected_currency
     
     # If currencies are the same, return the numeric value (no conversion needed)
-    if from_currency == to_currency:
+    if from_currency.upper() == to_currency.upper():
         return round(float(numeric_amount), 2)
     
-    # Get rates (default to 1.0 if currency not found)
-    from_rate = CURRENCY_RATES.get(from_currency, 1.0)
-    to_rate = CURRENCY_RATES.get(to_currency, 1.0)
+    # Get rate from database or fallback
+    conversion_rate, _ = get_rate_from_db_or_fallback(from_currency, to_currency)
     
     # Use Decimal for precise calculations
     amount_decimal = Decimal(str(numeric_amount))
-    from_rate_decimal = Decimal(str(from_rate))
-    to_rate_decimal = Decimal(str(to_rate))
     
-    # Conversion logic:
-    # Since all rates are relative to GMD (1 GMD = X units of target currency):
-    # 1. Convert from source currency to GMD: amount_in_gmd = amount / from_rate
-    # 2. Convert from GMD to target currency: converted = amount_in_gmd * to_rate
-    # Simplified: converted = amount * (to_rate / from_rate)
-    
-    if from_rate == 0:
+    # Convert using the rate
+    if conversion_rate == 0:
         return round(float(numeric_amount), 2)
     
-    # Convert to base currency (GMD) first, then to target currency
-    amount_in_gmd = amount_decimal / from_rate_decimal
-    converted_amount = amount_in_gmd * to_rate_decimal
+    converted_amount = amount_decimal * conversion_rate
     
     # Round to 2 decimal places
     result = float(converted_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))

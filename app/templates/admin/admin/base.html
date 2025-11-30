@@ -203,6 +203,10 @@
                             <i class="fas fa-globe mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
                             Country Settings
                         </a>
+                        <a href="{{ url_for('admin_currencies') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint and 'admin_currencies' in request.endpoint or 'admin_currency_rate' in request.endpoint else '' }}">
+                            <i class="fas fa-exchange-alt mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Currency Rates
+                        </a>
                         <a href="{{ url_for('admin_shipping_rules') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint and 'admin_shipping' in request.endpoint else '' }}">
                             <i class="fas fa-shipping-fast mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
                             Shipping Rules
@@ -306,6 +310,10 @@
                     <a href="{{ url_for('admin_countries') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint and 'admin_countries' in request.endpoint %}bg-gray-100 dark:bg-gray-700{% endif %}">
                         <i class="fas fa-globe mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
                         Country Settings
+                    </a>
+                    <a href="{{ url_for('admin_currencies') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint and 'admin_currencies' in request.endpoint or 'admin_currency_rate' in request.endpoint %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-exchange-alt mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Currency Rates
                     </a>
                     <a href="{{ url_for('admin_shipping_rules') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint and 'admin_shipping' in request.endpoint %}bg-gray-100 dark:bg-gray-700{% endif %}">
                         <i class="fas fa-shipping-fast mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>

@@ -5,9 +5,11 @@ from app.models.forum import (
     ForumComment, ForumReaction, ForumBan
 )
 from app.models.country import Country
+from app.models.currency_rate import CurrencyRate
 
 __all__ = [
     'ForumPost', 'ForumFile', 'ForumLink',
     'ForumComment', 'ForumReaction', 'ForumBan',
-    'Country'
+    'Country',
+    'CurrencyRate'
 ]

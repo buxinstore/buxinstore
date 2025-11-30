@@ -1,0 +1,221 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}{{ 'Edit Currency Rate' if currency_rate else 'Add Currency Rate' }}{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <div class="mb-4">
+        <a href="{{ url_for('admin_currencies') }}" 
+           class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+            <i class="fas fa-arrow-left mr-2"></i> Back to Currency Rates
+        </a>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 shadow rounded-md p-6">
+        <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
+            {{ 'Edit Currency Rate' if currency_rate else 'Add New Currency Rate' }}
+        </h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4 space-y-2">
+                    {% for category, message in messages %}
+                        <div class="px-4 py-3 rounded-lg text-sm {% if category == 'success' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40{% else %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="from_currency" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        From Currency <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                           id="from_currency" 
+                           name="from_currency" 
+                           value="{{ currency_rate.from_currency if currency_rate else '' }}" 
+                           required
+                           maxlength="10"
+                           placeholder="e.g., GMD, USD, EUR"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white uppercase"
+                           style="text-transform: uppercase;">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Source currency code (e.g., GMD)</p>
+                </div>
+
+                <div>
+                    <label for="to_currency" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        To Currency <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                           id="to_currency" 
+                           name="to_currency" 
+                           value="{{ currency_rate.to_currency if currency_rate else '' }}" 
+                           required
+                           maxlength="10"
+                           placeholder="e.g., XOF, USD, EUR"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white uppercase"
+                           style="text-transform: uppercase;">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Target currency code (e.g., XOF)</p>
+                </div>
+
+                <div>
+                    <label for="rate" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Conversion Rate <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" 
+                           id="rate" 
+                           name="rate" 
+                           value="{{ "%.6f"|format(currency_rate.rate) if currency_rate and currency_rate.rate else '' }}" 
+                           required
+                           step="0.000001"
+                           min="0.000001"
+                           placeholder="e.g., 7.75"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Rate: 1 <span id="from_display">{{ currency_rate.from_currency if currency_rate else 'FROM' }}</span> = 
+                        <span id="rate_display">{{ "%.6f"|format(currency_rate.rate) if currency_rate and currency_rate.rate else 'RATE' }}</span> 
+                        <span id="to_display">{{ currency_rate.to_currency if currency_rate else 'TO' }}</span>
+                    </p>
+                    <p class="mt-1 text-xs text-yellow-600 dark:text-yellow-400">
+                        <i class="fas fa-info-circle mr-1"></i> Example: If 1 GMD = 7.75 XOF, enter 7.75
+                    </p>
+                </div>
+
+                <div>
+                    <label for="api_provider" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        API Provider
+                    </label>
+                    <select id="api_provider" 
+                            name="api_provider"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                        <option value="">None (Manual Entry)</option>
+                        <option value="exchangerate" {% if currency_rate and currency_rate.api_provider == 'exchangerate' %}selected{% endif %}>ExchangeRate-API</option>
+                        <option value="currencyapi" {% if currency_rate and currency_rate.api_provider == 'currencyapi' %}selected{% endif %}>CurrencyAPI</option>
+                        <option value="openexchangerates" {% if currency_rate and currency_rate.api_provider == 'openexchangerates' %}selected{% endif %}>Open Exchange Rates</option>
+                        <option value="exchangeratesdata" {% if currency_rate and currency_rate.api_provider == 'exchangeratesdata' %}selected{% endif %}>ExchangeRatesData</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select API provider for automatic rate syncing</p>
+                </div>
+            </div>
+
+            <div>
+                <label for="notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Notes (Optional)
+                </label>
+                <textarea id="notes" 
+                          name="notes" 
+                          rows="3"
+                          placeholder="Optional notes about this conversion rate..."
+                          class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">{{ currency_rate.notes if currency_rate else '' }}</textarea>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional notes for your reference</p>
+            </div>
+
+            <div class="space-y-3">
+                <div class="flex items-center">
+                    <input type="checkbox" 
+                           id="is_active" 
+                           name="is_active" 
+                           {% if currency_rate and currency_rate.is_active or not currency_rate %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                    <label for="is_active" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                        Active (Rate will be used for conversions)
+                    </label>
+                </div>
+
+                <div class="flex items-center">
+                    <input type="checkbox" 
+                           id="api_sync_enabled" 
+                           name="api_sync_enabled" 
+                           {% if currency_rate and currency_rate.api_sync_enabled %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                    <label for="api_sync_enabled" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                        Enable Automatic API Syncing
+                    </label>
+                </div>
+                <p class="ml-6 text-xs text-gray-500 dark:text-gray-400">
+                    <i class="fas fa-info-circle mr-1"></i> When enabled, the rate will be automatically updated from the selected API provider
+                </p>
+            </div>
+
+            {% if currency_rate and currency_rate.last_updated %}
+            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-md p-4">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Rate Information</h3>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-500 dark:text-gray-400">Last Updated:</span>
+                        <span class="text-gray-900 dark:text-white ml-2">{{ currency_rate.last_updated.strftime('%Y-%m-%d %H:%M:%S') if currency_rate.last_updated else 'Never' }}</span>
+                    </div>
+                    {% if currency_rate.last_api_sync %}
+                    <div>
+                        <span class="text-gray-500 dark:text-gray-400">Last API Sync:</span>
+                        <span class="text-gray-900 dark:text-white ml-2">{{ currency_rate.last_api_sync.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                    </div>
+                    {% endif %}
+                    {% if currency_rate.api_sync_error %}
+                    <div class="col-span-2">
+                        <span class="text-red-600 dark:text-red-400">
+                            <i class="fas fa-exclamation-triangle mr-1"></i> Last API Error: {{ currency_rate.api_sync_error }}
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="{{ url_for('admin_currencies') }}" 
+                   class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <i class="fas fa-save mr-2"></i> {{ 'Update Rate' if currency_rate else 'Add Rate' }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Update rate display when inputs change
+document.addEventListener('DOMContentLoaded', function() {
+    const fromCurrency = document.getElementById('from_currency');
+    const toCurrency = document.getElementById('to_currency');
+    const rateInput = document.getElementById('rate');
+    const fromDisplay = document.getElementById('from_display');
+    const toDisplay = document.getElementById('to_display');
+    const rateDisplay = document.getElementById('rate_display');
+
+    function updateDisplay() {
+        if (fromCurrency.value) {
+            fromDisplay.textContent = fromCurrency.value.toUpperCase();
+        }
+        if (toCurrency.value) {
+            toDisplay.textContent = toCurrency.value.toUpperCase();
+        }
+        if (rateInput.value) {
+            rateDisplay.textContent = parseFloat(rateInput.value).toFixed(6);
+        }
+    }
+
+    fromCurrency.addEventListener('input', updateDisplay);
+    toCurrency.addEventListener('input', updateDisplay);
+    rateInput.addEventListener('input', updateDisplay);
+
+    // Auto-uppercase currency codes
+    fromCurrency.addEventListener('input', function(e) {
+        e.target.value = e.target.value.toUpperCase();
+    });
+    toCurrency.addEventListener('input', function(e) {
+        e.target.value = e.target.value.toUpperCase();
+    });
+});
+</script>
+{% endblock %}
+
