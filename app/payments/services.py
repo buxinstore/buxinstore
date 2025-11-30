@@ -428,7 +428,7 @@ class PaymentService:
             
             return format_payment_response(
                 success=True,
-                message='ModemPay payment initiated successfully',
+                message='Payment link created',
                 data={
                     'payment_id': payment.id,
                     'reference': reference,

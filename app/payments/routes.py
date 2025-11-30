@@ -552,14 +552,16 @@ def modempay_pay():
                 customer_email=(current_user.email if hasattr(current_user, 'email') else None)
             )
         
-        # Normalize response to match required schema
+        # Extract payment_url directly from result (format_payment_response merges data into top level)
         success = bool(result.get('success'))
-        data_dict = result.get('data', {})
-        payment_url = data_dict.get('payment_url')
+        payment_url = result.get('payment_url')  # Read directly from result, not from result['data']
         
         if success and payment_url:
+            # Return JSON with payment_url for frontend to redirect
             return jsonify({'success': True, 'payment_url': payment_url}), 200
-        current_app.logger.error(f"ModemPay returned success={success} but payment_url={payment_url}")
+        
+        # Log error if payment_url is missing
+        current_app.logger.error(f"ModemPay returned success={success} but payment_url={payment_url}. Full result: {result}")
         return jsonify({'success': False, 'message': result.get('message', 'Payment initiation failed')}), 500
         
     except PaymentValidationException as e:

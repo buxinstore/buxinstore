@@ -3974,12 +3974,13 @@ def checkout():
             )
 
             if payment_result.get('success'):
-                payment_url = payment_result.get('data', {}).get('payment_url')
+                # Read payment_url directly from result (format_payment_response merges data into top level)
+                payment_url = payment_result.get('payment_url')
                 if payment_url:
                     # DON'T clear cart yet - wait for payment confirmation
                     # Cart will be cleared when payment is confirmed and Order is created
                     
-                    # Redirect user to the payment gateway
+                    # Redirect user to the payment gateway immediately
                     return redirect(payment_url)
             
             # If payment initiation fails, mark pending payment as failed
