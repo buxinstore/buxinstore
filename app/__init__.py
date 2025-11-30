@@ -772,12 +772,26 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 @app.errorhandler(CSRFError)
 def csrf_error(e):
     """Handle CSRF errors and return JSON for API requests"""
-    if request.is_json or request.headers.get('Content-Type') == 'application/json' or \
-       request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
-       request.path.startswith('/admin/settings/'):
-        return jsonify({'success': False, 'message': 'CSRF token missing or invalid'}), 400
-    # For regular form submissions, raise the error normally
-    raise e
+    # Check if this is an AJAX/API request
+    is_ajax = (request.is_json or 
+               request.headers.get('Content-Type') == 'application/json' or 
+               request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+               request.path.startswith('/admin/'))
+    
+    if is_ajax:
+        error_msg = 'CSRF token has expired. Please refresh the page and try again.'
+        if 'expired' in str(e).lower():
+            error_msg = 'CSRF token has expired. Please refresh the page and try again.'
+        return jsonify({
+            'success': False, 
+            'message': error_msg,
+            'csrf_expired': True,
+            'redirect': request.referrer or url_for('admin_shipping')
+        }), 400
+    
+    # For regular form submissions, flash a message and redirect
+    flash('Your session has expired. Please refresh the page and try again.', 'error')
+    return redirect(request.referrer or url_for('home')), 400
 
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)

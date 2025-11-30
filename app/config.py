@@ -55,6 +55,11 @@ class Config:
 
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
     
+    # CSRF Protection Configuration
+    # Increase CSRF token expiration to 8 hours (28800 seconds) for admin pages
+    # Default is 3600 seconds (1 hour) which causes issues when admins keep pages open
+    WTF_CSRF_TIME_LIMIT = int(os.environ.get("WTF_CSRF_TIME_LIMIT", "28800"))  # 8 hours
+    
     # Babel Configuration
     BABEL_DEFAULT_LOCALE = 'en'
     BABEL_DEFAULT_TIMEZONE = 'UTC'
