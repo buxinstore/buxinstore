@@ -1699,13 +1699,11 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     Calculate shipping price based on total cart weight and country using shipping rules.
     
     Rule search order:
-    1. Find active country-specific rules for country_id where min_weight <= total_weight <= max_weight
-       Order by priority DESC, min_weight ASC. Use the first match.
-    2. If none found, find active global rules where min_weight <= total_weight <= max_weight
-       ordered by priority DESC, min_weight ASC.
-    3. If still none:
-       - Try nearest larger rule (same country first, then global): min_weight > total_weight (smallest min_weight)
-    4. If nothing found, return None (shipping unavailable)
+    1. Match the selected customer country first
+    2. Check weight range (min_weight <= weight <= max_weight)
+    3. Apply price FROM the matching rule
+    4. If no country match exists, fallback to 'Global' rules
+    5. If still no match, fallback to default = 0 (return None)
     
     Args:
         total_weight_kg: Total weight of cart in kilograms
@@ -1713,8 +1711,8 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         default_weight: Default weight to use if total_weight_kg is 0 or None
     
     Returns:
-        Dict with keys: 'rule', 'price_gmd', 'delivery_time', 'available'
-        or None if shipping unavailable
+        Dict with keys: 'rule', 'price_gmd', 'delivery_time', 'rule_name', 'available'
+        or None if shipping unavailable (should default to 0)
     """
     if total_weight_kg is None or total_weight_kg <= 0:
         total_weight_kg = default_weight
@@ -1729,9 +1727,10 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         except (ValueError, TypeError):
             country_id = None
     
-    # Step 1: Try country-specific rules with exact match
+    # Step 1: Try country-specific rules FIRST with weight range check
     if country_id:
-        country_rules = ShippingRule.query.filter(
+        # Query for country-specific rules that match the weight range
+        country_rule = ShippingRule.query.filter(
             ShippingRule.rule_type == 'country',
             ShippingRule.country_id == country_id,
             ShippingRule.status == True,
@@ -1742,16 +1741,30 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
             ShippingRule.min_weight.asc()
         ).first()
         
-        if country_rules:
+        if country_rule:
+            # Build rule name for debugging (e.g., "Ghana - 0.1-5.0kg")
+            country_name = country_rule.country.name if country_rule.country else 'Unknown Country'
+            rule_name = f"{country_name} ({float(country_rule.min_weight)}-{float(country_rule.max_weight)}kg)"
+            
+            current_app.logger.debug(
+                f"Shipping match found: Country={country_name}, "
+                f"Country ID={country_id}, Weight={float(weight)}kg, "
+                f"Price={float(country_rule.price_gmd)}GMD, Rule={rule_name}"
+            )
+            
             return {
-                'rule': country_rules,
-                'price_gmd': float(country_rules.price_gmd),
-                'delivery_time': country_rules.delivery_time,
+                'rule': country_rule,
+                'price_gmd': float(country_rule.price_gmd),
+                'delivery_time': country_rule.delivery_time,
+                'rule_name': rule_name,
+                'rule_type': 'country',
+                'country_id': country_id,
+                'country_name': country_name,
                 'available': True
             }
     
-    # Step 2: Try global rules with exact match
-    global_rules = ShippingRule.query.filter(
+    # Step 2: If no country match exists, fallback to 'Global' rules
+    global_rule = ShippingRule.query.filter(
         ShippingRule.rule_type == 'global',
         ShippingRule.status == True,
         ShippingRule.min_weight <= weight,
@@ -1761,16 +1774,29 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         ShippingRule.min_weight.asc()
     ).first()
     
-    if global_rules:
+    if global_rule:
+        rule_name = f"Global ({float(global_rule.min_weight)}-{float(global_rule.max_weight)}kg)"
+        
+        current_app.logger.debug(
+            f"Shipping match found: Global rule, "
+            f"Weight={float(weight)}kg, "
+            f"Price={float(global_rule.price_gmd)}GMD, Rule={rule_name}"
+        )
+        
         return {
-            'rule': global_rules,
-            'price_gmd': float(global_rules.price_gmd),
-            'delivery_time': global_rules.delivery_time,
+            'rule': global_rule,
+            'price_gmd': float(global_rule.price_gmd),
+            'delivery_time': global_rule.delivery_time,
+            'rule_name': rule_name,
+            'rule_type': 'global',
+            'country_id': None,
+            'country_name': None,
             'available': True
         }
     
-    # Step 3: Try nearest larger rule (country first, then global)
+    # Step 3: Try nearest larger rule (country first, then global) - for edge cases
     nearest_rule = None
+    rule_type_used = None
     
     if country_id:
         # Try country-specific larger rule
@@ -1785,6 +1811,7 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         
         if country_larger:
             nearest_rule = country_larger
+            rule_type_used = 'country'
     
     # If no country rule found, try global larger rule
     if not nearest_rule:
@@ -1798,16 +1825,35 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         
         if global_larger:
             nearest_rule = global_larger
+            rule_type_used = 'global'
     
     if nearest_rule:
+        country_name = nearest_rule.country.name if nearest_rule.country and rule_type_used == 'country' else 'Global'
+        rule_name = f"{country_name} (nearest: {float(nearest_rule.min_weight)}-{float(nearest_rule.max_weight)}kg)"
+        
+        current_app.logger.debug(
+            f"Shipping match found: Nearest rule, "
+            f"Type={rule_type_used}, Weight={float(weight)}kg, "
+            f"Price={float(nearest_rule.price_gmd)}GMD, Rule={rule_name}"
+        )
+        
         return {
             'rule': nearest_rule,
             'price_gmd': float(nearest_rule.price_gmd),
             'delivery_time': nearest_rule.delivery_time,
+            'rule_name': rule_name,
+            'rule_type': rule_type_used,
+            'country_id': country_id if rule_type_used == 'country' else None,
+            'country_name': country_name if rule_type_used == 'country' else None,
             'available': True
         }
     
-    # Step 4: No rule found - shipping unavailable
+    # Step 4: If still no match, return None (should default to 0)
+    current_app.logger.warning(
+        f"No shipping rule found: Country ID={country_id}, Weight={float(weight)}kg. "
+        f"Returning None (will default to 0)"
+    )
+    
     return None
 
 def calculate_cart_total_weight(cart_items: List[Dict[str, any]], default_weight: float = 0.0) -> float:
@@ -2518,6 +2564,10 @@ def api_shipping_estimate():
                 'available': True,
                 'price_gmd': result['price_gmd'],
                 'delivery_time': result['delivery_time'],
+                'rule_name': result.get('rule_name', 'Unknown rule'),
+                'rule_type': result.get('rule_type', 'unknown'),
+                'country_id': result.get('country_id'),
+                'country_name': result.get('country_name'),
                 'rule': result['rule'].to_dict()
             })
         else:
@@ -2796,34 +2846,25 @@ def calculate_cart_totals(cart_items):
     
     total_shipping_gmd = Decimal('0.00')
     shipping_delivery_time = None
+    shipping_rule_name = None
     
     if shipping_result and shipping_result.get('available'):
         total_shipping_gmd = Decimal(str(shipping_result['price_gmd']))
         shipping_delivery_time = shipping_result['delivery_time']
-    else:
-        # Fallback: calculate per-item shipping using old system (for backward compatibility)
-        for item in cart_items:
-            product_id = item.get('id')
-            quantity = Decimal(str(item['quantity']))
-            if product_id:
-                product = Product.query.get(product_id)
-                if product:
-                    shipping_per_unit_base = Decimal(str(calculate_delivery_price(float(product.price), product_id)))
-                    shipping_per_unit = Decimal(str(convert_price(float(shipping_per_unit_base), 'GMD', to_currency)))
-                    item_shipping = (shipping_per_unit * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                    total_shipping_gmd += item_shipping
-                    item['shipping_per_unit'] = float(shipping_per_unit)
-                    item['shipping'] = float(item_shipping)
+        shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
         
-        # If still no shipping found, try to get any global rule as last resort
-        if total_shipping_gmd == Decimal('0.00'):
-            global_rule = ShippingRule.query.filter(
-                ShippingRule.rule_type == 'global',
-                ShippingRule.status == True
-            ).order_by(ShippingRule.priority.desc()).first()
-            if global_rule:
-                total_shipping_gmd = Decimal(str(global_rule.price_gmd))
-                shipping_delivery_time = global_rule.delivery_time
+        current_app.logger.debug(
+            f"Cart shipping calculated: Rule={shipping_rule_name}, "
+            f"Country ID={country_id}, Weight={float(total_weight)}kg, "
+            f"Shipping={float(total_shipping_gmd)}GMD"
+        )
+    else:
+        # If no rule found, default to 0 (as requested)
+        current_app.logger.debug(
+            f"No shipping rule found for cart: "
+            f"Country ID={country_id}, Weight={float(total_weight)}kg. "
+            f"Shipping fee defaulted to 0"
+        )
     
     # Convert shipping to display currency if needed
     if country and country.currency != 'GMD':
@@ -3531,19 +3572,31 @@ def checkout():
                         country_id = country.id
                         total_weight = calculate_cart_total_weight(cart_items, default_weight=0.0)
                         shipping_result = calculate_shipping_price(total_weight, country_id, default_weight=0.0)
+                        
+                        # Default to 0 if no rule found (as requested)
+                        shipping_price_gmd = 0.0
+                        shipping_price_display = 0.0
+                        delivery_time = None
+                        rule_name = None
+                        
                         if shipping_result and shipping_result.get('available'):
                             from .utils.currency_rates import convert_price
                             shipping_price_gmd = shipping_result['price_gmd']
+                            rule_name = shipping_result.get('rule_name', 'Unknown rule')
+                            delivery_time = shipping_result['delivery_time']
+                            
                             if country.currency != 'GMD':
                                 shipping_price_display = convert_price(shipping_price_gmd, 'GMD', country.currency)
                             else:
                                 shipping_price_display = shipping_price_gmd
-                            shipping_info = {
-                                'price_gmd': shipping_price_gmd,
-                                'price_display': shipping_price_display,
-                                'delivery_time': shipping_result['delivery_time'],
-                                'rule': shipping_result['rule']
-                            }
+                        
+                        shipping_info = {
+                            'price_gmd': shipping_price_gmd,
+                            'price_display': shipping_price_display,
+                            'delivery_time': delivery_time,
+                            'rule_name': rule_name,
+                            'rule': shipping_result['rule'] if shipping_result and shipping_result.get('available') else None
+                        }
                 except Exception as e:
                     app.logger.warning(f'Error calculating shipping for display: {str(e)}')
                     # Continue without shipping info - it will be calculated on POST
@@ -3627,10 +3680,27 @@ def checkout():
                 shipping_rule_id = shipping_result['rule'].id
                 shipping_delivery_estimate = shipping_result['delivery_time']
                 shipping_display_currency = country.currency if country else 'GMD'
+                shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
+                
+                app.logger.debug(
+                    f"Checkout shipping calculated: Rule={shipping_rule_name}, "
+                    f"Country ID={country_id}, Weight={total_weight}kg, "
+                    f"Shipping={float(shipping_price_gmd)}GMD"
+                )
             else:
-                # Shipping unavailable - show error or use fallback
-                flash('Shipping is not available for your selected country and cart weight. Please contact support.', 'error')
-                return redirect(url_for('checkout'))
+                # Shipping unavailable - default to 0 instead of showing error
+                shipping_price_gmd = Decimal('0.00')
+                shipping_rule_id = None
+                shipping_delivery_estimate = None
+                shipping_display_currency = country.currency if country else 'GMD'
+                
+                app.logger.warning(
+                    f"No shipping rule found for checkout: "
+                    f"Country ID={country_id}, Weight={total_weight}kg. "
+                    f"Shipping fee defaulted to 0"
+                )
+                # Don't block checkout if shipping is unavailable - just default to 0
+                # flash('Shipping is not available for your selected country and cart weight. Shipping fee set to 0.', 'warning')
             
             # Convert shipping price to display currency if needed
             from .utils.currency_rates import convert_price, get_currency_symbol
@@ -10996,28 +11066,25 @@ def product(product_id):
     
     shipping_fee = 0.0
     shipping_delivery_time = None
+    shipping_rule_name = None
     
     if shipping_result and shipping_result.get('available'):
         shipping_fee = shipping_result['price_gmd']
         shipping_delivery_time = shipping_result['delivery_time']
+        shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
         
         # Convert to display currency if needed
         if country and country.currency != 'GMD':
             from .utils.currency_rates import convert_price
             shipping_fee = convert_price(shipping_fee, 'GMD', country.currency)
     else:
-        # Fallback to old system if no rule found (for backward compatibility)
-        # This ensures shipping is never 0 unless explicitly set
-        shipping_fee = calculate_delivery_price(product.price, product_id=product.id)
-        if shipping_fee == 0.0:
-            # If old system also returns 0, try to get any global rule as last resort
-            global_rule = ShippingRule.query.filter(
-                ShippingRule.rule_type == 'global',
-                ShippingRule.status == True
-            ).order_by(ShippingRule.priority.desc()).first()
-            if global_rule:
-                shipping_fee = float(global_rule.price_gmd)
-                shipping_delivery_time = global_rule.delivery_time
+        # If no rule found, default to 0 (as requested)
+        # Log for debugging
+        current_app.logger.debug(
+            f"No shipping rule found for product {product_id}: "
+            f"Country ID={country_id}, Weight={product_weight}kg. "
+            f"Shipping fee defaulted to 0"
+        )
     
     final_price = product.price + shipping_fee
     
