@@ -11074,6 +11074,7 @@ def china_products_upload():
             'category': 'category',
             'weight (kg)': 'weight_kg',
             'price': 'price',
+            'price (usd)': 'price',  # Accept both "Price" and "Price (USD)"
             'stock': 'stock',
             'description': 'description',
             'image url': 'image_url',
@@ -11121,7 +11122,39 @@ def china_products_upload():
                     db.session.flush()  # Get category ID
                 
                 # Get optional fields with defaults
-                price = float(row.get('price', 0)) if pd.notna(row.get('price')) else 0.0
+                # Handle price - check both 'price' and 'price (usd)' columns
+                price_raw = row.get('price (usd)') if pd.notna(row.get('price (usd)')) else row.get('price')
+                price = 0.0
+                if pd.notna(price_raw):
+                    try:
+                        # Convert to string first to check for GMD-like characters
+                        price_str = str(price_raw).strip().upper()
+                        # Check for GMD indicators (GMD, Dalasi, or D at start/end)
+                        # Check for 'D' only if it's at the start/end or part of GMD/DALASI
+                        gmd_indicators = ['GMD', 'DALASI', 'DALASIS']
+                        has_gmd = any(indicator in price_str for indicator in gmd_indicators)
+                        # Check for 'D' at start or end (like "D100" or "100D")
+                        if not has_gmd and ('D' in price_str):
+                            # Only flag if D is at start/end or followed/preceded by space
+                            if price_str.startswith('D') or price_str.endswith('D') or ' D' in price_str or 'D ' in price_str:
+                                has_gmd = True
+                        
+                        if has_gmd:
+                            error_count += 1
+                            errors.append(f"Row {idx + 2}: Price must be in USD only. Found GMD indicator. Please enter USD amount only.")
+                            continue
+                        # Remove common currency symbols and parse
+                        price_str_clean = price_str.replace('$', '').replace('USD', '').replace('US', '').strip()
+                        price = float(price_str_clean)
+                        if price <= 0:
+                            error_count += 1
+                            errors.append(f"Row {idx + 2}: Price must be greater than 0")
+                            continue
+                    except (ValueError, TypeError):
+                        error_count += 1
+                        errors.append(f"Row {idx + 2}: Invalid price value. Must be numeric USD amount")
+                        continue
+                
                 stock = int(row.get('stock', 0)) if pd.notna(row.get('stock')) else 0
                 description = str(row.get('description', '')).strip() if pd.notna(row.get('description')) else ''
                 image_url = str(row.get('image url', '')).strip() if pd.notna(row.get('image url')) else None
@@ -11140,10 +11173,12 @@ def china_products_upload():
                             current_app.logger.info(f"✅ Uploaded image {image_filename} to Cloudinary")
                 
                 # Create product
+                # NOTE: Price is stored in USD (not converted to GMD)
+                # Admin will convert USD → GMD later using exchange rate × 2
                 product = Product(
                     name=name,
                     description=description or 'No description provided',
-                    price=price,
+                    price=price,  # Stored as USD - admin will convert to GMD later
                     stock=stock,
                     category_id=category.id,
                     weight_kg=weight_kg,
@@ -11199,7 +11234,7 @@ def china_products_template():
             'Product Name': ['Example Product 1', 'Example Product 2'],
             'Category': ['Electronics', 'Clothing'],
             'Weight (kg)': [0.5, 0.2],
-            'Price': [100.00, 50.00],
+            'Price (USD)': [100.00, 50.00],
             'Stock': [10, 20],
             'Description': ['Product description here', 'Another product description'],
             'Image URL': ['https://example.com/image1.jpg', ''],
