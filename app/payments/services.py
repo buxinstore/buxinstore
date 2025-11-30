@@ -642,13 +642,19 @@ class PaymentService:
                 if payment.pending_payment_id:
                     try:
                         result = PaymentService.convert_pending_payment_to_order(payment.pending_payment_id)
+                        order_id = result.get('order_id')
                         current_app.logger.info(
-                            f"✅ Webhook: Converted PendingPayment {payment.pending_payment_id} to Order {result.get('order_id')}"
+                            f"✅ Webhook: Converted PendingPayment {payment.pending_payment_id} to Order {order_id}"
                         )
-                        # Payment.order_id will be set by convert_pending_payment_to_order
+                        # Refresh payment to get updated order_id
+                        db.session.refresh(payment)
+                        # Update order status to 'paid' if it exists
+                        if payment.order:
+                            payment.order.status = 'paid'
                     except Exception as e:
                         current_app.logger.error(
-                            f"❌ Webhook: Failed to convert PendingPayment {payment.pending_payment_id} to Order: {str(e)}"
+                            f"❌ Webhook: Failed to convert PendingPayment {payment.pending_payment_id} to Order: {str(e)}",
+                            exc_info=True
                         )
                 # Update order status if order exists (legacy flow)
                 elif payment.order:

@@ -306,8 +306,25 @@ def payment_success():
             if payment and payment.status != 'completed':
                 payment.status = 'completed'
                 payment.paid_at = datetime.utcnow()
+                
+                # If payment is linked to a PendingPayment, convert it to Order
+                if payment.pending_payment_id and not payment.order_id:
+                    try:
+                        result = PaymentService.convert_pending_payment_to_order(payment.pending_payment_id)
+                        current_app.logger.info(
+                            f"✅ Payment Success Callback: Converted PendingPayment {payment.pending_payment_id} to Order {result.get('order_id')}"
+                        )
+                        # Refresh payment to get updated order_id
+                        db.session.refresh(payment)
+                    except Exception as e:
+                        current_app.logger.error(
+                            f"❌ Payment Success Callback: Failed to convert PendingPayment {payment.pending_payment_id} to Order: {str(e)}"
+                        )
+                
+                # Update order status if order exists
                 if payment.order:
                     payment.order.status = 'paid'
+                
                 db.session.commit()
                 # Send receipt email (best effort, via Resend email queue)
                 try:

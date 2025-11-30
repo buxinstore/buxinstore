@@ -6361,8 +6361,11 @@ def admin_profit_report():
         start_date = None
         end_date = None
     
-    # Build query for orders
-    query = Order.query.filter(Order.status != 'cancelled')
+    # Build query for orders - only show paid orders (exclude cancelled and pending)
+    query = Order.query.filter(
+        Order.status.in_(['paid', 'completed']),
+        Order.status != 'cancelled'
+    )
     
     if start_date:
         query = query.filter(Order.created_at >= start_date)
@@ -6402,6 +6405,7 @@ def admin_profit_report():
     year_start = today.replace(month=1, day=1)
     
     today_orders = Order.query.filter(
+        Order.status.in_(['paid', 'completed']),
         Order.status != 'cancelled',
         db.func.date(Order.created_at) == today
     ).all()
@@ -6409,6 +6413,7 @@ def admin_profit_report():
     today_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in today_orders)
     
     week_orders = Order.query.filter(
+        Order.status.in_(['paid', 'completed']),
         Order.status != 'cancelled',
         db.func.date(Order.created_at) >= week_start
     ).all()
@@ -6416,6 +6421,7 @@ def admin_profit_report():
     week_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in week_orders)
     
     month_orders = Order.query.filter(
+        Order.status.in_(['paid', 'completed']),
         Order.status != 'cancelled',
         db.func.date(Order.created_at) >= month_start
     ).all()
@@ -6423,13 +6429,17 @@ def admin_profit_report():
     month_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in month_orders)
     
     year_orders = Order.query.filter(
+        Order.status.in_(['paid', 'completed']),
         Order.status != 'cancelled',
         db.func.date(Order.created_at) >= year_start
     ).all()
     year_profit = sum(order.total_profit_gmd or 0.0 for order in year_orders)
     year_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in year_orders)
     
-    all_time_orders = Order.query.filter(Order.status != 'cancelled').all()
+    all_time_orders = Order.query.filter(
+        Order.status.in_(['paid', 'completed']),
+        Order.status != 'cancelled'
+    ).all()
     all_time_profit = sum(order.total_profit_gmd or 0.0 for order in all_time_orders)
     all_time_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in all_time_orders)
     
@@ -9564,10 +9574,11 @@ def admin_sales_dashboard():
     category_id = request.args.get('category_id', type=int)
     date_filter = request.args.get('date_filter', 'all')  # '7days', 'month', 'year', 'all'
     
-    # Base query filter - only delivered orders (use shipping_status, exclude cancelled)
+    # Base query filter - only paid orders (exclude cancelled and pending)
+    # Changed from 'delivered' to 'paid' to show all paid orders, not just delivered ones
     base_filter = db.and_(
-        Order.shipping_status == 'delivered',
-        Order.status != 'Cancelled'
+        Order.status.in_(['paid', 'completed']),
+        Order.status != 'cancelled'
     )
     
     # Category filter if specified
