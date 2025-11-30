@@ -1880,13 +1880,14 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
 def calculate_cart_total_weight(cart_items: List[Dict[str, any]], default_weight: float = 0.0) -> float:
     """
     Calculate total weight of cart items.
+    Products MUST have weight set - no default fallback.
     
     Args:
         cart_items: List of cart items with product info
-        default_weight: Default weight to use if product weight is missing
+        default_weight: Not used - kept for compatibility but products must have weight
     
     Returns:
-        Total weight in kilograms
+        Total weight in kilograms (0.0 if products missing weight)
     """
     total_weight = Decimal('0.0')
     
@@ -1896,12 +1897,16 @@ def calculate_cart_total_weight(cart_items: List[Dict[str, any]], default_weight
         
         if product_id:
             product = Product.query.get(product_id)
-            if product and product.weight_kg:
+            if product and product.weight_kg and product.weight_kg > 0:
                 weight = Decimal(str(product.weight_kg)) * quantity
                 total_weight += weight
             else:
-                # Use default weight if product weight is missing
-                total_weight += Decimal(str(default_weight)) * quantity
+                # Product missing weight - log error but don't add weight
+                current_app.logger.error(
+                    f"Product {product_id} ({product.name if product else 'Unknown'}) has no valid weight. "
+                    f"Skipping weight for this item. Please set weight in admin."
+                )
+                # Don't add weight - product must have weight set
     
     return float(total_weight)
 
@@ -2831,20 +2836,24 @@ def calculate_cart_totals(cart_items):
         item_subtotal = Decimal(str(converted_price * Decimal(str(item['quantity']))))
         subtotal += item_subtotal
         
-        # Calculate weight for this item
+        # Calculate weight for this item - REQUIRED (no default fallback)
         product_id = item.get('id')
         if product_id:
             product = Product.query.get(product_id)
-            if product and product.weight_kg:
+            if product and product.weight_kg and product.weight_kg > 0:
                 item_weight = Decimal(str(product.weight_kg)) * Decimal(str(item['quantity']))
                 total_weight += item_weight
             else:
-                # Default weight if not set
-                total_weight += Decimal('0.1') * Decimal(str(item['quantity']))
+                # Product missing weight - log error but continue with 0 weight
+                current_app.logger.error(
+                    f"Product {product_id} ({product.name if product else 'Unknown'}) has no valid weight. "
+                    f"Skipping weight for this item. Please set weight in admin."
+                )
+                # Don't add weight - product must have weight set
     
     # Calculate shipping using shipping rules system (based on total cart weight)
     # Always try to calculate shipping, even if no country is selected (will use global rules)
-    shipping_result = calculate_shipping_price(float(total_weight), country_id, default_weight=0.1)
+    shipping_result = calculate_shipping_price(float(total_weight), country_id, default_weight=0.0)
     
     total_shipping_gmd = Decimal('0.00')
     shipping_delivery_time = None
@@ -2854,6 +2863,35 @@ def calculate_cart_totals(cart_items):
         total_shipping_gmd = Decimal(str(shipping_result['price_gmd']))
         shipping_delivery_time = shipping_result['delivery_time']
         shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
+        shipping_debug_info = shipping_result.get('debug_info', {})
+        
+        # Admin debug output (temporary)
+        if current_user.is_authenticated and (current_user.is_admin or current_user.role == 'admin'):
+            # Calculate item details for debug
+            item_details = []
+            for item in cart_items:
+                product_id = item.get('id')
+                if product_id:
+                    product = Product.query.get(product_id)
+                    if product:
+                        item_weight = float(product.weight_kg) if product.weight_kg else 0.0
+                        item_details.append({
+                            'product_id': product_id,
+                            'product_name': product.name,
+                            'weight_kg': item_weight,
+                            'quantity': item['quantity'],
+                            'total_weight': item_weight * item['quantity']
+                        })
+            
+            current_app.logger.info(
+                f"🔍 ADMIN DEBUG - Cart Shipping: "
+                f"Total Weight={float(total_weight)}kg, "
+                f"Country={country.name if country else 'None'}, "
+                f"Rule ID={shipping_debug_info.get('applied_rule_id')}, "
+                f"Shipping Fee={float(total_shipping_gmd)}GMD, "
+                f"Items={item_details}, "
+                f"Debug Info={shipping_debug_info}"
+            )
         
         current_app.logger.debug(
             f"Cart shipping calculated: Rule={shipping_rule_name}, "
@@ -3461,6 +3499,10 @@ class ProductForm(FlaskForm):
     price = FloatField('Price', validators=[DataRequired(), NumberRange(min=0.01)])
     stock = IntegerField('Stock', validators=[DataRequired(), NumberRange(min=0)])
     category_id = SelectField('Category', coerce=int, validators=[DataRequired()], choices=[])
+    weight_kg = FloatField('Weight (kg)', validators=[
+        DataRequired(message='Weight is required'),
+        NumberRange(min=0.00001, max=500, message='Weight must be between 0.00001 and 500 kg')
+    ])
     image = FileField('Product Image', validators=[
         FileAllowed(['jpg', 'jpeg', 'png'], 'Images only!')
     ])
@@ -3647,6 +3689,35 @@ def checkout():
                 shipping_delivery_estimate = shipping_result['delivery_time']
                 shipping_display_currency = country.currency if country else 'GMD'
                 shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
+                shipping_debug_info = shipping_result.get('debug_info', {})
+                
+                # Admin debug output (temporary)
+                if current_user.is_authenticated and (current_user.is_admin or current_user.role == 'admin'):
+                    # Calculate item details for debug
+                    item_details = []
+                    for item in cart_items:
+                        product_id = item.get('id')
+                        if product_id:
+                            product = Product.query.get(product_id)
+                            if product:
+                                item_weight = float(product.weight_kg) if product.weight_kg else 0.0
+                                item_details.append({
+                                    'product_id': product_id,
+                                    'product_name': product.name,
+                                    'weight_kg': item_weight,
+                                    'quantity': item['quantity'],
+                                    'total_weight': item_weight * item['quantity']
+                                })
+                    
+                    app.logger.info(
+                        f"🔍 ADMIN DEBUG - Checkout Shipping: "
+                        f"Total Weight={total_weight}kg, "
+                        f"Country={country.name if country else 'None'}, "
+                        f"Rule ID={shipping_debug_info.get('applied_rule_id')}, "
+                        f"Shipping Fee={float(shipping_price_gmd)}GMD, "
+                        f"Items={item_details}, "
+                        f"Debug Info={shipping_debug_info}"
+                    )
                 
                 app.logger.debug(
                     f"Checkout shipping calculated: Rule={shipping_rule_name}, "
@@ -7338,12 +7409,19 @@ def admin_add_product():
         delivery_price = form.delivery_price.data if form.delivery_price.data else 0.0
         shipping_price = form.shipping_price.data if form.shipping_price.data else 0.0
         
+        # Weight (kg) is REQUIRED - form validation ensures it's present and valid
+        weight_kg = form.weight_kg.data
+        if weight_kg is None or weight_kg < 0.00001 or weight_kg > 500:
+            flash('Weight must be between 0.00001 and 500 kg', 'error')
+            return redirect(url_for('admin_add_product'))
+        
         product = Product(
             name=form.name.data,
             description=form.description.data,
             price=form.price.data,
             stock=form.stock.data,
             category_id=form.category_id.data,
+            weight_kg=weight_kg,  # REQUIRED
             image=image_filename,
             available_in_gambia=form.available_in_gambia.data or False,
             delivery_price=delivery_price,
@@ -7406,6 +7484,13 @@ def admin_edit_product(product_id):
         product.category_id = form.category_id.data
         product.available_in_gambia = form.available_in_gambia.data or False
         product.location = form.location.data
+        
+        # Weight (kg) is REQUIRED - form validation ensures it's present and valid
+        weight_kg = form.weight_kg.data
+        if weight_kg is None or weight_kg < 0.00001 or weight_kg > 500:
+            flash('Weight must be between 0.00001 and 500 kg', 'error')
+            return redirect(url_for('admin_edit_product', product_id=product_id))
+        product.weight_kg = weight_kg  # REQUIRED
         
         # Use delivery price and shipping price from form, default to 0.00 if not provided
         product.delivery_price = form.delivery_price.data if form.delivery_price.data else 0.0
@@ -7530,12 +7615,12 @@ def admin_bulk_upload():
             
             # Convert column names to lowercase and strip whitespace
             df.columns = df.columns.str.strip().str.lower()
-            required_columns = ['product name', 'category']
+            required_columns = ['product name', 'category', 'weight (kg)']
             
             # Validate required columns
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
-                flash(f'Missing required columns: {", ".join(missing_columns)}', 'error')
+                flash(f'Missing required columns: {", ".join(missing_columns)}. Weight (kg) is now required.', 'error')
                 return redirect(request.url)
             
             results = []
@@ -7584,6 +7669,29 @@ def admin_bulk_upload():
                         stock = int(row['stock quantity'])
                     
                     description = str(row.get('description', '')) if pd.notna(row.get('description')) else ''
+                    
+                    # Validate and process weight (kg) - REQUIRED
+                    weight_kg = None
+                    if 'weight (kg)' in row:
+                        weight_value = row['weight (kg)']
+                        if pd.isna(weight_value) or weight_value == '':
+                            raise ValueError(f'Weight (kg) is required but missing for product "{product_name}"')
+                        
+                        try:
+                            weight_kg = float(weight_value)
+                            # Validate weight range
+                            if weight_kg < 0.00001:
+                                raise ValueError(f'Weight must be at least 0.00001 kg for product "{product_name}"')
+                            if weight_kg > 500:
+                                raise ValueError(f'Weight must not exceed 500 kg for product "{product_name}"')
+                            if weight_kg < 0:
+                                raise ValueError(f'Weight cannot be negative for product "{product_name}"')
+                        except (ValueError, TypeError) as e:
+                            if isinstance(e, ValueError) and 'Weight' in str(e):
+                                raise  # Re-raise our validation errors
+                            raise ValueError(f'Invalid weight value for product "{product_name}": {weight_value}. Must be a number between 0.00001 and 500 kg.')
+                    else:
+                        raise ValueError(f'Weight (kg) column is missing for product "{product_name}"')
                     
                     # Handle image with priority: Image Filename > Image URL > None
                     final_image_url = None
@@ -7650,6 +7758,7 @@ def admin_bulk_upload():
                         product.price = price if price > 0 else product.price
                         product.stock = stock
                         product.description = description or product.description
+                        product.weight_kg = weight_kg  # REQUIRED - always update weight
                         
                         # Update image if we have a new one
                         if final_image_url:
@@ -7673,6 +7782,7 @@ def admin_bulk_upload():
                             price=price,
                             stock=stock,
                             category_id=category.id,
+                            weight_kg=weight_kg,  # REQUIRED
                             image=final_image_url
                         )
                         db.session.add(product)
@@ -11024,28 +11134,49 @@ def product(product_id):
     country = get_current_country()
     country_id = country.id if country else None
     
-    # Get product weight (default to 0.1kg if not set)
-    product_weight = float(product.weight_kg) if product.weight_kg else 0.1
+    # Get product weight - REQUIRED (no default fallback)
+    if not product.weight_kg or product.weight_kg <= 0:
+        current_app.logger.error(
+            f"Product {product_id} ({product.name}) has no valid weight. "
+            f"Shipping cannot be calculated. Please set weight in admin."
+        )
+        flash('This product has no weight set. Shipping cannot be calculated. Please contact support.', 'error')
+        product_weight = 0.0
+    else:
+        product_weight = float(product.weight_kg)
     
     # Calculate shipping using shipping rules (will try country-specific first, then global)
-    shipping_result = calculate_shipping_price(product_weight, country_id, default_weight=0.1)
+    shipping_result = calculate_shipping_price(product_weight, country_id, default_weight=0.0)
     
     shipping_fee = 0.0
     shipping_delivery_time = None
     shipping_rule_name = None
+    shipping_debug_info = None
     
     if shipping_result and shipping_result.get('available'):
         shipping_fee = shipping_result['price_gmd']
         shipping_delivery_time = shipping_result['delivery_time']
         shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
+        shipping_debug_info = shipping_result.get('debug_info', {})
         
         # Convert to display currency if needed
         if country and country.currency != 'GMD':
             from .utils.currency_rates import convert_price
             shipping_fee = convert_price(shipping_fee, 'GMD', country.currency)
+        
+        # Admin debug output (temporary)
+        if current_user.is_authenticated and (current_user.is_admin or current_user.role == 'admin'):
+            current_app.logger.info(
+                f"🔍 ADMIN DEBUG - Product Page Shipping: "
+                f"Product ID={product_id}, Product Weight={product_weight}kg, "
+                f"Quantity=1, Total Weight={product_weight}kg, "
+                f"Country={country.name if country else 'None'}, "
+                f"Rule ID={shipping_debug_info.get('applied_rule_id')}, "
+                f"Shipping Fee={shipping_fee}, "
+                f"Debug Info={shipping_debug_info}"
+            )
     else:
-        # If no rule found, default to 0 (as requested)
-        # Log for debugging
+        # If no rule found, default to 0
         current_app.logger.debug(
             f"No shipping rule found for product {product_id}: "
             f"Country ID={country_id}, Weight={product_weight}kg. "
