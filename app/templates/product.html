@@ -171,26 +171,55 @@
                                     </span>
                                 </button>
                             </h3>
-                            <div class="pb-6 prose prose-sm text-[color:var(--app-muted)] dark:text-slate-300" id="disclosure-2">
-                                <div class="space-y-3">
-                                    <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Product Price: {{ product.price|price_with_symbol }}</p>
-                                    <p class="font-semibold text-[color:var(--app-text)] dark:text-white">
-                                        Shipping Fee: {{ shipping_fee|price_with_symbol }}
-                                        {% if shipping_delivery_time %}
-                                            <span class="text-sm font-normal text-[color:var(--app-muted)] dark:text-slate-400">({{ shipping_delivery_time }})</span>
-                                        {% endif %}
-                                    </p>
-                                    <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Final Price: {{ final_price|price_with_symbol }}</p>
-                                    <p class="font-semibold text-[color:var(--app-text)] dark:text-white">Location: {{ product.location if product.location else "Not specified" }}</p>
-                                    <div class="mt-4">
-                                        <p class="font-semibold text-[color:var(--app-text)] dark:text-white mb-2">Customer Message:</p>
-                                        {% if shipping_delivery_time %}
-                                        <p>Estimated delivery: {{ shipping_delivery_time }}.</p>
-                                        {% elif product.location == "In The Gambia" %}
-                                        <p>You can receive your order today by calling our support team.</p>
-                                        {% else %}
-                                        <p>Estimated delivery: 14–30 days.</p>
-                                        {% endif %}
+                            <div class="pb-6 prose prose-sm text-[color:var(--app-muted)] dark:text-slate-300 max-w-none" id="disclosure-2">
+                                <div class="space-y-5">
+                                    <!-- Shipping Fee -->
+                                    <div>
+                                        <h4 class="font-semibold text-[color:var(--app-text)] dark:text-white mb-2">Shipping Fee</h4>
+                                        <p class="text-sm">
+                                            Shipping cost is calculated based on:
+                                        </p>
+                                        <ul class="list-disc list-inside space-y-1 mt-2 text-sm">
+                                            <li>Your delivery country</li>
+                                            <li>The weight of this product</li>
+                                            <li>The shipping rules set for each country</li>
+                                        </ul>
+                                        <p class="text-sm mt-3">
+                                            Enter your country at checkout to see the exact shipping fee.
+                                        </p>
+                                    </div>
+
+                                    <!-- How Shipping Works -->
+                                    <div>
+                                        <h4 class="font-semibold text-[color:var(--app-text)] dark:text-white mb-2">How Shipping Works</h4>
+                                        <p class="text-sm">
+                                            Every product has a verified weight.
+                                        </p>
+                                        <p class="text-sm mt-1">
+                                            Your shipping price is determined by matching this weight with the correct shipping bracket for your country.
+                                        </p>
+                                    </div>
+
+                                    <!-- Location-Based Delivery -->
+                                    <div>
+                                        <h4 class="font-semibold text-[color:var(--app-text)] dark:text-white mb-2">Location-Based Delivery</h4>
+                                        <p class="text-sm">
+                                            We currently support worldwide shipping.
+                                        </p>
+                                        <p class="text-sm mt-1">
+                                            Final shipping cost is shown at checkout after selecting your country.
+                                        </p>
+                                    </div>
+
+                                    <!-- Returns Policy -->
+                                    <div class="border-t border-[color:var(--app-border)] dark:border-slate-800 pt-4">
+                                        <h4 class="font-semibold text-[color:var(--app-text)] dark:text-white mb-2">Returns Policy</h4>
+                                        <p class="text-sm">
+                                            Products can be returned within 7 days if unused and in original packaging.
+                                        </p>
+                                        <p class="text-sm mt-1">
+                                            Shipping fees are non-refundable.
+                                        </p>
                                     </div>
                                 </div>
                             </div>
