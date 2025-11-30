@@ -156,8 +156,7 @@
                                 <ul role="list" class="space-y-1">
                                     <li>Category: {{ category.name }}</li>
                                     <li>SKU: {{ product.id }}</li>
-                                    <li>Weight: 0.5 kg</li>
-                                    <li>Dimensions: 10 x 5 x 3 cm</li>
+                                    <li>Weight: {{ ("%g"|format(product.weight_kg) if product.weight_kg else "0") }} kg</li>
                                 </ul>
                             </div>
                         </div>

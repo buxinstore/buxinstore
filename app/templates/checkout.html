@@ -46,7 +46,7 @@
                                             </div>
                                             <div class="flex items-center justify-between">
                                                 <p class="text-xs text-slate-500 dark:text-slate-400">
-                                                    Shipping: <span data-checkout-item-shipping>{{ item.shipping_per_unit|price_with_symbol }} × {{ item.quantity }} = {{ item.shipping|price_with_symbol }}</span>
+                                                    Shipping: <span data-checkout-item-shipping>{{ item.shipping|price_with_symbol }}</span>
                                                 </p>
                                             </div>
                                         </div>
@@ -178,9 +178,10 @@
                                     <button 
                                         type="button"
                                         id="checkout-country-toggle"
-                                        class="w-full flex items-center justify-between rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all text-left"
+                                        class="w-full flex items-center justify-between rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all text-left cursor-pointer"
                                         aria-haspopup="true"
                                         aria-expanded="false"
+                                        style="pointer-events: auto;"
                                     >
                                         <span class="flex items-center gap-3 flex-1 min-w-0">
                                             <span id="checkout-country-flag" class="flex-shrink-0 w-6 h-6 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
@@ -532,22 +533,41 @@
         
         // Load countries from API
         async function loadCheckoutCountries() {
+            if (!countryToggle || !countryDropdown || !countryList) {
+                console.error('Country dropdown elements not found');
+                return;
+            }
+            
             try {
                 const response = await fetch('/api/countries');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 const data = await response.json();
-                if (data.success) {
+                if (data.success && data.countries && Array.isArray(data.countries)) {
                     checkoutCountries = data.countries;
+                    if (checkoutCountries.length === 0) {
+                        console.warn('No countries returned from API');
+                        countryList.innerHTML = '<p class="p-4 text-sm text-slate-500">No countries available</p>';
+                        return;
+                    }
                     renderCheckoutCountryList();
                     // Auto-select saved country
-                    if (savedCountryName) {
-                        const savedCountry = checkoutCountries.find(c => c.name === savedCountryName);
+                    if (savedCountryName && savedCountryName.trim()) {
+                        const savedCountry = checkoutCountries.find(c => c.name === savedCountryName.trim());
                         if (savedCountry) {
                             selectCheckoutCountry(savedCountry);
                         }
                     }
+                } else {
+                    console.error('Invalid response from countries API:', data);
+                    countryList.innerHTML = '<p class="p-4 text-sm text-red-500">Error loading countries. Please refresh the page.</p>';
                 }
             } catch (error) {
                 console.error('Error loading countries:', error);
+                if (countryList) {
+                    countryList.innerHTML = '<p class="p-4 text-sm text-red-500">Failed to load countries. Please refresh the page.</p>';
+                }
             }
         }
         
@@ -647,6 +667,9 @@
             clearError('country');
             validationState.country = true;
             updateButtonState();
+            
+            // Trigger auto-save
+            autoSaveAddress();
         }
         
         // Calculate shipping for selected country
@@ -719,18 +742,29 @@
                 console.error('Error calculating shipping:', error);
             }
         }
-            
-            // Trigger auto-save
-            autoSaveAddress();
-        }
         
         // Toggle dropdown
-        if (countryToggle && countryDropdown) {
-            countryToggle.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isHidden = countryDropdown.classList.contains('hidden');
-                
-                if (isHidden) {
+        function toggleCountryDropdown() {
+            if (!countryToggle || !countryDropdown) return;
+            
+            const isHidden = countryDropdown.classList.contains('hidden');
+            
+            if (isHidden) {
+                // Ensure countries are loaded before opening
+                if (checkoutCountries.length === 0) {
+                    loadCheckoutCountries().then(() => {
+                        countryDropdown.classList.remove('hidden');
+                        countryToggle.setAttribute('aria-expanded', 'true');
+                        const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
+                        if (chevron) {
+                            chevron.style.transform = 'rotate(180deg)';
+                        }
+                        // Focus search input
+                        if (countrySearch) {
+                            setTimeout(() => countrySearch.focus(), 100);
+                        }
+                    });
+                } else {
                     countryDropdown.classList.remove('hidden');
                     countryToggle.setAttribute('aria-expanded', 'true');
                     const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
@@ -741,14 +775,22 @@
                     if (countrySearch) {
                         setTimeout(() => countrySearch.focus(), 100);
                     }
-                } else {
-                    countryDropdown.classList.add('hidden');
-                    countryToggle.setAttribute('aria-expanded', 'false');
-                    const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
-                    if (chevron) {
-                        chevron.style.transform = '';
-                    }
                 }
+            } else {
+                countryDropdown.classList.add('hidden');
+                countryToggle.setAttribute('aria-expanded', 'false');
+                const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
+                if (chevron) {
+                    chevron.style.transform = '';
+                }
+            }
+        }
+        
+        if (countryToggle && countryDropdown) {
+            countryToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleCountryDropdown();
             });
         }
         
@@ -773,8 +815,15 @@
             }
         });
         
-        // Load countries on page load
-        loadCheckoutCountries();
+        // Load countries immediately on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                loadCheckoutCountries();
+            });
+        } else {
+            // DOM is already loaded
+            loadCheckoutCountries();
+        }
         
         // Auto-save address on blur (debounced)
         let saveTimeout;
@@ -1020,13 +1069,8 @@
 
         const itemShippingEl = row.querySelector('[data-checkout-item-shipping]');
         if (itemShippingEl) {
-            const shippingPerUnit = item.shipping_per_unit || 0;
             const itemShipping = item.shipping || 0;
-            if (shippingPerUnit > 0) {
-                itemShippingEl.textContent = `${formatCheckoutCurrency(shippingPerUnit, currency)} × ${item.quantity} = ${formatCheckoutCurrency(itemShipping, currency)}`;
-            } else {
-                itemShippingEl.textContent = formatCheckoutCurrency(itemShipping, currency);
-            }
+            itemShippingEl.textContent = formatCheckoutCurrency(itemShipping, currency);
         }
     }
 

@@ -98,25 +98,13 @@
                                     </div>
                                 </div>
 
-                                <div class="mt-4 flex flex-col gap-2">
-                                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                        <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">
-                                            <span class="font-semibold">Subtotal:</span>
-                                            <span class="font-bold text-[color:var(--app-text)] dark:text-white" data-item-total>{{ (item.price * item.quantity)|price_with_symbol }}</span>
-                                        </p>
-                                        {% if item.quantity > item.stock and item.stock > 0 %}
-                                            <p class="text-xs font-medium text-amber-600 dark:text-amber-300">
-                                                Only {{ item.stock }} available
-                                            </p>
-                                        {% endif %}
-                                    </div>
-                                    <div class="flex items-center justify-between">
-                                        <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">
-                                            <span class="font-semibold">Shipping:</span>
-                                            <span class="text-[color:var(--app-text)] dark:text-white" data-item-shipping>{{ item.shipping_per_unit|price_with_symbol }} × {{ item.quantity }} = {{ item.shipping|price_with_symbol }}</span>
-                                        </p>
-                                    </div>
+                                {% if item.quantity > item.stock and item.stock > 0 %}
+                                <div class="mt-4">
+                                    <p class="text-xs font-medium text-amber-600 dark:text-amber-300">
+                                        Only {{ item.stock }} available
+                                    </p>
                                 </div>
+                                {% endif %}
                             </div>
                         </li>
                         {% endfor %}
@@ -152,16 +140,13 @@
                     <div class="space-y-2 text-sm text-[color:var(--app-muted)] dark:text-slate-400">
                         <p>Shipping is based on:</p>
                         <ul class="list-disc list-inside space-y-1 ml-2">
-                            <li>Total cart weight (sum of all product weights × quantities)</li>
+                            <li>Total cart weight (product weight × quantity)</li>
                             <li>Your selected delivery country</li>
-                            <li>The shipping rule for your country and weight range</li>
+                            <li>The matching shipping rule for your country and weight range</li>
                         </ul>
-                        <div class="mt-3 pt-3 border-t border-[color:var(--app-border)] dark:border-slate-800">
-                            <p class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">
-                                <span class="font-semibold text-[color:var(--app-text)] dark:text-white">Important:</span>
-                                If you change your country at checkout, shipping will update automatically.
-                            </p>
-                        </div>
+                        <p class="mt-3">
+                            This ensures accurate and transparent pricing.
+                        </p>
                     </div>
                 </div>
 
@@ -379,11 +364,8 @@
         const imageSrc = sanitizeImagePath(item.image);
         const stockLabel = buildStockLabel(item);
         const quantityOptions = buildQuantityOptions(item.quantity, item);
-        const subtotal = formatCurrency(item.item_total, currency);
         const unitPrice = formatCurrency(item.price, currency);
-        const shippingPerUnit = formatCurrency(item.shipping_per_unit || 0, currency);
         const itemShipping = formatCurrency(item.shipping || 0, currency);
-        const shippingDisplay = item.shipping_per_unit ? `${shippingPerUnit} × ${item.quantity} = ${itemShipping}` : itemShipping;
 
         return `
             <li class="flex flex-col gap-4 py-6 sm:flex-row sm:items-start sm:py-8 cart-item"
@@ -428,20 +410,6 @@
                         </div>
                     </div>
 
-                    <div class="mt-4 flex flex-col gap-2">
-                        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                            <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">
-                                <span class="font-semibold">Subtotal:</span>
-                                <span class="font-bold text-[color:var(--app-text)] dark:text-white" data-item-total>${subtotal}</span>
-                            </p>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">
-                                <span class="font-semibold">Shipping:</span>
-                                <span class="text-[color:var(--app-text)] dark:text-white" data-item-shipping>${shippingDisplay}</span>
-                            </p>
-                        </div>
-                    </div>
                 </div>
             </li>
         `;
