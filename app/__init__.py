@@ -1696,23 +1696,27 @@ class ShippingRule(db.Model):
 
 def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] = None, default_weight: float = 0.0) -> Optional[Dict[str, any]]:
     """
-    Calculate shipping price based on total cart weight and country using shipping rules.
+    Calculate shipping price based on total cart weight and country using ONLY Shipping Rules table.
     
-    Rule search order:
-    1. Match the selected customer country first
-    2. Check weight range (min_weight <= weight <= max_weight)
-    3. Apply price FROM the matching rule
-    4. If no country match exists, fallback to 'Global' rules
-    5. If still no match, fallback to default = 0 (return None)
+    The ONLY valid shipping source is the Shipping Rules table from /admin/shipping.
+    This function does NOT use any fallback, old logic, or secondary shipping sources.
+    
+    Selection order (STRICT - NO EXCEPTIONS):
+    Step 1: Filter rules by selected country (country_id must match exactly). Ignore all other countries.
+    Step 2: From matching country rules, find rule whose weight range includes product weight:
+            min_weight ≤ weight ≤ max_weight
+    Step 3: If multiple rules match, select the rule with the highest priority.
+    Step 4: If no country-specific rule matches, only then check Global rules.
+    Step 5: If still no match, return shipping fee = 0 (return None).
     
     Args:
-        total_weight_kg: Total weight of cart in kilograms
+        total_weight_kg: Total weight in kilograms
         country_id: Optional country ID to filter rules (must be integer or None)
         default_weight: Default weight to use if total_weight_kg is 0 or None
     
     Returns:
-        Dict with keys: 'rule', 'price_gmd', 'delivery_time', 'rule_name', 'available'
-        or None if shipping unavailable (should default to 0)
+        Dict with keys: 'rule', 'price_gmd', 'delivery_time', 'rule_name', 'debug_info', 'available'
+        or None if no rule matches (should default to 0)
     """
     if total_weight_kg is None or total_weight_kg <= 0:
         total_weight_kg = default_weight
@@ -1727,131 +1731,148 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         except (ValueError, TypeError):
             country_id = None
     
-    # Step 1: Try country-specific rules FIRST with weight range check
+    # Get country name for debugging
+    country_name = None
     if country_id:
-        # Query for country-specific rules that match the weight range
-        country_rule = ShippingRule.query.filter(
+        country = Country.query.get(country_id)
+        country_name = country.name if country else f"Unknown (ID: {country_id})"
+    
+    # STEP 1: Filter rules by selected country (country_id must match exactly)
+    # Ignore all other countries - ONLY match the selected country
+    if country_id:
+        # Get ALL matching country rules (we'll filter by weight in Step 2)
+        country_rules_query = ShippingRule.query.filter(
             ShippingRule.rule_type == 'country',
-            ShippingRule.country_id == country_id,
-            ShippingRule.status == True,
+            ShippingRule.country_id == country_id,  # STRICT match - no other countries
+            ShippingRule.status == True
+        )
+        
+        # STEP 2: Find rules whose weight range includes the product weight
+        # min_weight ≤ weight ≤ max_weight
+        matching_country_rules = country_rules_query.filter(
             ShippingRule.min_weight <= weight,
             ShippingRule.max_weight >= weight
         ).order_by(
-            ShippingRule.priority.desc(),
+            ShippingRule.priority.desc(),  # STEP 3: Highest priority first
             ShippingRule.min_weight.asc()
-        ).first()
+        ).all()
         
-        if country_rule:
-            # Build rule name for debugging (e.g., "Ghana - 0.1-5.0kg")
-            country_name = country_rule.country.name if country_rule.country else 'Unknown Country'
-            rule_name = f"{country_name} ({float(country_rule.min_weight)}-{float(country_rule.max_weight)}kg)"
+        if matching_country_rules:
+            # STEP 3: If multiple rules match, select the one with highest priority
+            selected_rule = matching_country_rules[0]  # Already sorted by priority DESC
             
-            current_app.logger.debug(
-                f"Shipping match found: Country={country_name}, "
-                f"Country ID={country_id}, Weight={float(weight)}kg, "
-                f"Price={float(country_rule.price_gmd)}GMD, Rule={rule_name}"
+            debug_info = {
+                'chosen_country': country_name,
+                'chosen_country_id': country_id,
+                'weight_kg': float(weight),
+                'applied_rule_id': selected_rule.id,
+                'weight_range_matched': f"{float(selected_rule.min_weight)}-{float(selected_rule.max_weight)}kg",
+                'final_shipping_price': float(selected_rule.price_gmd),
+                'rule_selection_reason': f"Country-specific rule matched for {country_name}",
+                'rule_priority': selected_rule.priority,
+                'matching_rules_count': len(matching_country_rules),
+                'other_shipping_sources_used': False,
+                'shipping_source': 'Shipping Rules Table ONLY',
+                'confirmation': 'No other shipping sources used - ONLY Shipping Rules table checked'
+            }
+            
+            rule_name = f"{country_name} ({float(selected_rule.min_weight)}-{float(selected_rule.max_weight)}kg)"
+            
+            current_app.logger.info(
+                f"✅ SHIPPING CALCULATED FROM SHIPPING RULES TABLE ONLY: "
+                f"Country={country_name}, Country ID={country_id}, "
+                f"Weight={float(weight)}kg, Rule ID={selected_rule.id}, "
+                f"Rule={rule_name}, Price={float(selected_rule.price_gmd)}GMD, "
+                f"Priority={selected_rule.priority}, Debug: {debug_info}"
             )
             
             return {
-                'rule': country_rule,
-                'price_gmd': float(country_rule.price_gmd),
-                'delivery_time': country_rule.delivery_time,
+                'rule': selected_rule,
+                'price_gmd': float(selected_rule.price_gmd),
+                'delivery_time': selected_rule.delivery_time,
                 'rule_name': rule_name,
                 'rule_type': 'country',
                 'country_id': country_id,
                 'country_name': country_name,
+                'debug_info': debug_info,
                 'available': True
             }
     
-    # Step 2: If no country match exists, fallback to 'Global' rules
-    global_rule = ShippingRule.query.filter(
+    # STEP 4: If no country-specific rule matches, only then check Global rules
+    global_rules = ShippingRule.query.filter(
         ShippingRule.rule_type == 'global',
         ShippingRule.status == True,
         ShippingRule.min_weight <= weight,
         ShippingRule.max_weight >= weight
     ).order_by(
-        ShippingRule.priority.desc(),
+        ShippingRule.priority.desc(),  # Highest priority first
         ShippingRule.min_weight.asc()
-    ).first()
+    ).all()
     
-    if global_rule:
-        rule_name = f"Global ({float(global_rule.min_weight)}-{float(global_rule.max_weight)}kg)"
+    if global_rules:
+        selected_rule = global_rules[0]  # Already sorted by priority DESC
         
-        current_app.logger.debug(
-            f"Shipping match found: Global rule, "
-            f"Weight={float(weight)}kg, "
-            f"Price={float(global_rule.price_gmd)}GMD, Rule={rule_name}"
+        debug_info = {
+            'chosen_country': country_name or None,
+            'chosen_country_id': country_id,
+            'weight_kg': float(weight),
+            'applied_rule_id': selected_rule.id,
+            'weight_range_matched': f"{float(selected_rule.min_weight)}-{float(selected_rule.max_weight)}kg",
+            'final_shipping_price': float(selected_rule.price_gmd),
+            'rule_selection_reason': 'No country-specific rule matched, using Global rule',
+            'rule_priority': selected_rule.priority,
+            'matching_rules_count': len(global_rules),
+            'other_shipping_sources_used': False,
+            'shipping_source': 'Shipping Rules Table ONLY',
+            'confirmation': 'No other shipping sources used - ONLY Shipping Rules table checked'
+        }
+        
+        rule_name = f"Global ({float(selected_rule.min_weight)}-{float(selected_rule.max_weight)}kg)"
+        
+        current_app.logger.info(
+            f"✅ SHIPPING CALCULATED FROM SHIPPING RULES TABLE ONLY: "
+            f"Global Rule, Country={country_name or 'None'}, "
+            f"Weight={float(weight)}kg, Rule ID={selected_rule.id}, "
+            f"Rule={rule_name}, Price={float(selected_rule.price_gmd)}GMD, "
+            f"Priority={selected_rule.priority}, Debug: {debug_info}"
         )
         
         return {
-            'rule': global_rule,
-            'price_gmd': float(global_rule.price_gmd),
-            'delivery_time': global_rule.delivery_time,
+            'rule': selected_rule,
+            'price_gmd': float(selected_rule.price_gmd),
+            'delivery_time': selected_rule.delivery_time,
             'rule_name': rule_name,
             'rule_type': 'global',
             'country_id': None,
             'country_name': None,
+            'debug_info': debug_info,
             'available': True
         }
     
-    # Step 3: Try nearest larger rule (country first, then global) - for edge cases
-    nearest_rule = None
-    rule_type_used = None
+    # STEP 5: If still no match, return None (will default to 0)
+    # NO fallback, NO nearest rule logic - only exact weight range matches allowed
     
-    if country_id:
-        # Try country-specific larger rule
-        country_larger = ShippingRule.query.filter(
-            ShippingRule.rule_type == 'country',
-            ShippingRule.country_id == country_id,
-            ShippingRule.status == True,
-            ShippingRule.min_weight > weight
-        ).order_by(
-            ShippingRule.min_weight.asc()
-        ).first()
-        
-        if country_larger:
-            nearest_rule = country_larger
-            rule_type_used = 'country'
+    # Build comprehensive debug info
+    debug_info = {
+        'chosen_country': country_name if country_id else None,
+        'chosen_country_id': country_id,
+        'weight_kg': float(weight),
+        'applied_rule_id': None,
+        'weight_range_matched': None,
+        'final_shipping_price': 0.0,
+        'rule_selection_reason': 'No matching rule found',
+        'other_shipping_sources_used': False,
+        'shipping_source': 'Shipping Rules Table ONLY',
+        'confirmation': 'No other shipping sources used - ONLY Shipping Rules table checked'
+    }
     
-    # If no country rule found, try global larger rule
-    if not nearest_rule:
-        global_larger = ShippingRule.query.filter(
-            ShippingRule.rule_type == 'global',
-            ShippingRule.status == True,
-            ShippingRule.min_weight > weight
-        ).order_by(
-            ShippingRule.min_weight.asc()
-        ).first()
-        
-        if global_larger:
-            nearest_rule = global_larger
-            rule_type_used = 'global'
-    
-    if nearest_rule:
-        country_name = nearest_rule.country.name if nearest_rule.country and rule_type_used == 'country' else 'Global'
-        rule_name = f"{country_name} (nearest: {float(nearest_rule.min_weight)}-{float(nearest_rule.max_weight)}kg)"
-        
-        current_app.logger.debug(
-            f"Shipping match found: Nearest rule, "
-            f"Type={rule_type_used}, Weight={float(weight)}kg, "
-            f"Price={float(nearest_rule.price_gmd)}GMD, Rule={rule_name}"
-        )
-        
-        return {
-            'rule': nearest_rule,
-            'price_gmd': float(nearest_rule.price_gmd),
-            'delivery_time': nearest_rule.delivery_time,
-            'rule_name': rule_name,
-            'rule_type': rule_type_used,
-            'country_id': country_id if rule_type_used == 'country' else None,
-            'country_name': country_name if rule_type_used == 'country' else None,
-            'available': True
-        }
-    
-    # Step 4: If still no match, return None (should default to 0)
     current_app.logger.warning(
-        f"No shipping rule found: Country ID={country_id}, Weight={float(weight)}kg. "
-        f"Returning None (will default to 0)"
+        f"❌ NO SHIPPING RULE MATCHED: "
+        f"Country={country_name if country_id else 'None'}, "
+        f"Country ID={country_id}, Weight={float(weight)}kg. "
+        f"Shipping fee will default to 0. "
+        f"Debug Info: {debug_info}. "
+        f"CONFIRMED: Shipping Rules Table ONLY - no other sources used."
     )
     
     return None
@@ -2559,6 +2580,8 @@ def api_shipping_estimate():
         result = calculate_shipping_price(weight, country_id)
         
         if result:
+            # Include comprehensive debug info in API response
+            debug_info = result.get('debug_info', {})
             return jsonify({
                 'success': True,
                 'available': True,
@@ -2568,50 +2591,29 @@ def api_shipping_estimate():
                 'rule_type': result.get('rule_type', 'unknown'),
                 'country_id': result.get('country_id'),
                 'country_name': result.get('country_name'),
-                'rule': result['rule'].to_dict()
+                'rule': result['rule'].to_dict(),
+                'debug_info': debug_info
             })
         else:
-            # Try to find nearest suggestion
-            # country_id is already validated as integer above
-            nearest_rule = None
-            if country_id is not None:
-                country_rule = ShippingRule.query.filter(
-                    ShippingRule.rule_type == 'country',
-                    ShippingRule.country_id == country_id,
-                    ShippingRule.status == True,
-                    ShippingRule.min_weight > weight
-                ).order_by(ShippingRule.min_weight.asc()).first()
-                
-                if country_rule:
-                    nearest_rule = country_rule
-            
-            if not nearest_rule:
-                global_rule = ShippingRule.query.filter(
-                    ShippingRule.rule_type == 'global',
-                    ShippingRule.status == True,
-                    ShippingRule.min_weight > weight
-                ).order_by(ShippingRule.min_weight.asc()).first()
-                
-                if global_rule:
-                    nearest_rule = global_rule
-            
-            if nearest_rule:
-                return jsonify({
-                    'success': True,
-                    'available': False,
-                    'suggestion': {
-                        'min_weight': float(nearest_rule.min_weight),
-                        'price_gmd': float(nearest_rule.price_gmd),
-                        'delivery_time': nearest_rule.delivery_time
-                    },
-                    'message': f'No rule found for {weight}kg. Nearest rule starts at {float(nearest_rule.min_weight)}kg.'
-                })
-            else:
-                return jsonify({
-                    'success': True,
-                    'available': False,
-                    'message': 'Shipping unavailable for this country and weight combination.'
-                }), 404
+            # No rule matched - return 0 shipping with debug info
+            # NO nearest rule logic - only exact weight range matches allowed
+            return jsonify({
+                'success': True,
+                'available': False,
+                'price_gmd': 0.0,
+                'message': f'No shipping rule found for country_id={country_id}, weight={weight}kg. Shipping fee = 0.',
+                'debug_info': {
+                    'chosen_country_id': country_id,
+                    'weight_kg': weight,
+                    'applied_rule_id': None,
+                    'weight_range_matched': None,
+                    'final_shipping_price': 0.0,
+                    'rule_selection_reason': 'No matching rule found in Shipping Rules table',
+                    'other_shipping_sources_used': False,
+                    'shipping_source': 'Shipping Rules Table ONLY',
+                    'confirmation': 'No other shipping sources used - ONLY Shipping Rules table checked'
+                }
+            }), 200
     
     except Exception as e:
         current_app.logger.error(f'Error calculating shipping estimate: {e}')
@@ -3449,45 +3451,9 @@ class CheckoutForm(FlaskForm):
     submit = SubmitField('Proceed to Payment')
 
 
-def calculate_delivery_price(price, product_id=None):
-    """
-    Calculate delivery price based on product-specific delivery rules.
-    If product_id is provided, uses database rules. Otherwise falls back to default.
-    
-    Args:
-        price: Product price
-        product_id: Optional product ID to look up custom delivery rules
-    
-    Returns:
-        Delivery fee amount
-    """
-    if price is None:
-        return 0.0  # Default fallback
-    
-    # If product_id is provided, try to use database rules
-    if product_id:
-        # Load product with delivery_rules relationship eagerly
-        from sqlalchemy.orm import joinedload
-        product = Product.query.options(joinedload(Product.delivery_rules)).get(product_id)
-        
-        if product:
-            # First, try to use custom delivery rules
-            if product.delivery_rules:
-                # Sort rules by min_amount (ascending) to find the first matching rule
-                rules = sorted(product.delivery_rules, key=lambda r: r.min_amount)
-                for rule in rules:
-                    # Check if price falls within this rule's range
-                    if price >= rule.min_amount:
-                        # If max_amount is None, it means no upper limit
-                        if rule.max_amount is None or price <= rule.max_amount:
-                            return float(rule.fee)
-            
-            # If no rule matches, use the product's delivery_price if set
-            if product and product.delivery_price:
-                return float(product.delivery_price)
-    
-    # Final fallback: default to 0.00
-    return 0.0
+# REMOVED: calculate_delivery_price() function
+# All shipping calculations now come ONLY from Shipping Rules table at /admin/shipping
+# This function has been removed to prevent using old shipping sources
 
 class ProductForm(FlaskForm):
     name = StringField('Product Name', validators=[DataRequired()])
@@ -11088,9 +11054,7 @@ def product(product_id):
     
     final_price = product.price + shipping_fee
     
-    # Set delivery_price to 0.00 if not set (for backward compatibility)
-    if product.delivery_price is None:
-        product.delivery_price = 0.0
+    # Note: Shipping fees come ONLY from Shipping Rules table - no product.delivery_price used
     
     category = Category.query.get(product.category_id)
     related_products = Product.query.filter(

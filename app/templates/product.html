@@ -60,10 +60,6 @@
                             <span class="text-sm">({{ shipping_delivery_time }})</span>
                         {% endif %}
                     </p>
-                    {% elif product.delivery_price and product.delivery_price > 0 %}
-                    <p class="mt-2 text-lg text-[color:var(--app-muted)] dark:text-slate-400">
-                        <span class="font-medium">Delivery Fee:</span> {{ product.delivery_price|price_with_symbol }}
-                    </p>
                     {% endif %}
                     
                     {% if product.stock > 0 %}
