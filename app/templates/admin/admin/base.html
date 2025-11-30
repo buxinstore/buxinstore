@@ -327,6 +327,14 @@
                         <i class="fas fa-shipping-fast mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
                         Shipping Rules
                     </a>
+                    <a href="{{ url_for('admin_profit_rules') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint and 'admin_profit' in request.endpoint %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-dollar-sign mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Profit Rules
+                    </a>
+                    <a href="{{ url_for('admin_profit_report') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_profit_report' %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-chart-pie mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Profit Report
+                    </a>
                     <a href="{{ url_for('forum.admin_manager') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'forum.admin_manager' %}bg-gray-100 dark:bg-gray-700{% endif %}">
                         <i class="fas fa-comments mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
                         Forum Manager
