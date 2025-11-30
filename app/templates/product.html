@@ -51,7 +51,7 @@
 
                 <div class="mt-3">
                     <h2 class="sr-only">Product information</h2>
-                    <p class="text-3xl font-bold text-[color:var(--app-text)] dark:text-white">{{ product.price|price_with_symbol }}</p>
+                    <p class="text-3xl font-bold text-[color:var(--app-text)] dark:text-white">{{ product|product_price_with_profit }}</p>
                     
                     {% if shipping_fee and shipping_fee > 0 %}
                     <p class="mt-2 text-lg text-[color:var(--app-muted)] dark:text-slate-400">

@@ -462,6 +462,8 @@ class PaymentService:
             PaymentValidationException: If pending payment not found or already converted
         """
         from app import Order, OrderItem, Product, CartItem
+        # Import profit calculation function from app module
+        from app import get_product_price_with_profit
         
         pending_payment = PendingPayment.query.get(pending_payment_id)
         if not pending_payment:
@@ -507,6 +509,10 @@ class PaymentService:
             db.session.add(order)
             db.session.flush()  # Get order.id without committing
             
+            # Calculate profit totals
+            total_profit_gmd = 0.0
+            total_revenue_gmd = 0.0
+            
             # Add order items and update stock
             for item in cart_items:
                 product = Product.query.get(item['id'])
@@ -522,18 +528,37 @@ class PaymentService:
                     )
                     # Still create order item but log the issue
                 
-                # Create order item
+                # Calculate profit for this product
+                base_price = float(product.price)  # Base price in GMD
+                final_price, profit_amount, profit_rule_id = get_product_price_with_profit(base_price)
+                
+                # Calculate totals for this item
+                item_base_total = base_price * item['quantity']
+                item_profit_total = profit_amount * item['quantity']
+                item_revenue_total = final_price * item['quantity']
+                
+                total_profit_gmd += item_profit_total
+                total_revenue_gmd += item_revenue_total
+                
+                # Create order item with profit information
                 order_item = OrderItem(
                     order_id=order.id,
                     product_id=item['id'],
                     quantity=item['quantity'],
-                    price=item.get('price', product.price)
+                    price=final_price,  # Final price (base + profit) per unit in GMD
+                    base_price=base_price,  # Base price before profit
+                    profit_amount=profit_amount,  # Profit per unit
+                    profit_rule_id=profit_rule_id  # Which profit rule was applied
                 )
                 db.session.add(order_item)
                 
                 # Update product stock (only if payment confirmed)
                 if product.stock is not None:
                     product.stock -= item['quantity']
+            
+            # Store profit totals in order
+            order.total_profit_gmd = total_profit_gmd
+            order.total_revenue_gmd = total_revenue_gmd
             
             # Update payment to link to order
             payment = Payment.query.filter_by(pending_payment_id=pending_payment_id).order_by(Payment.id.desc()).first()

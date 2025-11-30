@@ -182,6 +182,54 @@
         </div>
     </div>
 
+    <!-- Profit Section -->
+    {% if order.total_profit_gmd is not None or order.items|selectattr('profit_amount')|list|length > 0 %}
+    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg mb-8">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+                Profit Information
+            </h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                Profit breakdown for this order
+            </p>
+        </div>
+        <div class="border-t border-gray-200 dark:border-gray-700">
+            <dl>
+                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
+                        Total Revenue (GMD)
+                    </dt>
+                    <dd class="mt-1 text-sm font-semibold text-gray-900 dark:text-white sm:mt-0 sm:col-span-2">
+                        D{{ "%.2f"|format(order.total_revenue_gmd or order.total or 0.0) }}
+                    </dd>
+                </div>
+                <div class="bg-white dark:bg-gray-800 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
+                        Total Profit (GMD)
+                    </dt>
+                    <dd class="mt-1 text-sm font-semibold text-green-600 dark:text-green-400 sm:mt-0 sm:col-span-2">
+                        D{{ "%.2f"|format(order.total_profit_gmd or 0.0) }}
+                    </dd>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-300">
+                        Profit Margin
+                    </dt>
+                    <dd class="mt-1 text-sm font-semibold text-purple-600 dark:text-purple-400 sm:mt-0 sm:col-span-2">
+                        {% set revenue = order.total_revenue_gmd or order.total or 0.0 %}
+                        {% set profit = order.total_profit_gmd or 0.0 %}
+                        {% if revenue > 0 %}
+                            {{ "%.2f"|format((profit / revenue * 100)) }}%
+                        {% else %}
+                            -
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Order Items -->
     <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg">
         <div class="px-4 py-5 sm:px-6">
@@ -213,6 +261,11 @@
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                     Subtotal
                                 </th>
+                                {% if order.items|selectattr('profit_amount')|list|length > 0 %}
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                    Profit
+                                </th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -242,6 +295,11 @@
                                             Product ID: {{ item.product.id }}
                                         </div>
                                     {% endif %}
+                                    {% if item.base_price and item.profit_amount %}
+                                        <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                            Base: D{{ "%.2f"|format(item.base_price) }} + Profit: D{{ "%.2f"|format(item.profit_amount) }}
+                                        </div>
+                                    {% endif %}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                                     {{ item.quantity }}
@@ -252,17 +310,35 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                                     D{{ "%.2f"|format(item.price * item.quantity) }}
                                 </td>
+                                {% if order.items|selectattr('profit_amount')|list|length > 0 %}
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600 dark:text-green-400">
+                                    {% if item.profit_amount %}
+                                        D{{ "%.2f"|format(item.profit_amount * item.quantity) }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                {% endif %}
                             </tr>
                             {% endfor %}
                         </tbody>
                         <tfoot class="bg-gray-50 dark:bg-gray-700">
                             <tr>
-                                <td colspan="4" class="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">
+                                <td colspan="{% if order.items|selectattr('profit_amount')|list|length > 0 %}5{% else %}4{% endif %}" class="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">
                                     Total:
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
                                     D{{ "%.2f"|format(order.total) }}
                                 </td>
+                                {% if order.items|selectattr('profit_amount')|list|length > 0 %}
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 dark:text-green-400">
+                                    {% if order.total_profit_gmd %}
+                                        D{{ "%.2f"|format(order.total_profit_gmd) }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                {% endif %}
                             </tr>
                         </tfoot>
                     </table>

@@ -1,0 +1,131 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}{% if profit_rule %}Edit Profit Rule{% else %}New Profit Rule{% endif %}{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <div class="max-w-3xl mx-auto">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <div class="mb-6">
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">
+                    {% if profit_rule %}Edit Profit Rule{% else %}Create New Profit Rule{% endif %}
+                </h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Define profit amount based on product base price range
+                </p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="mb-4 space-y-2">
+                        {% for category, message in messages %}
+                            <div class="px-4 py-3 rounded-lg text-sm {% if category == 'success' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40{% else %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40{% endif %}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{% if profit_rule %}{{ url_for('admin_edit_profit_rule', rule_id=profit_rule.id) }}{% else %}{{ url_for('admin_new_profit_rule') }}{% endif %}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                
+                <div class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="min_price" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Min Price (GMD) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number" 
+                                   id="min_price" 
+                                   name="min_price" 
+                                   step="0.01" 
+                                   min="0" 
+                                   value="{% if profit_rule %}{{ profit_rule.min_price }}{% endif %}" 
+                                   required
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Minimum base price in GMD (inclusive)</p>
+                        </div>
+
+                        <div>
+                            <label for="max_price" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Max Price (GMD) <span class="text-gray-400">(Optional)</span>
+                            </label>
+                            <input type="number" 
+                                   id="max_price" 
+                                   name="max_price" 
+                                   step="0.01" 
+                                   min="0" 
+                                   value="{% if profit_rule and profit_rule.max_price %}{{ profit_rule.max_price }}{% endif %}" 
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Maximum base price in GMD (inclusive). Leave empty for no upper limit.</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="profit_amount" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Profit Amount (GMD) <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" 
+                               id="profit_amount" 
+                               name="profit_amount" 
+                               step="0.01" 
+                               min="0" 
+                               value="{% if profit_rule %}{{ profit_rule.profit_amount }}{% endif %}" 
+                               required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Profit amount to add to base price (in GMD)</p>
+                    </div>
+
+                    <div>
+                        <label for="priority" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Priority
+                        </label>
+                        <input type="number" 
+                               id="priority" 
+                               name="priority" 
+                               min="0" 
+                               value="{% if profit_rule %}{{ profit_rule.priority }}{% else %}0{% endif %}" 
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Higher priority rules are applied first when multiple rules match</p>
+                    </div>
+
+                    <div>
+                        <label for="note" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Note (Optional)
+                        </label>
+                        <textarea id="note" 
+                                  name="note" 
+                                  rows="3" 
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">{% if profit_rule %}{{ profit_rule.note or '' }}{% endif %}</textarea>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional note to describe this rule</p>
+                    </div>
+
+                    <div class="flex items-center">
+                        <input type="checkbox" 
+                               id="is_active" 
+                               name="is_active" 
+                               {% if profit_rule and profit_rule.is_active or not profit_rule %}checked{% endif %}
+                               class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                        <label for="is_active" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                            Active
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mt-8 flex justify-end space-x-4">
+                    <a href="{{ url_for('admin_profit_rules') }}" 
+                       class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                        Cancel
+                    </a>
+                    <button type="submit" 
+                            class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        {% if profit_rule %}Update Rule{% else %}Create Rule{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

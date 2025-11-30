@@ -1,0 +1,309 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}Profit Rules{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <div class="flex justify-between items-center mb-4">
+        <div>
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Profit Rules Management</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage profit margins based on product base price ranges</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{{ url_for('admin_new_profit_rule') }}" 
+               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <i class="fas fa-plus mr-2"></i> Add Rule
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-4 space-y-2">
+                {% for category, message in messages %}
+                    <div class="px-4 py-3 rounded-lg text-sm {% if category == 'success' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40{% elif category == 'warning' %}bg-yellow-50 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-700/40{% else %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+            <div class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Rules</div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-white mt-1">{{ total_rules }}</div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+            <div class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Rules</div>
+            <div class="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{{ active_rules }}</div>
+        </div>
+    </div>
+
+    <!-- Profit Calculator Widget -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Profit Calculator</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Base Price (GMD)</label>
+                <input type="number" 
+                       id="calc-price" 
+                       step="0.01" 
+                       min="0" 
+                       placeholder="100"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+            </div>
+            <div class="flex items-end">
+                <button onclick="calculateProfit()" 
+                        class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    Calculate
+                </button>
+            </div>
+        </div>
+        <div id="calc-result" class="mt-4 hidden">
+            <div class="p-4 bg-gray-50 dark:bg-gray-700 rounded-md">
+                <div id="calc-result-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filter Bar -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mb-4">
+        <form method="GET" action="{{ url_for('admin_profit_rules') }}" class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
+                <input type="text" 
+                       id="search" 
+                       name="search" 
+                       value="{{ search }}" 
+                       placeholder="Search by note..."
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+            </div>
+            <div class="min-w-[150px]">
+                <label for="status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                <select id="status" 
+                        name="status" 
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="">All</option>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="min-w-[150px]">
+                <label for="sort" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sort By</label>
+                <select id="sort" 
+                        name="sort" 
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="priority" {% if sort_by == 'priority' %}selected{% endif %}>Priority</option>
+                    <option value="min_price" {% if sort_by == 'min_price' %}selected{% endif %}>Min Price</option>
+                    <option value="profit_amount" {% if sort_by == 'profit_amount' %}selected{% endif %}>Profit Amount</option>
+                </select>
+            </div>
+            <div class="min-w-[120px]">
+                <label for="order" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Order</label>
+                <select id="order" 
+                        name="order" 
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>Descending</option>
+                    <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>Ascending</option>
+                </select>
+            </div>
+            <div>
+                <button type="submit" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <i class="fas fa-filter mr-2"></i> Apply
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Rules Table -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Price Range (GMD)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Profit Amount (GMD)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Priority</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Note</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for rule in rules.items %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900 dark:text-white">
+                                D{{ "%.2f"|format(rule.min_price) }} - {% if rule.max_price %}D{{ "%.2f"|format(rule.max_price) }}{% else %}∞{% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-semibold text-green-600 dark:text-green-400">
+                                +D{{ "%.2f"|format(rule.profit_amount) }}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900 dark:text-white">{{ rule.priority }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <form method="POST" action="{{ url_for('admin_toggle_profit_rule', rule_id=rule.id) }}" class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" 
+                                        class="px-2 py-1 text-xs font-semibold rounded-full {% if rule.is_active %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200{% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %} hover:opacity-80">
+                                    {% if rule.is_active %}
+                                        <i class="fas fa-check-circle mr-1"></i> Active
+                                    {% else %}
+                                        <i class="fas fa-times-circle mr-1"></i> Inactive
+                                    {% endif %}
+                                </button>
+                            </form>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ rule.note or '-' }}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <a href="{{ url_for('admin_edit_profit_rule', rule_id=rule.id) }}" 
+                               class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-4">
+                                <i class="fas fa-edit mr-1"></i> Edit
+                            </a>
+                            <form method="POST" 
+                                  action="{{ url_for('admin_delete_profit_rule', rule_id=rule.id) }}" 
+                                  class="inline"
+                                  onsubmit="return confirm('Are you sure you want to delete this profit rule? This action cannot be undone.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" 
+                                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                                    <i class="fas fa-trash mr-1"></i> Delete
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                            No profit rules found. <a href="{{ url_for('admin_new_profit_rule') }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400">Create one</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if rules.pages > 1 %}
+        <div class="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
+            <div class="flex-1 flex justify-between sm:hidden">
+                {% if rules.has_prev %}
+                <a href="{{ url_for('admin_profit_rules', page=rules.prev_num, search=search, status=status_filter, sort=sort_by, order=sort_order) }}" 
+                   class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Previous
+                </a>
+                {% endif %}
+                {% if rules.has_next %}
+                <a href="{{ url_for('admin_profit_rules', page=rules.next_num, search=search, status=status_filter, sort=sort_by, order=sort_order) }}" 
+                   class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Next
+                </a>
+                {% endif %}
+            </div>
+            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-gray-700 dark:text-gray-300">
+                        Showing <span class="font-medium">{{ rules.per_page * (rules.page - 1) + 1 }}</span>
+                        to <span class="font-medium">{{ rules.per_page * (rules.page - 1) + rules.items|length }}</span>
+                        of <span class="font-medium">{{ rules.total }}</span> results
+                    </p>
+                </div>
+                <div>
+                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        {% if rules.has_prev %}
+                        <a href="{{ url_for('admin_profit_rules', page=rules.prev_num, search=search, status=status_filter, sort=sort_by, order=sort_order) }}" 
+                           class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                        {% endif %}
+                        {% for page_num in rules.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                            {% if page_num %}
+                                {% if page_num == rules.page %}
+                                <span class="relative inline-flex items-center px-4 py-2 border border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-sm font-medium text-blue-600 dark:text-blue-300">
+                                    {{ page_num }}
+                                </span>
+                                {% else %}
+                                <a href="{{ url_for('admin_profit_rules', page=page_num, search=search, status=status_filter, sort=sort_by, order=sort_order) }}" 
+                                   class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                    {{ page_num }}
+                                </a>
+                                {% endif %}
+                            {% else %}
+                                <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    ...
+                                </span>
+                            {% endif %}
+                        {% endfor %}
+                        {% if rules.has_next %}
+                        <a href="{{ url_for('admin_profit_rules', page=rules.next_num, search=search, status=status_filter, sort=sort_by, order=sort_order) }}" 
+                           class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                        {% endif %}
+                    </nav>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function calculateProfit() {
+    const price = parseFloat(document.getElementById('calc-price').value);
+    if (!price || price < 0) {
+        alert('Please enter a valid base price');
+        return;
+    }
+    
+    // Make API call to calculate profit
+    fetch(`/api/profit/calculate?base_price=${price}`)
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('calc-result');
+            const contentDiv = document.getElementById('calc-result-content');
+            
+            if (data.success) {
+                contentDiv.innerHTML = `
+                    <div class="space-y-2">
+                        <div class="flex justify-between">
+                            <span class="font-medium text-gray-700 dark:text-gray-300">Base Price:</span>
+                            <span class="font-semibold text-gray-900 dark:text-white">D${price.toFixed(2)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-medium text-gray-700 dark:text-gray-300">Profit Amount:</span>
+                            <span class="font-semibold text-green-600 dark:text-green-400">+D${data.profit_amount.toFixed(2)}</span>
+                        </div>
+                        <div class="flex justify-between border-t border-gray-300 dark:border-gray-600 pt-2">
+                            <span class="font-medium text-gray-700 dark:text-gray-300">Final Price:</span>
+                            <span class="font-bold text-blue-600 dark:text-blue-400">D${data.final_price.toFixed(2)}</span>
+                        </div>
+                        ${data.rule_id ? `<div class="text-xs text-gray-500 dark:text-gray-400 mt-2">Applied Rule ID: ${data.rule_id}</div>` : ''}
+                    </div>
+                `;
+            } else {
+                contentDiv.innerHTML = `<div class="text-red-600 dark:text-red-400">${data.error || 'Error calculating profit'}</div>`;
+            }
+            
+            resultDiv.classList.remove('hidden');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('calc-result-content').innerHTML = '<div class="text-red-600 dark:text-red-400">Error calculating profit</div>';
+            document.getElementById('calc-result').classList.remove('hidden');
+        });
+}
+</script>
+{% endblock %}
+

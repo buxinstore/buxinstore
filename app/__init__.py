@@ -393,12 +393,17 @@ def convert_price_filter(price, from_currency="GMD"):
             return "0.00"
 
 @app.template_filter('price_with_symbol')
-def price_with_symbol_filter(price, from_currency="GMD"):
-    """Template filter to format price with currency symbol."""
+def price_with_symbol_filter(price, from_currency="GMD", apply_profit=False):
+    """Template filter to format price with currency symbol. Optionally applies profit if apply_profit=True."""
     from .utils.currency_rates import convert_price, get_currency_symbol, parse_price
     try:
         # Parse price to extract numeric value (handles strings with symbols)
         numeric_price, _ = parse_price(price)
+        
+        # Apply profit if requested (for product prices)
+        if apply_profit:
+            final_price, _, _ = get_product_price_with_profit(float(numeric_price))
+            numeric_price = final_price
         
         country = get_current_country()
         if country:
@@ -413,9 +418,20 @@ def price_with_symbol_filter(price, from_currency="GMD"):
         # Fallback: try to parse and return with default symbol
         try:
             numeric_price, _ = parse_price(price)
+            if apply_profit:
+                final_price, _, _ = get_product_price_with_profit(float(numeric_price))
+                numeric_price = final_price
             return f"D{numeric_price:.2f}"
         except:
             return "D0.00"
+
+@app.template_filter('product_price_with_profit')
+def product_price_with_profit_filter(product):
+    """Template filter to format product price with profit applied."""
+    if not product or not hasattr(product, 'price'):
+        return "D0.00"
+    base_price = float(product.price) if product.price else 0.0
+    return price_with_symbol_filter(base_price, "GMD", apply_profit=True)
 
 @app.template_filter('category_image_url')
 def category_image_url_filter(image_path):
@@ -1634,6 +1650,10 @@ class Order(db.Model):
     shipping_delivery_estimate = db.Column(db.String(100), nullable=True)  # Delivery time estimate from rule
     shipping_display_currency = db.Column(db.String(10), nullable=True)  # Currency used for display (e.g., 'GMD', 'XOF')
     
+    # Profit tracking fields
+    total_profit_gmd = db.Column(db.Float, nullable=True)  # Total profit for this order in GMD
+    total_revenue_gmd = db.Column(db.Float, nullable=True)  # Total revenue (base prices + profit) in GMD
+    
     # Relationship for assigned user
     assigned_user = db.relationship('User', primaryjoin='Order.assigned_to == User.id', foreign_keys=[assigned_to], backref=db.backref('assigned_orders', lazy=True))
     shipping_rule = db.relationship('ShippingRule', backref='orders', lazy=True)
@@ -1643,10 +1663,14 @@ class OrderItem(db.Model):
     order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
-    price = db.Column(db.Float, nullable=False)
+    price = db.Column(db.Float, nullable=False)  # Final price (base + profit) per unit in GMD
+    base_price = db.Column(db.Float, nullable=True)  # Base price before profit in GMD
+    profit_amount = db.Column(db.Float, nullable=True)  # Profit amount per unit in GMD
+    profit_rule_id = db.Column(db.Integer, db.ForeignKey('profit_rule.id'), nullable=True)  # Which profit rule was applied
     
-    # Relationship
+    # Relationships
     product = db.relationship('Product', backref='order_items')
+    profit_rule = db.relationship('ProfitRule', backref='order_items', lazy=True)
 
 class ShipmentRecord(db.Model):
     """Records shipment details submitted by China partners"""
@@ -1707,6 +1731,48 @@ class ShippingRule(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+class ProfitRule(db.Model):
+    """Profit rules for calculating profit based on product base price ranges"""
+    __tablename__ = 'profit_rule'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    min_price = db.Column(db.Numeric(10, 2), nullable=False)  # Minimum base price in GMD
+    max_price = db.Column(db.Numeric(10, 2), nullable=True)  # Maximum base price in GMD (None = no upper limit)
+    profit_amount = db.Column(db.Numeric(10, 2), nullable=False)  # Profit amount in GMD
+    priority = db.Column(db.Integer, default=0, nullable=False)  # Higher priority rules apply first
+    is_active = db.Column(db.Boolean, default=True, nullable=False)  # Active/Inactive
+    note = db.Column(db.Text, nullable=True)  # Optional note
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        max_str = f"{self.max_price}" if self.max_price else "∞"
+        return f'<ProfitRule {self.id}: D{self.min_price}-{max_str} = +D{self.profit_amount} (priority: {self.priority})>'
+    
+    def to_dict(self):
+        """Convert profit rule to dictionary"""
+        return {
+            'id': self.id,
+            'min_price': float(self.min_price) if self.min_price else 0.0,
+            'max_price': float(self.max_price) if self.max_price else None,
+            'profit_amount': float(self.profit_amount) if self.profit_amount else 0.0,
+            'priority': self.priority,
+            'is_active': self.is_active,
+            'note': self.note,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def matches_price(self, base_price: float) -> bool:
+        """Check if this rule matches the given base price"""
+        if not self.is_active:
+            return False
+        
+        min_price = float(self.min_price) if self.min_price else 0.0
+        max_price = float(self.max_price) if self.max_price else float('inf')
+        
+        return min_price <= base_price <= max_price
 
 def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] = None, default_weight: float = 0.0) -> Optional[Dict[str, any]]:
     """
@@ -1890,6 +1956,64 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     )
     
     return None
+
+def calculate_profit_for_price(base_price: float) -> Tuple[float, Optional[int]]:
+    """
+    Calculate profit amount for a given base price using Profit Rules.
+    
+    Selection logic:
+    1. Find all active rules where min_price <= base_price <= max_price (or max_price is None)
+    2. If multiple rules match, select the one with highest priority
+    3. If no rule matches, return 0 profit
+    
+    Args:
+        base_price: Base product price in GMD (before profit)
+    
+    Returns:
+        Tuple of (profit_amount in GMD, profit_rule_id or None)
+    """
+    if base_price is None or base_price < 0:
+        return 0.0, None
+    
+    # Find all matching active rules
+    matching_rules = ProfitRule.query.filter(
+        ProfitRule.is_active == True,
+        ProfitRule.min_price <= base_price
+    ).all()
+    
+    # Filter rules where max_price is None (no upper limit) or base_price <= max_price
+    valid_rules = []
+    for rule in matching_rules:
+        if rule.max_price is None:
+            valid_rules.append(rule)
+        elif float(rule.max_price) >= base_price:
+            valid_rules.append(rule)
+    
+    if not valid_rules:
+        return 0.0, None
+    
+    # Sort by priority (highest first), then by min_price (lowest first) for consistency
+    valid_rules.sort(key=lambda r: (-r.priority, float(r.min_price)))
+    
+    # Return the highest priority rule
+    selected_rule = valid_rules[0]
+    profit_amount = float(selected_rule.profit_amount) if selected_rule.profit_amount else 0.0
+    
+    return profit_amount, selected_rule.id
+
+def get_product_price_with_profit(base_price: float) -> Tuple[float, float, Optional[int]]:
+    """
+    Get final product price with profit applied.
+    
+    Args:
+        base_price: Base product price in GMD (before profit)
+    
+    Returns:
+        Tuple of (final_price_in_gmd, profit_amount, profit_rule_id)
+    """
+    profit_amount, profit_rule_id = calculate_profit_for_price(base_price)
+    final_price = base_price + profit_amount
+    return final_price, profit_amount, profit_rule_id
 
 def calculate_cart_total_weight(cart_items: List[Dict[str, any]], default_weight: float = 0.0) -> float:
     """
@@ -2537,6 +2661,34 @@ def check_wishlist(product_id):
 # Shipping API Endpoints
 # ======================
 
+@app.route('/api/profit/calculate', methods=['GET'])
+@csrf.exempt
+def api_calculate_profit():
+    """API endpoint to calculate profit for a given base price."""
+    try:
+        base_price = request.args.get('base_price', type=float)
+        if base_price is None or base_price < 0:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid base price. Must be a positive number.'
+            }), 400
+        
+        final_price, profit_amount, profit_rule_id = get_product_price_with_profit(base_price)
+        
+        return jsonify({
+            'success': True,
+            'base_price': base_price,
+            'profit_amount': profit_amount,
+            'final_price': final_price,
+            'rule_id': profit_rule_id
+        })
+    except Exception as e:
+        current_app.logger.error(f'Error calculating profit: {e}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/shipping/rules', methods=['GET'])
 def api_shipping_rules():
     """Get shipping rules with optional filters."""
@@ -2759,14 +2911,20 @@ def update_cart():
                 cart_item.quantity = quantity
                 changes_detected = True
 
-            price = Decimal(str(product.price))
-            line_total = (price * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            # Get base price and apply profit
+            base_price = Decimal(str(product.price))
+            final_price, profit_amount, profit_rule_id = get_product_price_with_profit(float(base_price))
+            final_price_decimal = Decimal(str(final_price))
+            
+            line_total = (final_price_decimal * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             subtotal += line_total
 
             cart_items.append({
                 'id': product.id,
                 'name': product.name,
-                'price': float(price),
+                'price': float(final_price_decimal),  # Final price with profit
+                'base_price': float(base_price),  # Base price for reference
+                'profit_amount': float(profit_amount),  # Profit amount
                 'quantity': quantity,
                 'total': float(line_total),
                 'image': product.image,
@@ -2801,15 +2959,21 @@ def update_cart():
             if quantity <= 0:
                 continue
 
-        price = Decimal(str(product.price))
-        line_total = (price * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        # Get base price and apply profit
+        base_price = Decimal(str(product.price))
+        final_price, profit_amount, profit_rule_id = get_product_price_with_profit(float(base_price))
+        final_price_decimal = Decimal(str(final_price))
+        
+        line_total = (final_price_decimal * quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         subtotal += line_total
 
         sanitized_cart[str(product.id)] = quantity
         cart_items.append({
             'id': product.id,
             'name': product.name,
-            'price': float(price),
+            'price': float(final_price_decimal),  # Final price with profit
+            'base_price': float(base_price),  # Base price for reference
+            'profit_amount': float(profit_amount),  # Profit amount
             'quantity': quantity,
             'total': float(line_total),
             'image': product.image,
@@ -5929,6 +6093,370 @@ def admin_delete_country(country_id):
         flash('Failed to delete country. Please try again.', 'error')
     
     return redirect(url_for('admin_countries'))
+
+# ==================== Profit Rules Admin Routes ====================
+
+@app.route('/admin/profit-rules', methods=['GET'])
+@login_required
+@admin_required
+def admin_profit_rules():
+    """Admin page for managing profit rules with search, sorting, and pagination."""
+    # Get filter parameters
+    search = request.args.get('search', '').strip()
+    status_filter = request.args.get('status', '')  # 'active' or 'inactive'
+    min_price_filter = request.args.get('min_price', type=float)
+    max_price_filter = request.args.get('max_price', type=float)
+    sort_by = request.args.get('sort', 'priority')  # 'priority', 'min_price', 'profit_amount'
+    sort_order = request.args.get('order', 'desc')  # 'asc' or 'desc'
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    
+    # Build query
+    query = ProfitRule.query
+    
+    # Apply filters
+    if search:
+        query = query.filter(
+            db.or_(
+                ProfitRule.note.ilike(f'%{search}%')
+            )
+        )
+    
+    if status_filter == 'active':
+        query = query.filter(ProfitRule.is_active == True)
+    elif status_filter == 'inactive':
+        query = query.filter(ProfitRule.is_active == False)
+    
+    if min_price_filter is not None:
+        query = query.filter(ProfitRule.min_price >= min_price_filter)
+    
+    if max_price_filter is not None:
+        query = query.filter(
+            db.or_(
+                ProfitRule.max_price <= max_price_filter,
+                ProfitRule.max_price.is_(None)
+            )
+        )
+    
+    # Apply sorting
+    if sort_by == 'min_price':
+        if sort_order == 'asc':
+            query = query.order_by(ProfitRule.min_price.asc())
+        else:
+            query = query.order_by(ProfitRule.min_price.desc())
+    elif sort_by == 'profit_amount':
+        if sort_order == 'asc':
+            query = query.order_by(ProfitRule.profit_amount.asc())
+        else:
+            query = query.order_by(ProfitRule.profit_amount.desc())
+    else:  # priority (default)
+        if sort_order == 'asc':
+            query = query.order_by(ProfitRule.priority.asc())
+        else:
+            query = query.order_by(ProfitRule.priority.desc())
+    
+    # Paginate
+    rules = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    # Get statistics
+    total_rules = ProfitRule.query.count()
+    active_rules = ProfitRule.query.filter_by(is_active=True).count()
+    
+    return render_template('admin/admin/profit_rules.html',
+                         rules=rules,
+                         search=search,
+                         status_filter=status_filter,
+                         min_price_filter=min_price_filter,
+                         max_price_filter=max_price_filter,
+                         sort_by=sort_by,
+                         sort_order=sort_order,
+                         total_rules=total_rules,
+                         active_rules=active_rules)
+
+@app.route('/admin/profit-rules/new', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_new_profit_rule():
+    """Create a new profit rule."""
+    if request.method == 'POST':
+        try:
+            min_price = request.form.get('min_price')
+            max_price = request.form.get('max_price', '').strip()
+            profit_amount = request.form.get('profit_amount')
+            priority = request.form.get('priority', 0)
+            is_active = request.form.get('is_active') == 'on'
+            note = request.form.get('note', '').strip()
+            
+            # Validation
+            if not min_price or not profit_amount:
+                flash('Min price and profit amount are required', 'error')
+                return redirect(url_for('admin_new_profit_rule'))
+            
+            min_price = Decimal(str(min_price))
+            max_price = Decimal(str(max_price)) if max_price else None
+            profit_amount = Decimal(str(profit_amount))
+            priority = int(priority) if priority else 0
+            
+            if min_price < 0:
+                flash('Min price must be >= 0', 'error')
+                return redirect(url_for('admin_new_profit_rule'))
+            
+            if max_price is not None and max_price <= min_price:
+                flash('Max price must be greater than min price', 'error')
+                return redirect(url_for('admin_new_profit_rule'))
+            
+            if profit_amount < 0:
+                flash('Profit amount must be >= 0', 'error')
+                return redirect(url_for('admin_new_profit_rule'))
+            
+            profit_rule = ProfitRule(
+                min_price=min_price,
+                max_price=max_price,
+                profit_amount=profit_amount,
+                priority=priority,
+                is_active=is_active,
+                note=note
+            )
+            
+            db.session.add(profit_rule)
+            db.session.commit()
+            
+            flash('Profit rule created successfully!', 'success')
+            return redirect(url_for('admin_profit_rules'))
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error creating profit rule: {e}")
+            flash(f'Failed to create profit rule: {str(e)}', 'error')
+            return redirect(url_for('admin_new_profit_rule'))
+    
+    return render_template('admin/admin/profit_rule_form.html', profit_rule=None)
+
+@app.route('/admin/profit-rules/<int:rule_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_edit_profit_rule(rule_id):
+    """Edit an existing profit rule."""
+    profit_rule = ProfitRule.query.get_or_404(rule_id)
+    
+    if request.method == 'POST':
+        try:
+            min_price = request.form.get('min_price')
+            max_price = request.form.get('max_price', '').strip()
+            profit_amount = request.form.get('profit_amount')
+            priority = request.form.get('priority', 0)
+            is_active = request.form.get('is_active') == 'on'
+            note = request.form.get('note', '').strip()
+            
+            # Validation
+            if not min_price or not profit_amount:
+                flash('Min price and profit amount are required', 'error')
+                return redirect(url_for('admin_edit_profit_rule', rule_id=rule_id))
+            
+            min_price = Decimal(str(min_price))
+            max_price = Decimal(str(max_price)) if max_price else None
+            profit_amount = Decimal(str(profit_amount))
+            priority = int(priority) if priority else 0
+            
+            if min_price < 0:
+                flash('Min price must be >= 0', 'error')
+                return redirect(url_for('admin_edit_profit_rule', rule_id=rule_id))
+            
+            if max_price is not None and max_price <= min_price:
+                flash('Max price must be greater than min price', 'error')
+                return redirect(url_for('admin_edit_profit_rule', rule_id=rule_id))
+            
+            if profit_amount < 0:
+                flash('Profit amount must be >= 0', 'error')
+                return redirect(url_for('admin_edit_profit_rule', rule_id=rule_id))
+            
+            profit_rule.min_price = min_price
+            profit_rule.max_price = max_price
+            profit_rule.profit_amount = profit_amount
+            profit_rule.priority = priority
+            profit_rule.is_active = is_active
+            profit_rule.note = note
+            profit_rule.updated_at = datetime.utcnow()
+            
+            db.session.commit()
+            
+            flash('Profit rule updated successfully!', 'success')
+            return redirect(url_for('admin_profit_rules'))
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error updating profit rule: {e}")
+            flash(f'Failed to update profit rule: {str(e)}', 'error')
+            return redirect(url_for('admin_edit_profit_rule', rule_id=rule_id))
+    
+    return render_template('admin/admin/profit_rule_form.html', profit_rule=profit_rule)
+
+@app.route('/admin/profit-rules/<int:rule_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_profit_rule(rule_id):
+    """Delete a profit rule."""
+    profit_rule = ProfitRule.query.get_or_404(rule_id)
+    
+    try:
+        db.session.delete(profit_rule)
+        db.session.commit()
+        flash('Profit rule deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting profit rule: {e}")
+        flash('Failed to delete profit rule. Please try again.', 'error')
+    
+    return redirect(url_for('admin_profit_rules'))
+
+@app.route('/admin/profit-rules/<int:rule_id>/toggle', methods=['POST'])
+@login_required
+@admin_required
+def admin_toggle_profit_rule(rule_id):
+    """Toggle profit rule active status."""
+    profit_rule = ProfitRule.query.get_or_404(rule_id)
+    
+    try:
+        profit_rule.is_active = not profit_rule.is_active
+        profit_rule.updated_at = datetime.utcnow()
+        db.session.commit()
+        status = "activated" if profit_rule.is_active else "deactivated"
+        flash(f'Profit rule {status} successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error toggling profit rule: {e}")
+        flash('Failed to toggle profit rule status. Please try again.', 'error')
+    
+    return redirect(url_for('admin_profit_rules'))
+
+@app.route('/admin/profit-report', methods=['GET'])
+@login_required
+@admin_required
+def admin_profit_report():
+    """Admin page for viewing profit reports."""
+    # Get date filter
+    date_filter = request.args.get('date_filter', '30days')
+    start_date = None
+    end_date = None
+    
+    now = datetime.utcnow()
+    
+    if date_filter == 'today':
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now
+    elif date_filter == 'yesterday':
+        yesterday = now - timedelta(days=1)
+        start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif date_filter == '7days':
+        start_date = now - timedelta(days=7)
+        end_date = now
+    elif date_filter == '30days':
+        start_date = now - timedelta(days=30)
+        end_date = now
+    elif date_filter == 'this_month':
+        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_date = now
+    elif date_filter == 'last_month':
+        first_day_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_date = (first_day_this_month - timedelta(days=1)).replace(day=1)
+        end_date = first_day_this_month - timedelta(seconds=1)
+    elif date_filter == 'this_year':
+        start_date = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_date = now
+    elif date_filter == 'all_time':
+        start_date = None
+        end_date = None
+    
+    # Build query for orders
+    query = Order.query.filter(Order.status != 'cancelled')
+    
+    if start_date:
+        query = query.filter(Order.created_at >= start_date)
+    if end_date:
+        query = query.filter(Order.created_at <= end_date)
+    
+    orders = query.all()
+    
+    # Calculate statistics
+    total_orders = len(orders)
+    total_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in orders)
+    total_profit = sum(order.total_profit_gmd or 0.0 for order in orders)
+    profit_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0.0
+    
+    # Daily breakdown
+    daily_stats = {}
+    for order in orders:
+        date_key = order.created_at.date().isoformat()
+        if date_key not in daily_stats:
+            daily_stats[date_key] = {
+                'date': order.created_at.date(),
+                'orders': 0,
+                'revenue': 0.0,
+                'profit': 0.0
+            }
+        daily_stats[date_key]['orders'] += 1
+        daily_stats[date_key]['revenue'] += order.total_revenue_gmd or order.total or 0.0
+        daily_stats[date_key]['profit'] += order.total_profit_gmd or 0.0
+    
+    # Sort by date
+    daily_breakdown = sorted(daily_stats.values(), key=lambda x: x['date'], reverse=True)
+    
+    # Calculate period summaries
+    today = now.date()
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+    year_start = today.replace(month=1, day=1)
+    
+    today_orders = Order.query.filter(
+        Order.status != 'cancelled',
+        db.func.date(Order.created_at) == today
+    ).all()
+    today_profit = sum(order.total_profit_gmd or 0.0 for order in today_orders)
+    today_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in today_orders)
+    
+    week_orders = Order.query.filter(
+        Order.status != 'cancelled',
+        db.func.date(Order.created_at) >= week_start
+    ).all()
+    week_profit = sum(order.total_profit_gmd or 0.0 for order in week_orders)
+    week_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in week_orders)
+    
+    month_orders = Order.query.filter(
+        Order.status != 'cancelled',
+        db.func.date(Order.created_at) >= month_start
+    ).all()
+    month_profit = sum(order.total_profit_gmd or 0.0 for order in month_orders)
+    month_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in month_orders)
+    
+    year_orders = Order.query.filter(
+        Order.status != 'cancelled',
+        db.func.date(Order.created_at) >= year_start
+    ).all()
+    year_profit = sum(order.total_profit_gmd or 0.0 for order in year_orders)
+    year_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in year_orders)
+    
+    all_time_orders = Order.query.filter(Order.status != 'cancelled').all()
+    all_time_profit = sum(order.total_profit_gmd or 0.0 for order in all_time_orders)
+    all_time_revenue = sum(order.total_revenue_gmd or order.total or 0.0 for order in all_time_orders)
+    
+    return render_template('admin/admin/profit_report.html',
+                         date_filter=date_filter,
+                         total_orders=total_orders,
+                         total_revenue=total_revenue,
+                         total_profit=total_profit,
+                         profit_margin=profit_margin,
+                         daily_breakdown=daily_breakdown,
+                         today_profit=today_profit,
+                         today_revenue=today_revenue,
+                         week_profit=week_profit,
+                         week_revenue=week_revenue,
+                         month_profit=month_profit,
+                         month_revenue=month_revenue,
+                         year_profit=year_profit,
+                         year_revenue=year_revenue,
+                         all_time_profit=all_time_profit,
+                         all_time_revenue=all_time_revenue)
 
 # ==================== Currency Rates Admin Routes ====================
 
