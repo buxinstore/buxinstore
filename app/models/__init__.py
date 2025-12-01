@@ -6,10 +6,13 @@ from app.models.forum import (
 )
 from app.models.country import Country
 from app.models.currency_rate import CurrencyRate
+from app.shipping.models import ShippingMode, ShippingRule
 
 __all__ = [
     'ForumPost', 'ForumFile', 'ForumLink',
     'ForumComment', 'ForumReaction', 'ForumBan',
     'Country',
-    'CurrencyRate'
+    'CurrencyRate',
+    'ShippingMode',
+    'ShippingRule'
 ]

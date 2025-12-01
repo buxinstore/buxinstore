@@ -271,6 +271,10 @@ def create_app(config_class: type[Config] | None = None):
     from app.routes.forum import forum_bp
     app.register_blueprint(forum_bp)
     
+    # Register shipping blueprint
+    from app.shipping.routes import shipping_bp
+    app.register_blueprint(shipping_bp)
+    
     # Check if bulk_email_job tables exist (informational only)
     # Migrations should be run via Render's releaseCommand or manually
     with app.app_context():

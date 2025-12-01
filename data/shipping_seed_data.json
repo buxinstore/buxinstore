@@ -1,0 +1,24 @@
+[
+  {"country": "SEN", "mode": "express", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 32, "price_usd_max": 38, "delivery": "3–7 days"},
+  {"country": "CIV", "mode": "express", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 30, "price_usd_max": 36, "delivery": "3–7 days"},
+  {"country": "GMB", "mode": "express", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 35, "price_usd_max": 40, "delivery": "3–7 days"},
+  {"country": "MLI", "mode": "express", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 33, "price_usd_max": 38, "delivery": "3–7 days"},
+  {"country": "BFA", "mode": "express", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 34, "price_usd_max": 40, "delivery": "3–7 days"},
+  {"country": "SLE", "mode": "express", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 36, "price_usd_max": 42, "delivery": "3–7 days"},
+  {"country": "UGA", "mode": "express", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 32, "price_usd_max": 38, "delivery": "3–7 days"},
+  {"country": "SEN", "mode": "economy", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 4, "price_usd_max": 6, "delivery": "20–60 days"},
+  {"country": "CIV", "mode": "economy", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 4, "price_usd_max": 6, "delivery": "20–60 days"},
+  {"country": "GMB", "mode": "economy", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 5, "price_usd_max": 7, "delivery": "20–60 days"},
+  {"country": "MLI", "mode": "economy", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 4, "price_usd_max": 6, "delivery": "20–60 days"},
+  {"country": "BFA", "mode": "economy", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 5, "price_usd_max": 7, "delivery": "20–60 days"},
+  {"country": "SLE", "mode": "economy", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 5, "price_usd_max": 7, "delivery": "20–60 days"},
+  {"country": "UGA", "mode": "economy", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 4, "price_usd_max": 6, "delivery": "20–60 days"},
+  {"country": "SEN", "mode": "economy_plus", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 12, "price_usd_max": 18, "delivery": "10–20 days"},
+  {"country": "CIV", "mode": "economy_plus", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 11, "price_usd_max": 17, "delivery": "10–20 days"},
+  {"country": "GMB", "mode": "economy_plus", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 13, "price_usd_max": 20, "delivery": "10–20 days"},
+  {"country": "MLI", "mode": "economy_plus", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 12, "price_usd_max": 18, "delivery": "10–20 days"},
+  {"country": "BFA", "mode": "economy_plus", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 12, "price_usd_max": 19, "delivery": "10–20 days"},
+  {"country": "SLE", "mode": "economy_plus", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 13, "price_usd_max": 20, "delivery": "10–20 days"},
+  {"country": "UGA", "mode": "economy_plus", "min_weight": 0.0, "max_weight": 0.5, "price_usd_min": 11, "price_usd_max": 17, "delivery": "10–20 days"}
+]
+
