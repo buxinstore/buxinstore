@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Product - China Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <div class="min-h-screen">
+        <!-- Page Header -->
+        <header class="bg-white dark:bg-gray-800 shadow">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">🇨🇳 China Portal</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Welcome, {{ current_user.username }}</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="{{ url_for('china_products') }}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                            <i class="fas fa-arrow-left mr-1"></i> Back to Products
+                        </a>
+                        <a href="{{ url_for('logout') }}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                            <i class="fas fa-sign-out-alt mr-1"></i> 🔐 Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Segmented Control / Tabs -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            <div class="border-b border-gray-200 dark:border-gray-700">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <a href="{{ url_for('china_orders') }}" 
+                       class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                        <i class="fas fa-shopping-cart mr-2"></i>
+                        Orders
+                    </a>
+                    <a href="{{ url_for('china_products') }}" 
+                       class="border-blue-500 text-blue-600 dark:text-blue-400 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center">
+                        <i class="fas fa-upload mr-2"></i>
+                        Upload Products
+                    </a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mb-4 rounded-md bg-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-50 dark:bg-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-900 p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="h-5 w-5 text-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-400 fas {{ 'fa-exclamation-circle' if category == 'error' else 'fa-check-circle' if category == 'success' else 'fa-exclamation-triangle' }}"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm font-medium text-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-800 dark:text-{{ 'red' if category == 'error' else 'green' if category == 'success' else 'yellow' }}-200">
+                                        {{ message }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Add Product Form -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-1">
+                        Add New Product
+                    </h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        Fill in the product details below. All prices must be in GMD (Gambian Dalasi).
+                    </p>
+                </div>
+
+                <form method="POST" action="{{ url_for('china_products_add') }}" enctype="multipart/form-data" class="space-y-6">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <!-- Product Name -->
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Product Name <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" 
+                               id="name" 
+                               name="name" 
+                               required
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <!-- Category -->
+                    <div>
+                        <label for="category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Category <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" 
+                               id="category" 
+                               name="category" 
+                               list="categories"
+                               required
+                               placeholder="Type or select a category"
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <datalist id="categories">
+                            {% for category in categories %}
+                            <option value="{{ category.name }}">
+                            {% endfor %}
+                        </datalist>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Type to search existing categories or enter a new category name
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <!-- Weight (kg) -->
+                        <div>
+                            <label for="weight_kg" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Weight (kg) <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <input type="number" 
+                                       id="weight_kg" 
+                                       name="weight_kg" 
+                                       step="0.00001"
+                                       min="0.00001"
+                                       max="500"
+                                       required
+                                       placeholder="0.5"
+                                       class="w-full px-4 py-2 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <span class="absolute right-3 top-2.5 text-gray-500 text-sm">kg</span>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Must be between 0.00001 and 500 kg
+                            </p>
+                        </div>
+
+                        <!-- Price (GMD) -->
+                        <div>
+                            <label for="price" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Price (GMD)
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-gray-500 text-sm">D</span>
+                                <input type="text" 
+                                       id="price" 
+                                       name="price" 
+                                       placeholder="0.00"
+                                       class="w-full px-4 py-2 pl-8 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Enter price in Gambian Dalasi (GMD)
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Stock -->
+                    <div>
+                        <label for="stock" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Stock
+                        </label>
+                        <input type="number" 
+                               id="stock" 
+                               name="stock" 
+                               min="0"
+                               value="0"
+                               placeholder="0"
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <!-- Description -->
+                    <div>
+                        <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Description
+                        </label>
+                        <textarea id="description" 
+                                  name="description" 
+                                  rows="4"
+                                  placeholder="Enter product description..."
+                                  class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+
+                    <!-- Image Upload -->
+                    <div>
+                        <label for="image" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Product Image
+                        </label>
+                        <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
+                            <div class="space-y-1 text-center">
+                                <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 dark:text-gray-500"></i>
+                                <div class="flex text-sm text-gray-600 dark:text-gray-400">
+                                    <label for="image" class="relative cursor-pointer bg-white dark:bg-gray-800 rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                        <span>Upload an image</span>
+                                        <input id="image" name="image" type="file" accept=".png,.jpg,.jpeg,.webp" class="sr-only">
+                                    </label>
+                                    <p class="pl-1">or drag and drop</p>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                    PNG, JPG, JPEG, WEBP up to 10MB
+                                </p>
+                                <div id="image-preview" class="mt-2 hidden">
+                                    <img id="preview-img" src="" alt="Preview" class="max-h-32 mx-auto rounded-lg">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <a href="{{ url_for('china_products') }}" 
+                           class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-2 focus:ring-gray-500">
+                            Cancel
+                        </a>
+                        <button type="submit" 
+                                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 inline-flex items-center">
+                            <i class="fas fa-plus mr-2"></i>
+                            Add Product
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Image preview
+        const imageInput = document.getElementById('image');
+        const imagePreview = document.getElementById('image-preview');
+        const previewImg = document.getElementById('preview-img');
+        
+        if (imageInput && imagePreview && previewImg) {
+            imageInput.addEventListener('change', function(e) {
+                if (e.target.files && e.target.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImg.src = e.target.result;
+                        imagePreview.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(e.target.files[0]);
+                } else {
+                    imagePreview.classList.add('hidden');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+

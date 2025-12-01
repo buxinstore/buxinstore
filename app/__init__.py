@@ -10764,7 +10764,8 @@ def china_orders():
     # Apply country filter if provided
     if country_filter:
         # Join with User and UserProfile to filter by country
-        query = query.join(User).join(UserProfile).filter(
+        # Explicitly specify the join condition to avoid ambiguity
+        query = query.join(User, Order.user_id == User.id).join(UserProfile, User.id == UserProfile.user_id).filter(
             UserProfile.country == country_filter
         )
     
@@ -11016,6 +11017,120 @@ def china_products():
     """China Partner products upload page"""
     return render_template('china/products.html')
 
+@app.route('/china/products/add', methods=['GET', 'POST'])
+@login_required
+@china_partner_required
+def china_products_add():
+    """Single product add page for China Partner"""
+    if request.method == 'POST':
+        try:
+            from .utils.cloudinary_utils import upload_to_cloudinary
+            
+            # Get form data
+            name = request.form.get('name', '').strip()
+            category_name = request.form.get('category', '').strip()
+            weight_kg = request.form.get('weight_kg', '').strip()
+            price = request.form.get('price', '').strip()
+            stock = request.form.get('stock', '0').strip()
+            description = request.form.get('description', '').strip()
+            
+            # Validate required fields
+            if not name:
+                flash('Product name is required', 'error')
+                return redirect(url_for('china_products_add'))
+            if not category_name:
+                flash('Category is required', 'error')
+                return redirect(url_for('china_products_add'))
+            if not weight_kg:
+                flash('Weight is required', 'error')
+                return redirect(url_for('china_products_add'))
+            
+            # Validate weight
+            try:
+                weight_kg = float(weight_kg)
+                if weight_kg < 0.00001 or weight_kg > 500:
+                    flash('Weight must be between 0.00001 and 500 kg', 'error')
+                    return redirect(url_for('china_products_add'))
+            except (ValueError, TypeError):
+                flash('Invalid weight value', 'error')
+                return redirect(url_for('china_products_add'))
+            
+            # Validate price (GMD)
+            price_value = 0.0
+            if price:
+                try:
+                    # Clean price string (remove currency symbols)
+                    price_str = str(price).strip().upper()
+                    price_str_clean = price_str.replace('$', '').replace('USD', '').replace('US', '').replace('GMD', '').replace('DALASI', '').replace('DALASIS', '').replace('D', '').strip()
+                    if price_str_clean.startswith('D'):
+                        price_str_clean = price_str_clean[1:].strip()
+                    if price_str_clean.endswith('D'):
+                        price_str_clean = price_str_clean[:-1].strip()
+                    price_value = float(price_str_clean)
+                    if price_value <= 0:
+                        flash('Price must be greater than 0', 'error')
+                        return redirect(url_for('china_products_add'))
+                except (ValueError, TypeError):
+                    flash('Invalid price value. Must be numeric GMD amount', 'error')
+                    return redirect(url_for('china_products_add'))
+            
+            # Validate stock
+            stock_value = 0
+            if stock:
+                try:
+                    stock_value = int(stock)
+                    if stock_value < 0:
+                        stock_value = 0
+                except (ValueError, TypeError):
+                    stock_value = 0
+            
+            # Get or create category
+            category = Category.query.filter_by(name=category_name).first()
+            if not category:
+                category = Category(name=category_name)
+                db.session.add(category)
+                db.session.flush()
+            
+            # Handle image upload
+            final_image_url = None
+            if 'image' in request.files:
+                image_file = request.files['image']
+                if image_file and image_file.filename:
+                    upload_result = upload_to_cloudinary(image_file, folder='products')
+                    if upload_result and upload_result.get('url'):
+                        final_image_url = upload_result['url']
+            
+            # Create product
+            product = Product(
+                name=name,
+                description=description or 'No description provided',
+                price=price_value,  # Stored as GMD
+                stock=stock_value,
+                category_id=category.id,
+                weight_kg=weight_kg,
+                image=final_image_url,
+                available_in_gambia=False,
+                location='Outside The Gambia',  # Default for China products
+                delivery_price=0.0,
+                shipping_price=0.0
+            )
+            
+            db.session.add(product)
+            db.session.commit()
+            
+            flash(f'Product "{name}" added successfully!', 'success')
+            return redirect(url_for('china_products'))
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error adding product: {str(e)}")
+            flash(f'Error adding product: {str(e)}', 'error')
+            return redirect(url_for('china_products_add'))
+    
+    # GET request - show form
+    categories = Category.query.order_by(Category.name).all()
+    return render_template('china/product_add.html', categories=categories)
+
 @app.route('/china/products/upload', methods=['POST'])
 @login_required
 @china_partner_required
@@ -11074,7 +11189,7 @@ def china_products_upload():
             'category': 'category',
             'weight (kg)': 'weight_kg',
             'price': 'price',
-            'price (usd)': 'price',  # Accept both "Price" and "Price (USD)"
+            'price (gmd)': 'price',  # Accept both "Price" and "Price (GMD)"
             'stock': 'stock',
             'description': 'description',
             'image url': 'image_url',
@@ -11122,29 +11237,20 @@ def china_products_upload():
                     db.session.flush()  # Get category ID
                 
                 # Get optional fields with defaults
-                # Handle price - check both 'price' and 'price (usd)' columns
-                price_raw = row.get('price (usd)') if pd.notna(row.get('price (usd)')) else row.get('price')
+                # Handle price - check both 'price' and 'price (gmd)' columns
+                price_raw = row.get('price (gmd)') if pd.notna(row.get('price (gmd)')) else row.get('price')
                 price = 0.0
                 if pd.notna(price_raw):
                     try:
-                        # Convert to string first to check for GMD-like characters
+                        # Convert to string first to clean currency symbols
                         price_str = str(price_raw).strip().upper()
-                        # Check for GMD indicators (GMD, Dalasi, or D at start/end)
-                        # Check for 'D' only if it's at the start/end or part of GMD/DALASI
-                        gmd_indicators = ['GMD', 'DALASI', 'DALASIS']
-                        has_gmd = any(indicator in price_str for indicator in gmd_indicators)
-                        # Check for 'D' at start or end (like "D100" or "100D")
-                        if not has_gmd and ('D' in price_str):
-                            # Only flag if D is at start/end or followed/preceded by space
-                            if price_str.startswith('D') or price_str.endswith('D') or ' D' in price_str or 'D ' in price_str:
-                                has_gmd = True
-                        
-                        if has_gmd:
-                            error_count += 1
-                            errors.append(f"Row {idx + 2}: Price must be in USD only. Found GMD indicator. Please enter USD amount only.")
-                            continue
-                        # Remove common currency symbols and parse
-                        price_str_clean = price_str.replace('$', '').replace('USD', '').replace('US', '').strip()
+                        # Remove common currency symbols and parse (accept GMD, D, Dalasi, or plain numbers)
+                        price_str_clean = price_str.replace('$', '').replace('USD', '').replace('US', '').replace('GMD', '').replace('DALASI', '').replace('DALASIS', '').replace('D', '').strip()
+                        # Remove 'D' at start or end if present
+                        if price_str_clean.startswith('D'):
+                            price_str_clean = price_str_clean[1:].strip()
+                        if price_str_clean.endswith('D'):
+                            price_str_clean = price_str_clean[:-1].strip()
                         price = float(price_str_clean)
                         if price <= 0:
                             error_count += 1
@@ -11152,7 +11258,7 @@ def china_products_upload():
                             continue
                     except (ValueError, TypeError):
                         error_count += 1
-                        errors.append(f"Row {idx + 2}: Invalid price value. Must be numeric USD amount")
+                        errors.append(f"Row {idx + 2}: Invalid price value. Must be numeric GMD amount")
                         continue
                 
                 stock = int(row.get('stock', 0)) if pd.notna(row.get('stock')) else 0
@@ -11173,12 +11279,11 @@ def china_products_upload():
                             current_app.logger.info(f"✅ Uploaded image {image_filename} to Cloudinary")
                 
                 # Create product
-                # NOTE: Price is stored in USD (not converted to GMD)
-                # Admin will convert USD → GMD later using exchange rate × 2
+                # Price is stored in GMD (Gambian Dalasi)
                 product = Product(
                     name=name,
                     description=description or 'No description provided',
-                    price=price,  # Stored as USD - admin will convert to GMD later
+                    price=price,  # Stored as GMD
                     stock=stock,
                     category_id=category.id,
                     weight_kg=weight_kg,
@@ -11234,7 +11339,7 @@ def china_products_template():
             'Product Name': ['Example Product 1', 'Example Product 2'],
             'Category': ['Electronics', 'Clothing'],
             'Weight (kg)': [0.5, 0.2],
-            'Price (USD)': [100.00, 50.00],
+            'Price (GMD)': [100.00, 50.00],
             'Stock': [10, 20],
             'Description': ['Product description here', 'Another product description'],
             'Image URL': ['https://example.com/image1.jpg', ''],
