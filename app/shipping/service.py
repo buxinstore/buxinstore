@@ -218,6 +218,9 @@ class ShippingService:
         if not mode:
             return None, f"Shipping mode '{shipping_mode_key}' not found"
         
+        # Log before creating rule for debugging
+        current_app.logger.info(f"ShippingService.create_rule called: mode_key={shipping_mode_key}, country={country_iso}, price={price_gmd}, min_weight={min_weight}, max_weight={max_weight}")
+        
         # Check for overlaps
         has_overlap, error_msg = ShippingService.validate_rule_overlap(
             country_iso, shipping_mode_key, Decimal(str(min_weight)), Decimal(str(max_weight))
@@ -226,10 +229,16 @@ class ShippingService:
             return None, error_msg
         
         # Create rule
+        # CRITICAL: Use shipping_mode_key, NEVER use shipping_method as a variable
         try:
+            # Double-check that shipping_mode_key is set and not shipping_method
+            if 'shipping_method' in locals() or 'shipping_method' in globals():
+                current_app.logger.error("CRITICAL: shipping_method variable detected in scope - this should not happen!")
+                return None, "Internal error: shipping_method variable detected"
+            
             rule = ShippingRule(
                 country_iso=country_iso.upper(),
-                shipping_mode_key=shipping_mode_key,
+                shipping_mode_key=shipping_mode_key,  # Use shipping_mode_key, NOT shipping_method
                 min_weight=Decimal(str(min_weight)),
                 max_weight=Decimal(str(max_weight)),
                 price_gmd=Decimal(str(price_gmd)),
@@ -240,10 +249,23 @@ class ShippingService:
             )
             db.session.add(rule)
             db.session.commit()
+            current_app.logger.info(f"Shipping rule created successfully: id={rule.id}, mode_key={shipping_mode_key}, country={country_iso}")
             return rule, None
+        except NameError as ne:
+            # Specifically catch NameError to provide better debugging
+            db.session.rollback()
+            import traceback
+            error_traceback = traceback.format_exc()
+            current_app.logger.error(f"NameError in ShippingService.create_rule: {ne}\n{error_traceback}", exc_info=True)
+            if 'shipping_method' in str(ne):
+                return None, f"Internal code error: shipping_method variable referenced. Traceback logged."
+            return None, f"NameError: {str(ne)}"
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"Error creating shipping rule: {str(e)}")
+            current_app.logger.error(f"Error creating shipping rule: {str(e)}", exc_info=True)
+            # Check if error message contains shipping_method
+            if 'shipping_method' in str(e).lower():
+                return None, "Internal code error: shipping_method variable referenced. Traceback logged."
             return None, str(e)
     
     @staticmethod

@@ -1651,7 +1651,7 @@ class Order(db.Model):
     
     # Shipping rule fields (for automatic shipping calculation)
     shipping_rule_id = db.Column(db.Integer, db.ForeignKey('shipping_rules.id'), nullable=True)  # Which shipping rule was applied (new system)
-    shipping_method = db.Column(db.String(20), nullable=True)  # Selected shipping method: 'express', 'ecommerce', 'economy'
+    shipping_mode_key = db.Column(db.String(20), nullable=True)  # Selected shipping method: 'express', 'ecommerce', 'economy'
     shipping_delivery_estimate = db.Column(db.String(100), nullable=True)  # Delivery time estimate from rule
     shipping_display_currency = db.Column(db.String(10), nullable=True)  # Currency used for display (e.g., 'GMD', 'XOF')
     
@@ -1701,7 +1701,7 @@ class LegacyShippingRule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     rule_type = db.Column(db.String(20), nullable=False, default='country')  # 'country' or 'global'
     country_id = db.Column(db.Integer, db.ForeignKey('country.id'), nullable=True)  # Nullable for global rules
-    shipping_method = db.Column(db.String(20), nullable=True)  # 'express', 'ecommerce', 'economy' or None for all methods
+    shipping_mode_key = db.Column(db.String(20), nullable=True)  # 'express', 'ecommerce', 'economy' or None for all methods
     min_weight = db.Column(db.Numeric(10, 6), nullable=False)  # Decimal precision for small weights
     max_weight = db.Column(db.Numeric(10, 6), nullable=False)
     price_gmd = db.Column(db.Numeric(10, 2), nullable=False)  # Price in GMD
@@ -1727,7 +1727,7 @@ class LegacyShippingRule(db.Model):
             'country_id': self.country_id,
             'country_name': self.country.name if self.country else None,
             'country_code': self.country.code if self.country else None,
-            'shipping_method': self.shipping_method,
+            'shipping_mode_key': self.shipping_mode_key,
             'min_weight': float(self.min_weight) if self.min_weight else 0.0,
             'max_weight': float(self.max_weight) if self.max_weight else 0.0,
             'price_gmd': float(self.price_gmd) if self.price_gmd else 0.0,
@@ -1781,7 +1781,7 @@ class ProfitRule(db.Model):
         
         return min_price <= base_price <= max_price
 
-def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] = None, shipping_method: Optional[str] = None, default_weight: float = 0.0) -> Optional[Dict[str, any]]:
+def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] = None, shipping_mode_key: Optional[str] = None, default_weight: float = 0.0) -> Optional[Dict[str, any]]:
     """
     Calculate shipping price based on total cart weight, country, and shipping method.
     Uses the NEW shipping system (app.shipping.models.ShippingRule) with country_iso.
@@ -1789,11 +1789,11 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     Args:
         total_weight_kg: Total weight in kilograms
         country_id: Optional country ID to filter rules (will be converted to country_iso)
-        shipping_method: Optional shipping method ID ('express', 'economy_plus', 'economy') to filter rules
+        shipping_mode_key: Optional shipping method ID ('express', 'economy_plus', 'economy') to filter rules
         default_weight: Default weight to use if total_weight_kg is 0 or None
     
     Returns:
-        Dict with keys: 'rule', 'price_gmd', 'delivery_time', 'rule_name', 'debug_info', 'available', 'shipping_method'
+        Dict with keys: 'rule', 'price_gmd', 'delivery_time', 'rule_name', 'debug_info', 'available', 'shipping_mode_key'
         or None if no rule matches (should default to 0)
     """
     # Use the new shipping service
@@ -1817,15 +1817,14 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         except (ValueError, TypeError):
             country_id = None
     
-    # Map old shipping_method names to new ones
+    # Map old shipping_mode_key names to new ones
     method_mapping = {
         'express': 'express',
         'ecommerce': 'economy_plus',  # Old 'ecommerce' maps to new 'economy_plus'
         'economy': 'economy'
     }
-    shipping_mode_key = None
-    if shipping_method:
-        shipping_mode_key = method_mapping.get(shipping_method, shipping_method)
+    if shipping_mode_key:
+        shipping_mode_key = method_mapping.get(shipping_mode_key, shipping_mode_key)
     
     # Ensure we have a valid country_iso string (use '*' for global if None)
     # Always prefer ISO code over country name
@@ -1852,11 +1851,11 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
                     'rule_type': 'country' if country_iso else 'global',
                     'country_id': country_id,
                     'country_name': country_name,
-                    'shipping_method': mode_key,
+                    'shipping_mode_key': mode_key,
                     'debug_info': {
                         'chosen_country': country_name,
                         'chosen_country_id': country_id,
-                        'shipping_method': mode_key,
+                        'shipping_mode_key': mode_key,
                         'weight_kg': total_weight_kg,
                         'applied_rule_id': result.get('rule_id'),
                         'final_shipping_price': result.get('shipping_fee_gmd', 0.0),
@@ -1889,11 +1888,11 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
             'rule_type': 'country' if country_iso else 'global',
             'country_id': country_id,
             'country_name': country_name,
-            'shipping_method': shipping_mode_key,
+            'shipping_mode_key': shipping_mode_key,
             'debug_info': {
                 'chosen_country': country_name,
                 'chosen_country_id': country_id,
-                'shipping_method': shipping_mode_key,
+                'shipping_mode_key': shipping_mode_key,
                 'weight_kg': total_weight_kg,
                 'applied_rule_id': result.get('rule_id'),
                 'final_shipping_price': result.get('shipping_fee_gmd', 0.0),
@@ -1907,7 +1906,7 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     debug_info = {
         'chosen_country': country_name if country_id else None,
         'chosen_country_id': country_id,
-        'shipping_method': shipping_mode_key,
+        'shipping_mode_key': shipping_mode_key,
         'weight_kg': total_weight_kg,
         'applied_rule_id': None,
         'weight_range_matched': None,
@@ -1921,7 +1920,7 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     current_app.logger.warning(
         f"❌ NO SHIPPING RULE MATCHED: "
         f"Country={country_name if country_id else 'None'}, "
-        f"Country ID={country_id}, Method={shipping_method or 'any'}, Weight={total_weight_kg}kg. "
+        f"Country ID={country_id}, Method={shipping_mode_key or 'any'}, Weight={total_weight_kg}kg. "
         f"Shipping fee will default to 0. "
         f"Debug Info: {debug_info}. "
         f"CONFIRMED: New Shipping System - no other sources used."
@@ -2720,12 +2719,12 @@ def api_shipping_estimate():
             weight = 0.0
         
         # Get shipping method if provided
-        shipping_method = data.get('shipping_method')
-        if shipping_method:
-            shipping_method = shipping_method.strip() or None
+        shipping_mode_key = data.get('shipping_mode_key')
+        if shipping_mode_key:
+            shipping_mode_key = shipping_mode_key.strip() or None
         
         # Calculate shipping
-        result = calculate_shipping_price(weight, country_id, shipping_method)
+        result = calculate_shipping_price(weight, country_id, shipping_mode_key)
         
         if result:
             # Include comprehensive debug info in API response
@@ -2735,7 +2734,7 @@ def api_shipping_estimate():
                 'available': True,
                 'price_gmd': result['price_gmd'],
                 'delivery_time': result['delivery_time'],
-                'shipping_method': result.get('shipping_method'),
+                'shipping_mode_key': result.get('shipping_mode_key'),
                 'rule_name': result.get('rule_name', 'Unknown rule'),
                 'rule_type': result.get('rule_type', 'unknown'),
                 'country_id': result.get('country_id'),
@@ -2750,7 +2749,7 @@ def api_shipping_estimate():
                 'success': True,
                 'available': False,
                 'price_gmd': 0.0,
-                'message': f'No shipping rule found for country_id={country_id}, weight={weight}kg, method={shipping_method or "any"}. Shipping fee = 0.',
+                'message': f'No shipping rule found for country_id={country_id}, weight={weight}kg, method={shipping_mode_key or "any"}. Shipping fee = 0.',
                 'debug_info': {
                     'chosen_country_id': country_id,
                     'weight_kg': weight,
@@ -2761,7 +2760,7 @@ def api_shipping_estimate():
                     'other_shipping_sources_used': False,
                     'shipping_source': 'Shipping Rules Table ONLY',
                     'confirmation': 'No other shipping sources used - ONLY Shipping Rules table checked',
-                    'shipping_method': shipping_method
+                    'shipping_mode_key': shipping_mode_key
                 }
             }), 200
     
@@ -3906,10 +3905,10 @@ def checkout():
             total_weight = calculate_cart_total_weight(cart_items, default_weight=0.0)
             
             # Get shipping method from form
-            shipping_method = request.form.get('shipping_method', '').strip() or None
+            shipping_mode_key = request.form.get('shipping_mode_key', '').strip() or None
             
             # Calculate shipping using shipping rules
-            shipping_result = calculate_shipping_price(total_weight, country_id, shipping_method, default_weight=0.0)
+            shipping_result = calculate_shipping_price(total_weight, country_id, shipping_mode_key, default_weight=0.0)
             
             shipping_price_gmd = Decimal('0.00')
             shipping_rule_id = None
@@ -4018,7 +4017,7 @@ def checkout():
                 total_cost=float(total_cost),  # Total in display currency
                 location='China',  # Default location, can be updated later
                 shipping_rule_id=shipping_rule_id,
-                shipping_method=shipping_method,  # Store selected shipping method
+                shipping_mode_key=shipping_mode_key,  # Store selected shipping method
                 shipping_delivery_estimate=shipping_delivery_estimate,
                 shipping_display_currency=shipping_display_currency,
                 cart_items_json=json.dumps(cart_items)  # Store cart items as JSON
@@ -5301,94 +5300,98 @@ def admin_settings_clear_cache():
 @admin_required
 def admin_shipping_rules():
     """Admin page for managing shipping rules with search, sorting, and pagination."""
+    from app.shipping.models import ShippingRule, ShippingMode
+    
     # Get filter parameters
     search = request.args.get('search', '').strip()
-    rule_type = request.args.get('type', '')  # 'country' or 'global'
-    country_id = request.args.get('country_id', type=int)  # type=int ensures it's an integer or None
-    # Ensure country_id is always an integer or None - never a string
-    if country_id is not None:
-        try:
-            country_id = int(country_id)
-        except (ValueError, TypeError):
-            country_id = None
+    country_iso = request.args.get('country_iso', '').strip().upper()
+    mode_key = request.args.get('mode_key', '').strip()
     status_filter = request.args.get('status', '')  # 'active' or 'inactive'
     sort_by = request.args.get('sort', 'priority')  # 'priority', 'country', 'min_weight', 'price'
     sort_order = request.args.get('order', 'desc')  # 'asc' or 'desc'
     page = request.args.get('page', 1, type=int)
     per_page = 20
     
-    # Build query
-    query = LegacyShippingRule.query
+    # Build query using NEW ShippingRule system
+    query = ShippingRule.query.join(ShippingMode, ShippingRule.shipping_mode_key == ShippingMode.key)
     
     # Apply filters
     if search:
         query = query.filter(
             db.or_(
-                LegacyShippingRule.note.ilike(f'%{search}%'),
-                Country.name.ilike(f'%{search}%')
+                ShippingRule.notes.ilike(f'%{search}%'),
+                ShippingRule.country_iso.ilike(f'%{search}%'),
+                ShippingMode.label.ilike(f'%{search}%')
             )
         )
     
-    if rule_type:
-        query = query.filter(LegacyShippingRule.rule_type == rule_type)
+    if country_iso:
+        query = query.filter(ShippingRule.country_iso == country_iso)
     
-    if country_id:
-        query = query.filter(LegacyShippingRule.country_id == country_id)
+    if mode_key:
+        query = query.filter(ShippingRule.shipping_mode_key == mode_key)
     
     if status_filter == 'active':
-        query = query.filter(LegacyShippingRule.status == True)
+        query = query.filter(ShippingRule.active == True)
     elif status_filter == 'inactive':
-        query = query.filter(LegacyShippingRule.status == False)
-    
-    # Join with Country for sorting and filtering
-    query = query.outerjoin(Country)
+        query = query.filter(ShippingRule.active == False)
     
     # Apply sorting
     if sort_by == 'country':
         if sort_order == 'asc':
-            query = query.order_by(db.func.coalesce(Country.name, db.literal('Global')).asc(), LegacyShippingRule.priority.desc())
+            query = query.order_by(
+                db.case((ShippingRule.country_iso == '*', 'ZZZ'), else_=ShippingRule.country_iso).asc(),
+                ShippingRule.priority.desc()
+            )
         else:
-            query = query.order_by(db.func.coalesce(Country.name, db.literal('Global')).desc(), LegacyShippingRule.priority.desc())
+            query = query.order_by(
+                db.case((ShippingRule.country_iso == '*', 'ZZZ'), else_=ShippingRule.country_iso).desc(),
+                ShippingRule.priority.desc()
+            )
     elif sort_by == 'min_weight':
         if sort_order == 'asc':
-            query = query.order_by(LegacyShippingRule.min_weight.asc())
+            query = query.order_by(ShippingRule.min_weight.asc())
         else:
-            query = query.order_by(LegacyShippingRule.min_weight.desc())
+            query = query.order_by(ShippingRule.min_weight.desc())
     elif sort_by == 'price':
         if sort_order == 'asc':
-            query = query.order_by(LegacyShippingRule.price_gmd.asc())
+            query = query.order_by(ShippingRule.price_gmd.asc())
         else:
-            query = query.order_by(LegacyShippingRule.price_gmd.desc())
+            query = query.order_by(ShippingRule.price_gmd.desc())
     else:  # priority (default)
         if sort_order == 'asc':
-            query = query.order_by(LegacyShippingRule.priority.asc())
+            query = query.order_by(ShippingRule.priority.asc())
         else:
-            query = query.order_by(LegacyShippingRule.priority.desc())
+            query = query.order_by(ShippingRule.priority.desc())
     
     # Paginate
     rules = query.paginate(page=page, per_page=per_page, error_out=False)
     
     # Get statistics
-    total_rules = LegacyShippingRule.query.count()
-    active_rules = LegacyShippingRule.query.filter_by(status=True).count()
-    global_rules = LegacyShippingRule.query.filter_by(rule_type='global', status=True).count()
-    countries_with_rules = db.session.query(db.func.count(db.distinct(LegacyShippingRule.country_id))).filter(
-        LegacyShippingRule.rule_type == 'country',
-        LegacyShippingRule.status == True
+    total_rules = ShippingRule.query.count()
+    active_rules = ShippingRule.query.filter_by(active=True).count()
+    global_rules = ShippingRule.query.filter_by(country_iso='*', active=True).count()
+    countries_with_rules = db.session.query(db.func.count(db.distinct(ShippingRule.country_iso))).filter(
+        ShippingRule.country_iso != '*',
+        ShippingRule.active == True
     ).scalar() or 0
     
     # Get all countries for filter dropdown
     countries = Country.query.filter_by(is_active=True).order_by(Country.name).all()
     
+    # Get all shipping modes for filter dropdown
+    shipping_modes = ShippingMode.query.filter_by(active=True).order_by(ShippingMode.id).all()
+    
     return render_template('admin/admin/shipping_rules.html',
                          rules=rules,
                          search=search,
-                         rule_type=rule_type,
-                         country_id=country_id,
+                         country_iso=country_iso,
+                         mode_key=mode_key,
                          status_filter=status_filter,
                          sort_by=sort_by,
                          sort_order=sort_order,
                          countries=countries,
+                         shipping_modes=shipping_modes,
                          total_rules=total_rules,
                          active_rules=active_rules,
                          global_rules=global_rules,
@@ -5398,242 +5401,364 @@ def admin_shipping_rules():
 @login_required
 @admin_required
 def admin_new_shipping_rule():
-    """Create a new shipping rule."""
+    """Create a new shipping rule using NEW ShippingRule system."""
+    from app.shipping.models import ShippingRule, ShippingMode
+    from app.shipping.service import ShippingService
+    
+    # CRITICAL: Ensure shipping_method is NEVER used as a variable
+    # This prevents NameError: name 'shipping_method' is not defined
+    # Only shipping_mode_key should be used internally
+    
     if request.method == 'POST':
         try:
+            # Extract all form data first
             rule_type = request.form.get('rule_type', 'country')
             country_id = request.form.get('country_id')
-            min_weight = request.form.get('min_weight')
-            max_weight = request.form.get('max_weight')
-            price_gmd = request.form.get('price_gmd')
-            delivery_time = request.form.get('delivery_time', '').strip()
-            priority = request.form.get('priority', 0)
-            status = request.form.get('status') == 'on'
-            note = request.form.get('note', '').strip()
             
-            # Validation
-            if not min_weight or not max_weight or not price_gmd:
-                flash('Min weight, max weight, and price are required', 'error')
+            # PRIMARY FIELD: Always use shipping_mode_key from form
+            # This is the ONLY variable we use for shipping method internally
+            shipping_mode_key = request.form.get('shipping_mode_key', '').strip()
+            
+            # LEGACY FALLBACK: Only use old shipping_method field if shipping_mode_key is empty
+            # Apply fallback immediately after reading shipping_mode_key
+            # IMPORTANT: We read from form but NEVER create a shipping_method variable
+            if not shipping_mode_key:
+                # Read legacy field from form - store in old_field_value (NOT shipping_method)
+                old_field_value = request.form.get('shipping_method', '').strip()
+                if old_field_value:
+                    # Map legacy values to new system
+                    method_mapping = {
+                        'express': 'express',
+                        'ecommerce': 'economy_plus',
+                        'economy': 'economy'
+                    }
+                    # Always assign to shipping_mode_key, never to shipping_method
+                    shipping_mode_key = method_mapping.get(old_field_value, old_field_value)
+            
+            min_weight_str = request.form.get('min_weight', '').strip()
+            max_weight_str = request.form.get('max_weight', '').strip()
+            price_gmd_str = request.form.get('price_gmd', '').strip()
+            delivery_time = request.form.get('delivery_time', '').strip() or None
+            priority_str = request.form.get('priority', '0').strip()
+            active = request.form.get('active') == 'on'
+            notes = request.form.get('notes', '').strip() or None
+            
+            # Validation - shipping_mode_key must be set after fallback
+            if not shipping_mode_key:
+                db.session.rollback()
+                flash('Shipping method is required', 'error')
+                current_app.logger.error('Shipping rule creation failed: shipping_mode_key is missing')
                 return redirect(url_for('admin_new_shipping_rule'))
             
-            min_weight = Decimal(str(min_weight))
-            max_weight = Decimal(str(max_weight))
-            price_gmd = Decimal(str(price_gmd))
-            priority = int(priority) if priority else 0
+            if not min_weight_str or not max_weight_str or not price_gmd_str:
+                db.session.rollback()
+                flash('Min weight, max weight, and price are required', 'error')
+                current_app.logger.error('Shipping rule creation failed: missing required fields')
+                return redirect(url_for('admin_new_shipping_rule'))
             
+            # Validate shipping mode exists
+            mode = ShippingMode.query.filter_by(key=shipping_mode_key).first()
+            if not mode:
+                db.session.rollback()
+                flash(f'Invalid shipping method: {shipping_mode_key}', 'error')
+                current_app.logger.error(f'Shipping rule creation failed: invalid shipping_mode_key={shipping_mode_key}')
+                return redirect(url_for('admin_new_shipping_rule'))
+            
+            # Convert to numeric types with proper validation
+            try:
+                min_weight = float(min_weight_str)
+                max_weight = float(max_weight_str)
+                price_gmd = float(price_gmd_str)
+                priority = int(priority_str) if priority_str else 0
+            except (ValueError, TypeError) as ve:
+                db.session.rollback()
+                flash(f'Invalid numeric value: {str(ve)}', 'error')
+                current_app.logger.error(f'Invalid numeric value in shipping rule creation: {str(ve)}')
+                return redirect(url_for('admin_new_shipping_rule'))
+            
+            # Validate numeric values are positive (non-negative for min_weight, positive for others)
             if min_weight < 0:
+                db.session.rollback()
                 flash('Min weight must be >= 0', 'error')
                 return redirect(url_for('admin_new_shipping_rule'))
             
+            if max_weight <= 0:
+                db.session.rollback()
+                flash('Max weight must be greater than 0', 'error')
+                return redirect(url_for('admin_new_shipping_rule'))
+            
             if max_weight <= min_weight:
+                db.session.rollback()
                 flash('Max weight must be greater than min weight', 'error')
                 return redirect(url_for('admin_new_shipping_rule'))
             
             if price_gmd < 0:
+                db.session.rollback()
                 flash('Price must be >= 0', 'error')
                 return redirect(url_for('admin_new_shipping_rule'))
             
-            # If rule_type is global, country_id should be None
-            if rule_type == 'global':
-                country_id = None
-            elif not country_id:
-                flash('Country is required for country-specific rules', 'error')
-                return redirect(url_for('admin_new_shipping_rule'))
-            else:
-                # Ensure country_id is always an integer - never a string
+            # Convert country_id to country_iso
+            country_iso = '*'
+            if rule_type == 'country':
+                if not country_id:
+                    db.session.rollback()
+                    flash('Country is required for country-specific rules', 'error')
+                    return redirect(url_for('admin_new_shipping_rule'))
                 try:
-                    country_id = int(country_id)
-                except (ValueError, TypeError):
-                    flash('Invalid country ID. Must be a number.', 'error')
+                    country_id_int = int(country_id)
+                    country = Country.query.get(country_id_int)
+                    if not country:
+                        db.session.rollback()
+                        flash('Invalid country', 'error')
+                        return redirect(url_for('admin_new_shipping_rule'))
+                    country_iso = country.code.upper()
+                except (ValueError, TypeError) as ve:
+                    db.session.rollback()
+                    flash(f'Invalid country ID: {str(ve)}', 'error')
+                    current_app.logger.error(f'Invalid country ID in shipping rule creation: {str(ve)}')
                     return redirect(url_for('admin_new_shipping_rule'))
             
-            # Check for overlapping rules (same country/global and overlapping weight ranges)
-            if rule_type == 'country' and country_id:
-                overlapping = LegacyShippingRule.query.filter(
-                    LegacyShippingRule.rule_type == 'country',
-                    LegacyShippingRule.country_id == country_id,
-                    LegacyShippingRule.status == True,
-                    db.or_(
-                        db.and_(LegacyShippingRule.min_weight <= min_weight, LegacyShippingRule.max_weight >= min_weight),
-                        db.and_(LegacyShippingRule.min_weight <= max_weight, LegacyShippingRule.max_weight >= max_weight),
-                        db.and_(LegacyShippingRule.min_weight >= min_weight, LegacyShippingRule.max_weight <= max_weight)
-                    )
-                ).first()
-                
-                if overlapping:
-                    flash(f'Warning: Overlapping rule exists for this country and weight range. Rule created anyway.', 'warning')
-            elif rule_type == 'global':
-                overlapping = LegacyShippingRule.query.filter(
-                    LegacyShippingRule.rule_type == 'global',
-                    LegacyShippingRule.status == True,
-                    db.or_(
-                        db.and_(LegacyShippingRule.min_weight <= min_weight, LegacyShippingRule.max_weight >= min_weight),
-                        db.and_(LegacyShippingRule.min_weight <= max_weight, LegacyShippingRule.max_weight >= max_weight),
-                        db.and_(LegacyShippingRule.min_weight >= min_weight, LegacyShippingRule.max_weight <= max_weight)
-                    )
-                ).first()
-                
-                if overlapping:
-                    flash(f'Warning: Overlapping global rule exists for this weight range. Rule created anyway.', 'warning')
+            # Log before creating rule for debugging
+            current_app.logger.info(f"Creating shipping rule: mode_key={shipping_mode_key}, country={country_iso}, price={price_gmd}, min_weight={min_weight}, max_weight={max_weight}")
             
-            # Create rule (country_id is already validated as integer above)
-            rule = LegacyShippingRule(
-                rule_type=rule_type,
-                country_id=country_id,
-                shipping_method=shipping_method,
-                min_weight=min_weight,
-                max_weight=max_weight,
-                price_gmd=price_gmd,
-                delivery_time=delivery_time if delivery_time else None,
-                priority=priority,
-                status=status,
-                note=note if note else None
+            # Check for overlapping rules using ShippingService
+            has_overlap, overlap_error_msg = ShippingService.validate_rule_overlap(
+                country_iso=country_iso,
+                shipping_mode_key=shipping_mode_key,
+                min_weight=Decimal(str(min_weight)),
+                max_weight=Decimal(str(max_weight))
             )
             
-            db.session.add(rule)
-            db.session.commit()
+            if has_overlap:
+                flash(f'Warning: {overlap_error_msg}. Rule created anyway.', 'warning')
+            
+            # Create rule using ShippingService
+            # CRITICAL: Ensure shipping_mode_key is passed correctly - NEVER use shipping_method
+            try:
+                new_rule, create_error = ShippingService.create_rule(
+                    country_iso=country_iso,
+                    shipping_mode_key=shipping_mode_key,  # Use shipping_mode_key, NOT shipping_method
+                    min_weight=min_weight,
+                    max_weight=max_weight,
+                    price_gmd=price_gmd,
+                    delivery_time=delivery_time,
+                    priority=priority,
+                    notes=notes,
+                    active=active
+                )
+            except NameError as ne:
+                # Catch NameError specifically here in case it happens in ShippingService
+                db.session.rollback()
+                import traceback
+                error_traceback = traceback.format_exc()
+                current_app.logger.error(f'NameError in ShippingService.create_rule call: {ne}\n{error_traceback}', exc_info=True)
+                if 'shipping_method' in str(ne):
+                    flash('Error: Internal code error - shipping_method variable referenced in ShippingService. Please contact support.', 'error')
+                else:
+                    flash(f'Error creating shipping rule: {str(ne)}', 'error')
+                return redirect(url_for('admin_new_shipping_rule'))
+            
+            if create_error:
+                # Check if the error message contains shipping_method reference
+                if 'shipping_method' in str(create_error).lower():
+                    current_app.logger.error(f'ShippingService returned error with shipping_method reference: {create_error}')
+                    flash('Error: Internal code error - shipping_method variable referenced. Please contact support.', 'error')
+                else:
+                    flash(f'Error creating shipping rule: {create_error}', 'error')
+                return redirect(url_for('admin_new_shipping_rule'))
+            
+            if not new_rule:
+                flash('Error creating shipping rule: Unknown error', 'error')
+                return redirect(url_for('admin_new_shipping_rule'))
             
             flash('Shipping rule created successfully!', 'success')
             return redirect(url_for('admin_shipping_rules'))
             
+        except NameError as ne:
+            # Specifically catch NameError to provide better debugging
+            db.session.rollback()
+            import traceback
+            error_traceback = traceback.format_exc()
+            current_app.logger.error(f'NameError in shipping rule creation: {ne}\n{error_traceback}', exc_info=True)
+            # Check if it's the shipping_method error
+            if 'shipping_method' in str(ne):
+                flash('Error: Internal code error - shipping_method variable referenced. Please contact support.', 'error')
+            else:
+                flash(f'Error creating shipping rule: {str(ne)}', 'error')
+            return redirect(url_for('admin_new_shipping_rule'))
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f'Error creating shipping rule: {e}')
+            import traceback
+            error_traceback = traceback.format_exc()
+            current_app.logger.error(f'Error creating shipping rule: {e}\n{error_traceback}', exc_info=True)
             flash(f'Error creating shipping rule: {str(e)}', 'error')
             return redirect(url_for('admin_new_shipping_rule'))
     
     # GET request - show form
     countries = Country.query.filter_by(is_active=True).order_by(Country.name).all()
-    return render_template('admin/admin/shipping_rule_form.html', rule=None, countries=countries)
+    shipping_modes = ShippingMode.query.filter_by(active=True).order_by(ShippingMode.id).all()
+    return render_template('admin/admin/shipping_rule_form.html', rule=None, countries=countries, shipping_modes=shipping_modes)
 
 @app.route('/admin/shipping/<int:rule_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def admin_edit_shipping_rule(rule_id):
-    """Edit an existing shipping rule."""
-    rule = LegacyShippingRule.query.get_or_404(rule_id)
+    """Edit an existing shipping rule using NEW ShippingRule system."""
+    from app.shipping.models import ShippingRule, ShippingMode
+    from app.shipping.service import ShippingService
+    
+    rule = ShippingRule.query.get_or_404(rule_id)
     
     if request.method == 'POST':
         try:
             rule_type = request.form.get('rule_type', 'country')
             country_id = request.form.get('country_id')
-            shipping_method = request.form.get('shipping_method', '').strip() or None
+            
+            # Get shipping_mode_key - PRIMARY FIELD: Always use shipping_mode_key from form
+            shipping_mode_key = request.form.get('shipping_mode_key', '').strip()
+            
+            # LEGACY FALLBACK: Only use old shipping_method field if shipping_mode_key is empty
+            # Apply fallback immediately after reading shipping_mode_key
+            if not shipping_mode_key:
+                # Read legacy field - NEVER use shipping_method as a variable, only read from form
+                old_field_value = request.form.get('shipping_method', '').strip()
+                if old_field_value:
+                    # Map legacy values to new system
+                    method_mapping = {
+                        'express': 'express',
+                        'ecommerce': 'economy_plus',
+                        'economy': 'economy'
+                    }
+                    shipping_mode_key = method_mapping.get(old_field_value, old_field_value)
+            
             min_weight = request.form.get('min_weight')
             max_weight = request.form.get('max_weight')
             price_gmd = request.form.get('price_gmd')
             delivery_time = request.form.get('delivery_time', '').strip()
             priority = request.form.get('priority', 0)
-            status = request.form.get('status') == 'on'
-            note = request.form.get('note', '').strip()
+            active = request.form.get('active') == 'on'
+            notes = request.form.get('notes', '').strip()
             
-            # Validate shipping method if provided
-            if shipping_method:
-                from app.shipping import is_valid_shipping_method
-                if not is_valid_shipping_method(shipping_method):
-                    flash('Invalid shipping method', 'error')
-                    return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
-            
-            # Validation
-            if not min_weight or not max_weight or not price_gmd:
-                flash('Min weight, max weight, and price are required', 'error')
+            # Validation - shipping_mode_key must be set after fallback
+            if not shipping_mode_key:
+                db.session.rollback()
+                flash('Shipping method is required', 'error')
+                current_app.logger.error(f'Shipping rule edit failed: shipping_mode_key is missing for rule_id={rule_id}')
                 return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
             
-            min_weight = Decimal(str(min_weight))
-            max_weight = Decimal(str(max_weight))
-            price_gmd = Decimal(str(price_gmd))
-            priority = int(priority) if priority else 0
+            # Validate shipping mode exists
+            mode = ShippingMode.query.filter_by(key=shipping_mode_key).first()
+            if not mode:
+                db.session.rollback()
+                flash(f'Invalid shipping method: {shipping_mode_key}', 'error')
+                current_app.logger.error(f'Shipping rule edit failed: invalid shipping_mode_key={shipping_mode_key} for rule_id={rule_id}')
+                return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
             
+            if not min_weight or not max_weight or not price_gmd:
+                db.session.rollback()
+                flash('Min weight, max weight, and price are required', 'error')
+                current_app.logger.error(f'Shipping rule edit failed: missing required fields for rule_id={rule_id}')
+                return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
+            
+            # Convert to numeric types with proper validation
+            try:
+                min_weight = float(min_weight)
+                max_weight = float(max_weight)
+                price_gmd = float(price_gmd)
+                priority = int(priority) if priority else 0
+            except (ValueError, TypeError) as ve:
+                db.session.rollback()
+                flash(f'Invalid numeric value: {str(ve)}', 'error')
+                current_app.logger.error(f'Invalid numeric value in shipping rule edit: {str(ve)} for rule_id={rule_id}')
+                return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
+            
+            # Validate numeric values are positive (non-negative for min_weight, positive for others)
             if min_weight < 0:
+                db.session.rollback()
                 flash('Min weight must be >= 0', 'error')
                 return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
             
+            if max_weight <= 0:
+                db.session.rollback()
+                flash('Max weight must be greater than 0', 'error')
+                return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
+            
             if max_weight <= min_weight:
+                db.session.rollback()
                 flash('Max weight must be greater than min weight', 'error')
                 return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
             
             if price_gmd < 0:
+                db.session.rollback()
                 flash('Price must be >= 0', 'error')
                 return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
             
-            # If rule_type is global, country_id should be None
-            if rule_type == 'global':
-                country_id = None
-            elif not country_id:
-                flash('Country is required for country-specific rules', 'error')
-                return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
-            else:
-                # Ensure country_id is always an integer - never a string
+            # Convert country_id to country_iso
+            country_iso = '*'
+            if rule_type == 'country':
+                if not country_id:
+                    db.session.rollback()
+                    flash('Country is required for country-specific rules', 'error')
+                    return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
                 try:
                     country_id = int(country_id)
-                except (ValueError, TypeError):
-                    flash('Invalid country ID. Must be a number.', 'error')
+                    country = Country.query.get(country_id)
+                    if not country:
+                        db.session.rollback()
+                        flash('Invalid country', 'error')
+                        return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
+                    country_iso = country.code.upper()
+                except (ValueError, TypeError) as ve:
+                    db.session.rollback()
+                    flash(f'Invalid country ID: {str(ve)}', 'error')
+                    current_app.logger.error(f'Invalid country ID in shipping rule edit: {str(ve)} for rule_id={rule_id}')
                     return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
             
-            # Check for overlapping rules (excluding current rule)
-            if rule_type == 'country' and country_id:
-                overlapping = LegacyShippingRule.query.filter(
-                    LegacyShippingRule.id != rule_id,
-                    LegacyShippingRule.rule_type == 'country',
-                    LegacyShippingRule.country_id == country_id,
-                    LegacyShippingRule.status == True,
-                    db.or_(
-                        db.and_(LegacyShippingRule.min_weight <= min_weight, LegacyShippingRule.max_weight >= min_weight),
-                        db.and_(LegacyShippingRule.min_weight <= max_weight, LegacyShippingRule.max_weight >= max_weight),
-                        db.and_(LegacyShippingRule.min_weight >= min_weight, LegacyShippingRule.max_weight <= max_weight)
-                    )
-                ).first()
-                
-                if overlapping:
-                    flash(f'Warning: Overlapping rule exists for this country and weight range. Rule updated anyway.', 'warning')
-            elif rule_type == 'global':
-                overlapping = LegacyShippingRule.query.filter(
-                    LegacyShippingRule.id != rule_id,
-                    LegacyShippingRule.rule_type == 'global',
-                    LegacyShippingRule.status == True,
-                    db.or_(
-                        db.and_(LegacyShippingRule.min_weight <= min_weight, LegacyShippingRule.max_weight >= min_weight),
-                        db.and_(LegacyShippingRule.min_weight <= max_weight, LegacyShippingRule.max_weight >= max_weight),
-                        db.and_(LegacyShippingRule.min_weight >= min_weight, LegacyShippingRule.max_weight <= max_weight)
-                    )
-                ).first()
-                
-                if overlapping:
-                    flash(f'Warning: Overlapping global rule exists for this weight range. Rule updated anyway.', 'warning')
+            # Log before updating rule for debugging
+            current_app.logger.info(f"Updating shipping rule: rule_id={rule_id}, mode_key={shipping_mode_key}, country={country_iso}, price={price_gmd}, min_weight={min_weight}, max_weight={max_weight}")
             
-            # Update rule (country_id is already validated as integer above)
-            rule.rule_type = rule_type
-            rule.country_id = country_id
-            rule.shipping_method = shipping_method
-            rule.min_weight = min_weight
-            rule.max_weight = max_weight
-            rule.price_gmd = price_gmd
-            rule.delivery_time = delivery_time if delivery_time else None
-            rule.priority = priority
-            rule.status = status
-            rule.note = note if note else None
-            rule.updated_at = datetime.utcnow()
+            # Update rule using ShippingService
+            updated_rule, error = ShippingService.update_rule(
+                rule_id=rule_id,
+                country_iso=country_iso,
+                shipping_mode_key=shipping_mode_key,
+                min_weight=min_weight,
+                max_weight=max_weight,
+                price_gmd=price_gmd,
+                delivery_time=delivery_time if delivery_time else None,
+                priority=priority,
+                notes=notes if notes else None,
+                active=active
+            )
             
-            db.session.commit()
+            if error:
+                flash(f'Error updating shipping rule: {error}', 'error')
+                return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
             
             flash('Shipping rule updated successfully!', 'success')
             return redirect(url_for('admin_shipping_rules'))
             
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f'Error updating shipping rule: {e}')
+            import traceback
+            error_traceback = traceback.format_exc()
+            current_app.logger.error(f'Error updating shipping rule: {e}\n{error_traceback}', exc_info=True)
             flash(f'Error updating shipping rule: {str(e)}', 'error')
             return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
     
     # GET request - show form
     countries = Country.query.filter_by(is_active=True).order_by(Country.name).all()
-    return render_template('admin/admin/shipping_rule_form.html', rule=rule, countries=countries)
+    shipping_modes = ShippingMode.query.filter_by(active=True).order_by(ShippingMode.id).all()
+    return render_template('admin/admin/shipping_rule_form.html', rule=rule, countries=countries, shipping_modes=shipping_modes)
 
 @app.route('/admin/shipping/<int:rule_id>/delete', methods=['POST'])
 @login_required
 @admin_required
 def admin_delete_shipping_rule(rule_id):
-    """Delete a shipping rule."""
-    rule = LegacyShippingRule.query.get_or_404(rule_id)
+    """Delete a shipping rule using NEW ShippingRule system."""
+    from app.shipping.models import ShippingRule
+    
+    rule = ShippingRule.query.get_or_404(rule_id)
     
     try:
         db.session.delete(rule)
@@ -5650,24 +5775,29 @@ def admin_delete_shipping_rule(rule_id):
 @login_required
 @admin_required
 def admin_duplicate_shipping_rule(rule_id):
-    """Duplicate a shipping rule."""
+    """Duplicate a shipping rule using NEW ShippingRule system."""
+    from app.shipping.models import ShippingRule
+    from app.shipping.service import ShippingService
+    
     original_rule = ShippingRule.query.get_or_404(rule_id)
     
     try:
-        new_rule = LegacyShippingRule(
-            rule_type=original_rule.rule_type,
-            country_id=original_rule.country_id,
-            min_weight=original_rule.min_weight,
-            max_weight=original_rule.max_weight,
-            price_gmd=original_rule.price_gmd,
+        # Create duplicate using ShippingService
+        new_rule, error = ShippingService.create_rule(
+            country_iso=original_rule.country_iso,
+            shipping_mode_key=original_rule.shipping_mode_key,
+            min_weight=float(original_rule.min_weight),
+            max_weight=float(original_rule.max_weight),
+            price_gmd=float(original_rule.price_gmd),
             delivery_time=original_rule.delivery_time,
             priority=original_rule.priority,
-            status=False,  # Set to inactive by default
-            note=f"Copy of: {original_rule.note}" if original_rule.note else None
+            notes=f"Copy of: {original_rule.notes}" if original_rule.notes else None,
+            active=False  # Set to inactive by default
         )
         
-        db.session.add(new_rule)
-        db.session.commit()
+        if error:
+            flash(f'Error duplicating shipping rule: {error}', 'error')
+            return redirect(url_for('admin_shipping_rules'))
         
         flash('Shipping rule duplicated successfully!', 'success')
         return redirect(url_for('admin_edit_shipping_rule', rule_id=new_rule.id))
@@ -5681,15 +5811,17 @@ def admin_duplicate_shipping_rule(rule_id):
 @login_required
 @admin_required
 def admin_toggle_shipping_rule_status(rule_id):
-    """Toggle shipping rule active/inactive status."""
-    rule = LegacyShippingRule.query.get_or_404(rule_id)
+    """Toggle shipping rule active/inactive status using NEW ShippingRule system."""
+    from app.shipping.models import ShippingRule
+    
+    rule = ShippingRule.query.get_or_404(rule_id)
     
     try:
-        rule.status = not rule.status
+        rule.active = not rule.active
         rule.updated_at = datetime.utcnow()
         db.session.commit()
         
-        status_text = 'activated' if rule.status else 'deactivated'
+        status_text = 'activated' if rule.active else 'deactivated'
         flash(f'Shipping rule {status_text} successfully!', 'success')
     except Exception as e:
         db.session.rollback()
@@ -5702,10 +5834,12 @@ def admin_toggle_shipping_rule_status(rule_id):
 @login_required
 @admin_required
 def admin_export_shipping_rules():
-    """Export shipping rules to CSV or JSON."""
+    """Export shipping rules to CSV or JSON using NEW ShippingRule system."""
+    from app.shipping.models import ShippingRule, ShippingMode
+    
     export_format = request.args.get('format', 'csv')  # 'csv' or 'json'
     
-    rules = LegacyShippingRule.query.outerjoin(Country).order_by(LegacyShippingRule.id).all()
+    rules = ShippingRule.query.join(ShippingMode, ShippingRule.shipping_mode_key == ShippingMode.key).order_by(ShippingRule.id).all()
     
     if export_format == 'json':
         rules_data = [rule.to_dict() for rule in rules]
@@ -5719,24 +5853,33 @@ def admin_export_shipping_rules():
         
         # Write header
         writer.writerow([
-            'ID', 'Rule Type', 'Country', 'Country Code', 'Min Weight (kg)', 'Max Weight (kg)',
-            'Price (GMD)', 'Delivery Time', 'Priority', 'Status', 'Note', 'Created At', 'Updated At'
+            'ID', 'Rule Type', 'Country ISO', 'Country Name', 'Shipping Method', 'Shipping Method Label',
+            'Min Weight (kg)', 'Max Weight (kg)', 'Price (GMD)', 'Delivery Time', 'Priority', 
+            'Active', 'Notes', 'Created At', 'Updated At'
         ])
         
         # Write data
         for rule in rules:
+            # Get country name if country_iso is not '*'
+            country_name = ''
+            if rule.country_iso != '*':
+                country = Country.query.filter_by(code=rule.country_iso).first()
+                country_name = country.name if country else rule.country_iso
+            
             writer.writerow([
                 rule.id,
-                rule.rule_type,
-                rule.country.name if rule.country else 'Global',
-                rule.country.code if rule.country else '',
+                'global' if rule.country_iso == '*' else 'country',
+                rule.country_iso,
+                country_name if rule.country_iso != '*' else 'Global',
+                rule.shipping_mode_key,
+                rule.shipping_mode.label if rule.shipping_mode else '',
                 float(rule.min_weight) if rule.min_weight else 0.0,
                 float(rule.max_weight) if rule.max_weight else 0.0,
                 float(rule.price_gmd) if rule.price_gmd else 0.0,
                 rule.delivery_time or '',
                 rule.priority,
-                'Active' if rule.status else 'Inactive',
-                rule.note or '',
+                'Active' if rule.active else 'Inactive',
+                rule.notes or '',
                 rule.created_at.strftime('%Y-%m-%d %H:%M:%S') if rule.created_at else '',
                 rule.updated_at.strftime('%Y-%m-%d %H:%M:%S') if rule.updated_at else ''
             ])
@@ -5751,7 +5894,10 @@ def admin_export_shipping_rules():
 @login_required
 @admin_required
 def admin_import_shipping_rules():
-    """Import shipping rules from CSV."""
+    """Import shipping rules from CSV using NEW ShippingRule system."""
+    from app.shipping.models import ShippingRule, ShippingMode
+    from app.shipping.service import ShippingService
+    
     if 'file' not in request.files:
         flash('No file provided', 'error')
         return redirect(url_for('admin_shipping_rules'))
@@ -5779,28 +5925,54 @@ def admin_import_shipping_rules():
         
         for index, row in df.iterrows():
             try:
+                # Get rule type
                 rule_type = str(row.get('rule_type', 'country')).strip().lower()
                 if rule_type not in ['country', 'global']:
                     rule_type = 'country'
                 
-                country_name = str(row.get('country', '')).strip() if rule_type == 'country' else None
-                country_id = None
-                if country_name and rule_type == 'country':
-                    country = Country.query.filter_by(name=country_name).first()
-                    if country:
-                        country_id = country.id
+                # Get country_iso
+                country_iso = '*'
+                if rule_type == 'country':
+                    country_name = str(row.get('country', '') or row.get('country_name', '')).strip()
+                    country_iso_col = str(row.get('country_iso', '') or row.get('country_code', '')).strip().upper()
+                    
+                    if country_iso_col and country_iso_col != '*':
+                        country_iso = country_iso_col
+                    elif country_name:
+                        country = Country.query.filter_by(name=country_name).first()
+                        if country:
+                            country_iso = country.code.upper()
+                        else:
+                            errors.append(f"Row {index + 2}: Country '{country_name}' not found")
+                            error_count += 1
+                            continue
                     else:
-                        errors.append(f"Row {index + 2}: Country '{country_name}' not found")
+                        errors.append(f"Row {index + 2}: Country required for country-specific rules")
                         error_count += 1
                         continue
                 
-                min_weight = Decimal(str(row.get('min_weight', 0)))
-                max_weight = Decimal(str(row.get('max_weight', 0)))
-                price_gmd = Decimal(str(row.get('price_gmd', 0)))
+                # Get shipping mode
+                shipping_mode_key = str(row.get('shipping_mode_key', '')).strip()
+                if not shipping_mode_key:
+                    errors.append(f"Row {index + 2}: Shipping method is required")
+                    error_count += 1
+                    continue
+                
+                # Validate shipping mode exists
+                mode = ShippingMode.query.filter_by(key=shipping_mode_key).first()
+                if not mode:
+                    errors.append(f"Row {index + 2}: Invalid shipping method '{shipping_mode_key}'")
+                    error_count += 1
+                    continue
+                
+                # Get other fields
+                min_weight = float(row.get('min_weight', 0))
+                max_weight = float(row.get('max_weight', 0))
+                price_gmd = float(row.get('price_gmd', 0))
                 delivery_time = str(row.get('delivery_time', '')).strip() or None
                 priority = int(row.get('priority', 0)) if pd.notna(row.get('priority')) else 0
-                status = str(row.get('status', 'active')).strip().lower() in ['active', 'true', '1', 'yes']
-                note = str(row.get('note', '')).strip() or None
+                active = str(row.get('active', 'active')).strip().lower() in ['active', 'true', '1', 'yes']
+                notes = str(row.get('notes', '') or row.get('note', '')).strip() or None
                 
                 # Validation
                 if min_weight < 0 or max_weight <= min_weight or price_gmd < 0:
@@ -5808,19 +5980,24 @@ def admin_import_shipping_rules():
                     error_count += 1
                     continue
                 
-                rule = ShippingRule(
-                    rule_type=rule_type,
-                    country_id=country_id,
+                # Create rule using ShippingService
+                rule, error = ShippingService.create_rule(
+                    country_iso=country_iso,
+                    shipping_mode_key=shipping_mode_key,
                     min_weight=min_weight,
                     max_weight=max_weight,
                     price_gmd=price_gmd,
                     delivery_time=delivery_time,
                     priority=priority,
-                    status=status,
-                    note=note
+                    notes=notes,
+                    active=active
                 )
                 
-                db.session.add(rule)
+                if error:
+                    errors.append(f"Row {index + 2}: {error}")
+                    error_count += 1
+                    continue
+                
                 success_count += 1
                 
             except Exception as e:
@@ -11657,7 +11834,7 @@ def api_update_pending_payment():
             return jsonify({'success': False, 'message': 'Unauthorized'}), 403
         
         # Get shipping method
-        shipping_method = data.get('shipping_method', '').strip() or None
+        shipping_mode_key = data.get('shipping_mode_key', '').strip() or None
         
         # Get country
         country = None
@@ -11678,7 +11855,7 @@ def api_update_pending_payment():
                 total_weight += float(product.weight_kg) * item.get('quantity', 1)
         
         # Calculate shipping with selected method
-        shipping_result = calculate_shipping_price(total_weight, country_id, shipping_method, default_weight=0.0)
+        shipping_result = calculate_shipping_price(total_weight, country_id, shipping_mode_key, default_weight=0.0)
         
         shipping_price_gmd = 0.0
         shipping_rule_id = None
@@ -11714,7 +11891,7 @@ def api_update_pending_payment():
         total_cost = subtotal + tax + shipping_price_display
         
         # Update pending payment
-        pending_payment.shipping_method = shipping_method
+        pending_payment.shipping_mode_key = shipping_mode_key
         pending_payment.shipping_price = shipping_price_gmd
         pending_payment.shipping_rule_id = shipping_rule_id
         pending_payment.shipping_delivery_estimate = shipping_delivery_estimate
@@ -11739,7 +11916,7 @@ def api_update_pending_payment():
             'pending_payment_id': pending_payment.id,
             'amount': total_cost,
             'shipping_price': shipping_price_gmd,
-            'shipping_method': shipping_method
+            'shipping_mode_key': shipping_mode_key
         })
         
     except Exception as e:
