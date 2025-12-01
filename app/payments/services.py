@@ -502,6 +502,7 @@ class PaymentService:
                 customer_phone=pending_payment.customer_phone,
                 location=pending_payment.location or 'China',
                 shipping_rule_id=pending_payment.shipping_rule_id,
+                shipping_method=getattr(pending_payment, 'shipping_method', None),  # Get shipping method if field exists
                 shipping_delivery_estimate=pending_payment.shipping_delivery_estimate,
                 shipping_display_currency=pending_payment.shipping_display_currency
             )

@@ -68,6 +68,21 @@
                 </div>
 
                 <div>
+                    <label for="shipping_method" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Shipping Method
+                    </label>
+                    <select id="shipping_method" 
+                            name="shipping_method" 
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                        <option value="">All Methods (Default)</option>
+                        <option value="express" {% if rule and rule.shipping_method == 'express' %}selected{% endif %}>DHL Express (Fast)</option>
+                        <option value="ecommerce" {% if rule and rule.shipping_method == 'ecommerce' %}selected{% endif %}>DHL eCommerce (Standard)</option>
+                        <option value="economy" {% if rule and rule.shipping_method == 'economy' %}selected{% endif %}>Economy Mail (PO Pickup)</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select a specific shipping method, or leave blank to apply to all methods</p>
+                </div>
+
+                <div>
                     <label for="min_weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Min Weight (kg) <span class="text-red-500">*</span>
                     </label>

@@ -125,6 +125,7 @@ class PendingPayment(db.Model):
     
     # Shipping rule fields (for automatic shipping calculation)
     shipping_rule_id = db.Column(db.Integer, db.ForeignKey('shipping_rule.id'), nullable=True)  # Which shipping rule was applied
+    shipping_method = db.Column(db.String(20), nullable=True)  # Selected shipping method: 'express', 'ecommerce', 'economy'
     shipping_delivery_estimate = db.Column(db.String(100), nullable=True)  # Delivery time estimate from rule
     shipping_display_currency = db.Column(db.String(10), nullable=True)  # Currency used for display (e.g., 'GMD', 'XOF')
     

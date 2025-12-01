@@ -1647,6 +1647,7 @@ class Order(db.Model):
     
     # Shipping rule fields (for automatic shipping calculation)
     shipping_rule_id = db.Column(db.Integer, db.ForeignKey('shipping_rule.id'), nullable=True)  # Which shipping rule was applied
+    shipping_method = db.Column(db.String(20), nullable=True)  # Selected shipping method: 'express', 'ecommerce', 'economy'
     shipping_delivery_estimate = db.Column(db.String(100), nullable=True)  # Delivery time estimate from rule
     shipping_display_currency = db.Column(db.String(10), nullable=True)  # Currency used for display (e.g., 'GMD', 'XOF')
     
@@ -1696,6 +1697,7 @@ class ShippingRule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     rule_type = db.Column(db.String(20), nullable=False, default='country')  # 'country' or 'global'
     country_id = db.Column(db.Integer, db.ForeignKey('country.id'), nullable=True)  # Nullable for global rules
+    shipping_method = db.Column(db.String(20), nullable=True)  # 'express', 'ecommerce', 'economy' or None for all methods
     min_weight = db.Column(db.Numeric(10, 6), nullable=False)  # Decimal precision for small weights
     max_weight = db.Column(db.Numeric(10, 6), nullable=False)
     price_gmd = db.Column(db.Numeric(10, 2), nullable=False)  # Price in GMD
@@ -1721,6 +1723,7 @@ class ShippingRule(db.Model):
             'country_id': self.country_id,
             'country_name': self.country.name if self.country else None,
             'country_code': self.country.code if self.country else None,
+            'shipping_method': self.shipping_method,
             'min_weight': float(self.min_weight) if self.min_weight else 0.0,
             'max_weight': float(self.max_weight) if self.max_weight else 0.0,
             'price_gmd': float(self.price_gmd) if self.price_gmd else 0.0,
@@ -1774,28 +1777,30 @@ class ProfitRule(db.Model):
         
         return min_price <= base_price <= max_price
 
-def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] = None, default_weight: float = 0.0) -> Optional[Dict[str, any]]:
+def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] = None, shipping_method: Optional[str] = None, default_weight: float = 0.0) -> Optional[Dict[str, any]]:
     """
-    Calculate shipping price based on total cart weight and country using ONLY Shipping Rules table.
+    Calculate shipping price based on total cart weight, country, and shipping method using ONLY Shipping Rules table.
     
     The ONLY valid shipping source is the Shipping Rules table from /admin/shipping.
     This function does NOT use any fallback, old logic, or secondary shipping sources.
     
     Selection order (STRICT - NO EXCEPTIONS):
     Step 1: Filter rules by selected country (country_id must match exactly). Ignore all other countries.
-    Step 2: From matching country rules, find rule whose weight range includes product weight:
+    Step 2: Filter rules by shipping method (if provided). Rules with shipping_method=None apply to all methods.
+    Step 3: From matching rules, find rule whose weight range includes product weight:
             min_weight ≤ weight ≤ max_weight
-    Step 3: If multiple rules match, select the rule with the highest priority.
-    Step 4: If no country-specific rule matches, only then check Global rules.
-    Step 5: If still no match, return shipping fee = 0 (return None).
+    Step 4: If multiple rules match, select the rule with the highest priority.
+    Step 5: If no country-specific rule matches, only then check Global rules.
+    Step 6: If still no match, return shipping fee = 0 (return None).
     
     Args:
         total_weight_kg: Total weight in kilograms
         country_id: Optional country ID to filter rules (must be integer or None)
+        shipping_method: Optional shipping method ID ('express', 'ecommerce', 'economy') to filter rules
         default_weight: Default weight to use if total_weight_kg is 0 or None
     
     Returns:
-        Dict with keys: 'rule', 'price_gmd', 'delivery_time', 'rule_name', 'debug_info', 'available'
+        Dict with keys: 'rule', 'price_gmd', 'delivery_time', 'rule_name', 'debug_info', 'available', 'shipping_method'
         or None if no rule matches (should default to 0)
     """
     if total_weight_kg is None or total_weight_kg <= 0:
@@ -1820,30 +1825,41 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     # STEP 1: Filter rules by selected country (country_id must match exactly)
     # Ignore all other countries - ONLY match the selected country
     if country_id:
-        # Get ALL matching country rules (we'll filter by weight in Step 2)
+        # Get ALL matching country rules (we'll filter by weight and method in subsequent steps)
         country_rules_query = ShippingRule.query.filter(
             ShippingRule.rule_type == 'country',
             ShippingRule.country_id == country_id,  # STRICT match - no other countries
             ShippingRule.status == True
         )
         
-        # STEP 2: Find rules whose weight range includes the product weight
+        # STEP 2: Filter by shipping method if provided
+        # Rules with shipping_method=None apply to all methods
+        if shipping_method:
+            country_rules_query = country_rules_query.filter(
+                db.or_(
+                    ShippingRule.shipping_method == shipping_method,
+                    ShippingRule.shipping_method.is_(None)
+                )
+            )
+        
+        # STEP 3: Find rules whose weight range includes the product weight
         # min_weight ≤ weight ≤ max_weight
         matching_country_rules = country_rules_query.filter(
             ShippingRule.min_weight <= weight,
             ShippingRule.max_weight >= weight
         ).order_by(
-            ShippingRule.priority.desc(),  # STEP 3: Highest priority first
+            ShippingRule.priority.desc(),  # STEP 4: Highest priority first
             ShippingRule.min_weight.asc()
         ).all()
         
         if matching_country_rules:
-            # STEP 3: If multiple rules match, select the one with highest priority
+            # STEP 4: If multiple rules match, select the one with highest priority
             selected_rule = matching_country_rules[0]  # Already sorted by priority DESC
             
             debug_info = {
                 'chosen_country': country_name,
                 'chosen_country_id': country_id,
+                'shipping_method': shipping_method,
                 'weight_kg': float(weight),
                 'applied_rule_id': selected_rule.id,
                 'weight_range_matched': f"{float(selected_rule.min_weight)}-{float(selected_rule.max_weight)}kg",
@@ -1861,7 +1877,7 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
             current_app.logger.info(
                 f"✅ SHIPPING CALCULATED FROM SHIPPING RULES TABLE ONLY: "
                 f"Country={country_name}, Country ID={country_id}, "
-                f"Weight={float(weight)}kg, Rule ID={selected_rule.id}, "
+                f"Method={shipping_method or 'any'}, Weight={float(weight)}kg, Rule ID={selected_rule.id}, "
                 f"Rule={rule_name}, Price={float(selected_rule.price_gmd)}GMD, "
                 f"Priority={selected_rule.priority}, Debug: {debug_info}"
             )
@@ -1874,17 +1890,29 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
                 'rule_type': 'country',
                 'country_id': country_id,
                 'country_name': country_name,
+                'shipping_method': selected_rule.shipping_method or shipping_method,
                 'debug_info': debug_info,
                 'available': True
             }
     
-    # STEP 4: If no country-specific rule matches, only then check Global rules
-    global_rules = ShippingRule.query.filter(
+    # STEP 5: If no country-specific rule matches, only then check Global rules
+    global_rules_query = ShippingRule.query.filter(
         ShippingRule.rule_type == 'global',
         ShippingRule.status == True,
         ShippingRule.min_weight <= weight,
         ShippingRule.max_weight >= weight
-    ).order_by(
+    )
+    
+    # Filter by shipping method if provided
+    if shipping_method:
+        global_rules_query = global_rules_query.filter(
+            db.or_(
+                ShippingRule.shipping_method == shipping_method,
+                ShippingRule.shipping_method.is_(None)
+            )
+        )
+    
+    global_rules = global_rules_query.order_by(
         ShippingRule.priority.desc(),  # Highest priority first
         ShippingRule.min_weight.asc()
     ).all()
@@ -1895,6 +1923,7 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         debug_info = {
             'chosen_country': country_name or None,
             'chosen_country_id': country_id,
+            'shipping_method': shipping_method,
             'weight_kg': float(weight),
             'applied_rule_id': selected_rule.id,
             'weight_range_matched': f"{float(selected_rule.min_weight)}-{float(selected_rule.max_weight)}kg",
@@ -1912,7 +1941,7 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         current_app.logger.info(
             f"✅ SHIPPING CALCULATED FROM SHIPPING RULES TABLE ONLY: "
             f"Global Rule, Country={country_name or 'None'}, "
-            f"Weight={float(weight)}kg, Rule ID={selected_rule.id}, "
+            f"Method={shipping_method or 'any'}, Weight={float(weight)}kg, Rule ID={selected_rule.id}, "
             f"Rule={rule_name}, Price={float(selected_rule.price_gmd)}GMD, "
             f"Priority={selected_rule.priority}, Debug: {debug_info}"
         )
@@ -1925,17 +1954,19 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
             'rule_type': 'global',
             'country_id': None,
             'country_name': None,
+            'shipping_method': selected_rule.shipping_method or shipping_method,
             'debug_info': debug_info,
             'available': True
         }
     
-    # STEP 5: If still no match, return None (will default to 0)
+    # STEP 6: If still no match, return None (will default to 0)
     # NO fallback, NO nearest rule logic - only exact weight range matches allowed
     
     # Build comprehensive debug info
     debug_info = {
         'chosen_country': country_name if country_id else None,
         'chosen_country_id': country_id,
+        'shipping_method': shipping_method,
         'weight_kg': float(weight),
         'applied_rule_id': None,
         'weight_range_matched': None,
@@ -1949,7 +1980,7 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     current_app.logger.warning(
         f"❌ NO SHIPPING RULE MATCHED: "
         f"Country={country_name if country_id else 'None'}, "
-        f"Country ID={country_id}, Weight={float(weight)}kg. "
+        f"Country ID={country_id}, Method={shipping_method or 'any'}, Weight={float(weight)}kg. "
         f"Shipping fee will default to 0. "
         f"Debug Info: {debug_info}. "
         f"CONFIRMED: Shipping Rules Table ONLY - no other sources used."
@@ -2747,8 +2778,13 @@ def api_shipping_estimate():
         else:
             weight = 0.0
         
+        # Get shipping method if provided
+        shipping_method = data.get('shipping_method')
+        if shipping_method:
+            shipping_method = shipping_method.strip() or None
+        
         # Calculate shipping
-        result = calculate_shipping_price(weight, country_id)
+        result = calculate_shipping_price(weight, country_id, shipping_method)
         
         if result:
             # Include comprehensive debug info in API response
@@ -2758,6 +2794,7 @@ def api_shipping_estimate():
                 'available': True,
                 'price_gmd': result['price_gmd'],
                 'delivery_time': result['delivery_time'],
+                'shipping_method': result.get('shipping_method'),
                 'rule_name': result.get('rule_name', 'Unknown rule'),
                 'rule_type': result.get('rule_type', 'unknown'),
                 'country_id': result.get('country_id'),
@@ -2772,7 +2809,7 @@ def api_shipping_estimate():
                 'success': True,
                 'available': False,
                 'price_gmd': 0.0,
-                'message': f'No shipping rule found for country_id={country_id}, weight={weight}kg. Shipping fee = 0.',
+                'message': f'No shipping rule found for country_id={country_id}, weight={weight}kg, method={shipping_method or "any"}. Shipping fee = 0.',
                 'debug_info': {
                     'chosen_country_id': country_id,
                     'weight_kg': weight,
@@ -2782,7 +2819,8 @@ def api_shipping_estimate():
                     'rule_selection_reason': 'No matching rule found in Shipping Rules table',
                     'other_shipping_sources_used': False,
                     'shipping_source': 'Shipping Rules Table ONLY',
-                    'confirmation': 'No other shipping sources used - ONLY Shipping Rules table checked'
+                    'confirmation': 'No other shipping sources used - ONLY Shipping Rules table checked',
+                    'shipping_method': shipping_method
                 }
             }), 200
     
@@ -2792,6 +2830,88 @@ def api_shipping_estimate():
             'success': False,
             'error': str(e)
         }), 500
+
+@app.route('/api/shipping/methods', methods=['POST'])
+@csrf.exempt
+def api_shipping_methods():
+    """Get all available shipping methods with prices for a given weight and country."""
+    try:
+        from app.shipping import get_all_shipping_methods, get_shipping_method
+        
+        data = request.get_json() if request.is_json else request.form.to_dict()
+        
+        # Ensure country_id is always an integer or None - never a string
+        country_id = data.get('country_id')
+        if country_id is not None:
+            try:
+                country_id = int(country_id)
+            except (ValueError, TypeError):
+                country_id = None
+        
+        weight = data.get('weight')
+        if weight:
+            try:
+                weight = float(weight)
+            except (ValueError, TypeError):
+                weight = 0.0
+        else:
+            weight = 0.0
+        
+        # Get all shipping methods
+        all_methods = get_all_shipping_methods()
+        methods_with_prices = []
+        
+        # Calculate price for each method
+        for method in all_methods:
+            method_id = method['id']
+            result = calculate_shipping_price(weight, country_id, method_id)
+            
+            if result:
+                methods_with_prices.append({
+                    'id': method_id,
+                    'label': method['label'],
+                    'short_label': method['short_label'],
+                    'description': method['description'],
+                    'guarantee': method['guarantee'],
+                    'notes': method['notes'],
+                    'color': method['color'],
+                    'icon': method['icon'],
+                    'price_gmd': result['price_gmd'],
+                    'delivery_time': result.get('delivery_time') or method['guarantee'],
+                    'available': True,
+                    'rule_id': result['rule'].id if result.get('rule') else None
+                })
+            else:
+                # Method not available for this weight/country
+                methods_with_prices.append({
+                    'id': method_id,
+                    'label': method['label'],
+                    'short_label': method['short_label'],
+                    'description': method['description'],
+                    'guarantee': method['guarantee'],
+                    'notes': method['notes'],
+                    'color': method['color'],
+                    'icon': method['icon'],
+                    'price_gmd': None,
+                    'delivery_time': method['guarantee'],
+                    'available': False,
+                    'rule_id': None
+                })
+        
+        return jsonify({
+            'success': True,
+            'methods': methods_with_prices,
+            'weight_kg': weight,
+            'country_id': country_id
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f'Error getting shipping methods: {e}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 def check_wishlist_multiple():
     raw_ids = request.args.get('ids', '')
     product_ids = raw_ids.split(',') if raw_ids else []
@@ -3844,8 +3964,11 @@ def checkout():
             # Calculate total cart weight
             total_weight = calculate_cart_total_weight(cart_items, default_weight=0.0)
             
+            # Get shipping method from form
+            shipping_method = request.form.get('shipping_method', '').strip() or None
+            
             # Calculate shipping using shipping rules
-            shipping_result = calculate_shipping_price(total_weight, country_id, default_weight=0.0)
+            shipping_result = calculate_shipping_price(total_weight, country_id, shipping_method, default_weight=0.0)
             
             shipping_price_gmd = Decimal('0.00')
             shipping_rule_id = None
@@ -3954,6 +4077,7 @@ def checkout():
                 total_cost=float(total_cost),  # Total in display currency
                 location='China',  # Default location, can be updated later
                 shipping_rule_id=shipping_rule_id,
+                shipping_method=shipping_method,  # Store selected shipping method
                 shipping_delivery_estimate=shipping_delivery_estimate,
                 shipping_display_currency=shipping_display_currency,
                 cart_items_json=json.dumps(cart_items)  # Store cart items as JSON
@@ -5415,6 +5539,7 @@ def admin_new_shipping_rule():
             rule = ShippingRule(
                 rule_type=rule_type,
                 country_id=country_id,
+                shipping_method=shipping_method,
                 min_weight=min_weight,
                 max_weight=max_weight,
                 price_gmd=price_gmd,
@@ -5451,6 +5576,7 @@ def admin_edit_shipping_rule(rule_id):
         try:
             rule_type = request.form.get('rule_type', 'country')
             country_id = request.form.get('country_id')
+            shipping_method = request.form.get('shipping_method', '').strip() or None
             min_weight = request.form.get('min_weight')
             max_weight = request.form.get('max_weight')
             price_gmd = request.form.get('price_gmd')
@@ -5458,6 +5584,13 @@ def admin_edit_shipping_rule(rule_id):
             priority = request.form.get('priority', 0)
             status = request.form.get('status') == 'on'
             note = request.form.get('note', '').strip()
+            
+            # Validate shipping method if provided
+            if shipping_method:
+                from app.shipping import is_valid_shipping_method
+                if not is_valid_shipping_method(shipping_method):
+                    flash('Invalid shipping method', 'error')
+                    return redirect(url_for('admin_edit_shipping_rule', rule_id=rule_id))
             
             # Validation
             if not min_weight or not max_weight or not price_gmd:
@@ -5529,6 +5662,7 @@ def admin_edit_shipping_rule(rule_id):
             # Update rule (country_id is already validated as integer above)
             rule.rule_type = rule_type
             rule.country_id = country_id
+            rule.shipping_method = shipping_method
             rule.min_weight = min_weight
             rule.max_weight = max_weight
             rule.price_gmd = price_gmd

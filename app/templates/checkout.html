@@ -260,6 +260,18 @@
                                 >{{ form.delivery_notes.data or '' }}</textarea>
                                 </div>
 
+                            <!-- Shipping Method Selection -->
+                            <div id="shipping-method-section" class="hidden">
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                                    Select Shipping Method <span class="text-red-500">*</span>
+                                </label>
+                                <div id="shipping-methods-container" class="space-y-3">
+                                    <!-- Shipping methods will be loaded dynamically -->
+                                </div>
+                                <input type="hidden" id="shipping_method" name="shipping_method" value="" required>
+                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="shipping_method-error">Please select a shipping method</p>
+                            </div>
+
                             <!-- Amount (hidden, from cart total) -->
                             <input type="hidden" id="amount" name="amount" value="{{ "%.2f"|format(checkout_summary.total) }}">
                             <input type="hidden" id="pending_payment_id" name="pending_payment_id" value="{{ pending_payment_id or '' }}">
@@ -633,20 +645,37 @@
             }
             
             // Calculate shipping for selected country
-            calculateShippingForCountry(country.id);
+            loadShippingMethods(country.id);
             
             // Validate and update button state
             clearError('country');
             validationState.country = true;
             updateButtonState();
             
+            // Load shipping methods for selected country
+            loadShippingMethods(country.id);
+            
+            // Reset shipping method selection
+            selectedShippingMethod = null;
+            const shippingMethodInput = document.getElementById('shipping_method');
+            if (shippingMethodInput) {
+                shippingMethodInput.value = '';
+            }
+            validationState.shipping_method = false;
+            updateButtonState();
+            
             // Trigger auto-save
             autoSaveAddress();
         }
         
-        // Calculate shipping for selected country
-        async function calculateShippingForCountry(countryId) {
+        // Load shipping methods for selected country
+        async function loadShippingMethods(countryId) {
             try {
+                const shippingSection = document.getElementById('shipping-method-section');
+                const methodsContainer = document.getElementById('shipping-methods-container');
+                
+                if (!shippingSection || !methodsContainer) return;
+                
                 // Get cart summary data
                 const summaryData = JSON.parse(document.getElementById('checkout-summary-data').textContent);
                 const cartItems = summaryData.items || [];
@@ -654,14 +683,12 @@
                 // Calculate total weight
                 let totalWeight = 0;
                 for (const item of cartItems) {
-                    // Weight will be calculated server-side, but we can estimate
-                    // For now, use a default weight per item if not available
                     const itemWeight = item.weight_kg || 0.1; // Default 0.1kg per item
                     totalWeight += itemWeight * item.quantity;
                 }
                 
-                // Call shipping estimate API
-                const response = await fetch('/api/shipping/estimate', {
+                // Call shipping methods API
+                const response = await fetch('/api/shipping/methods', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -674,44 +701,123 @@
                 
                 const data = await response.json();
                 
-                if (data.success && data.available) {
-                    // Update shipping display
-                    const shippingEl = document.querySelector('[data-checkout-shipping]');
-                    const totalEl = document.querySelector('[data-checkout-total]');
-                    
-                    if (shippingEl && totalEl) {
-                        // Format shipping price (assuming GMD for now, can be converted)
-                        const shippingPrice = data.price_gmd.toFixed(2);
-                        shippingEl.textContent = `D${shippingPrice}`;
-                        
-                        // Update total (subtotal + shipping)
-                        const subtotal = summaryData.subtotal || 0;
-                        const tax = summaryData.tax || 0;
-                        const newTotal = subtotal + tax + data.price_gmd;
-                        totalEl.textContent = `D${newTotal.toFixed(2)}`;
-                        
-                        // Update hidden amount field
-                        const amountInput = document.getElementById('amount');
-                        if (amountInput) {
-                            amountInput.value = newTotal.toFixed(2);
-                        }
-                        
-                        // Show delivery estimate if available
-                        if (data.delivery_time) {
-                            // You can add a delivery estimate display here
-                            console.log('Delivery estimate:', data.delivery_time);
-                        }
-                    }
+                if (data.success && data.methods) {
+                    shippingMethods = data.methods;
+                    renderShippingMethods();
+                    shippingSection.classList.remove('hidden');
                 } else {
-                    // Shipping unavailable
-                    const shippingEl = document.querySelector('[data-checkout-shipping]');
-                    if (shippingEl) {
-                        shippingEl.textContent = 'Unavailable';
-                        shippingEl.classList.add('text-red-500');
-                    }
+                    methodsContainer.innerHTML = '<p class="text-sm text-red-500">Unable to load shipping methods. Please try again.</p>';
+                    shippingSection.classList.remove('hidden');
                 }
             } catch (error) {
-                console.error('Error calculating shipping:', error);
+                console.error('Error loading shipping methods:', error);
+                const methodsContainer = document.getElementById('shipping-methods-container');
+                if (methodsContainer) {
+                    methodsContainer.innerHTML = '<p class="text-sm text-red-500">Error loading shipping methods. Please refresh the page.</p>';
+                }
+            }
+        }
+        
+        // Render shipping methods
+        function renderShippingMethods() {
+            const container = document.getElementById('shipping-methods-container');
+            if (!container) return;
+            
+            if (shippingMethods.length === 0) {
+                container.innerHTML = '<p class="text-sm text-slate-500">No shipping methods available for this location.</p>';
+                return;
+            }
+            
+            container.innerHTML = shippingMethods.map(method => {
+                const colorClasses = {
+                    'red': 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20',
+                    'yellow': 'border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20',
+                    'green': 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20'
+                };
+                
+                const selectedClass = selectedShippingMethod === method.id 
+                    ? 'ring-2 ring-cyan-500 ring-offset-2' : '';
+                
+                const isAvailable = method.available && method.price_gmd !== null;
+                
+                return `
+                    <div 
+                        class="border rounded-xl p-4 cursor-pointer transition-all ${colorClasses[method.color] || 'border-slate-300 dark:border-slate-700'} ${selectedClass} ${!isAvailable ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md'}"
+                        data-method-id="${method.id}"
+                        onclick="${isAvailable ? `selectShippingMethod('${method.id}')` : ''}"
+                    >
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-xl">${method.icon}</span>
+                                    <h3 class="font-semibold text-slate-900 dark:text-white">${method.short_label}</h3>
+                                    ${!isAvailable ? '<span class="text-xs px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Unavailable</span>' : ''}
+                                </div>
+                                <p class="text-sm text-slate-600 dark:text-slate-400 mb-2">${method.description}</p>
+                                <div class="text-xs text-slate-500 dark:text-slate-500 mb-2">
+                                    <strong>${method.guarantee}</strong>
+                                </div>
+                                ${method.notes && method.notes.length > 0 ? `
+                                    <ul class="text-xs text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside">
+                                        ${method.notes.slice(0, 2).map(note => `<li>${note}</li>`).join('')}
+                                    </ul>
+                                ` : ''}
+                            </div>
+                            <div class="ml-4 text-right">
+                                ${isAvailable ? `
+                                    <div class="text-lg font-bold text-slate-900 dark:text-white">D${method.price_gmd.toFixed(2)}</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-400">${method.delivery_time || method.guarantee}</div>
+                                ` : `
+                                    <div class="text-sm text-slate-400">N/A</div>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Select shipping method
+        function selectShippingMethod(methodId) {
+            const method = shippingMethods.find(m => m.id === methodId);
+            if (!method || !method.available) return;
+            
+            selectedShippingMethod = methodId;
+            const shippingMethodInput = document.getElementById('shipping_method');
+            if (shippingMethodInput) {
+                shippingMethodInput.value = methodId;
+            }
+            
+            // Update UI
+            renderShippingMethods();
+            
+            // Update totals
+            updateShippingTotal(method.price_gmd);
+            
+            // Validate
+            clearError('shipping_method');
+            validationState.shipping_method = true;
+            updateButtonState();
+        }
+        
+        // Update shipping total
+        function updateShippingTotal(shippingPrice) {
+            const summaryData = JSON.parse(document.getElementById('checkout-summary-data').textContent);
+            const shippingEl = document.querySelector('[data-checkout-shipping]');
+            const totalEl = document.querySelector('[data-checkout-total]');
+            
+            if (shippingEl && totalEl) {
+                shippingEl.textContent = `D${shippingPrice.toFixed(2)}`;
+                
+                const subtotal = summaryData.subtotal || 0;
+                const tax = summaryData.tax || 0;
+                const newTotal = subtotal + tax + shippingPrice;
+                totalEl.textContent = `D${newTotal.toFixed(2)}`;
+                
+                const amountInput = document.getElementById('amount');
+                if (amountInput) {
+                    amountInput.value = newTotal.toFixed(2);
+                }
             }
         }
         
