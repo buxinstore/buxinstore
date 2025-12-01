@@ -1783,211 +1783,144 @@ class ProfitRule(db.Model):
 
 def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] = None, shipping_method: Optional[str] = None, default_weight: float = 0.0) -> Optional[Dict[str, any]]:
     """
-    Calculate shipping price based on total cart weight, country, and shipping method using ONLY Shipping Rules table.
-    
-    The ONLY valid shipping source is the Shipping Rules table from /admin/shipping.
-    This function does NOT use any fallback, old logic, or secondary shipping sources.
-    
-    Selection order (STRICT - NO EXCEPTIONS):
-    Step 1: Filter rules by selected country (country_id must match exactly). Ignore all other countries.
-    Step 2: Filter rules by shipping method (if provided). Rules with shipping_method=None apply to all methods.
-    Step 3: From matching rules, find rule whose weight range includes product weight:
-            min_weight ≤ weight ≤ max_weight
-    Step 4: If multiple rules match, select the rule with the highest priority.
-    Step 5: If no country-specific rule matches, only then check Global rules.
-    Step 6: If still no match, return shipping fee = 0 (return None).
+    Calculate shipping price based on total cart weight, country, and shipping method.
+    Uses the NEW shipping system (app.shipping.models.ShippingRule) with country_iso.
     
     Args:
         total_weight_kg: Total weight in kilograms
-        country_id: Optional country ID to filter rules (must be integer or None)
-        shipping_method: Optional shipping method ID ('express', 'ecommerce', 'economy') to filter rules
+        country_id: Optional country ID to filter rules (will be converted to country_iso)
+        shipping_method: Optional shipping method ID ('express', 'economy_plus', 'economy') to filter rules
         default_weight: Default weight to use if total_weight_kg is 0 or None
     
     Returns:
         Dict with keys: 'rule', 'price_gmd', 'delivery_time', 'rule_name', 'debug_info', 'available', 'shipping_method'
         or None if no rule matches (should default to 0)
     """
+    # Use the new shipping service
+    from app.shipping.service import ShippingService
+    from app.shipping.models import ShippingRule as NewShippingRule
+    
     if total_weight_kg is None or total_weight_kg <= 0:
         total_weight_kg = default_weight
     
-    # Convert to Decimal for precise comparison
-    weight = Decimal(str(total_weight_kg))
-    
-    # Ensure country_id is always an integer or None - never a string
-    if country_id is not None:
+    # Convert country_id to country_iso
+    country_iso = None
+    country_name = None
+    if country_id:
         try:
             country_id = int(country_id)
+            country = Country.query.get(country_id)
+            if country:
+                country_iso = country.code  # Use ISO code (e.g., 'GMB')
+                country_name = country.name
         except (ValueError, TypeError):
             country_id = None
     
-    # Get country name for debugging
-    country_name = None
-    if country_id:
-        country = Country.query.get(country_id)
-        country_name = country.name if country else f"Unknown (ID: {country_id})"
+    # Map old shipping_method names to new ones
+    method_mapping = {
+        'express': 'express',
+        'ecommerce': 'economy_plus',  # Old 'ecommerce' maps to new 'economy_plus'
+        'economy': 'economy'
+    }
+    shipping_mode_key = None
+    if shipping_method:
+        shipping_mode_key = method_mapping.get(shipping_method, shipping_method)
     
-    # STEP 1: Filter rules by selected country (country_id must match exactly)
-    # Ignore all other countries - ONLY match the selected country
-    if country_id:
-        # Get ALL matching country rules (we'll filter by weight and method in subsequent steps)
-        country_rules_query = LegacyShippingRule.query.filter(
-            LegacyShippingRule.rule_type == 'country',
-            LegacyShippingRule.country_id == country_id,  # STRICT match - no other countries
-            LegacyShippingRule.status == True
-        )
-        
-        # STEP 2: Filter by shipping method if provided
-        # Rules with shipping_method=None apply to all methods
-        if shipping_method:
-            country_rules_query = country_rules_query.filter(
-                db.or_(
-                    LegacyShippingRule.shipping_method == shipping_method,
-                    LegacyShippingRule.shipping_method.is_(None)
-                )
-            )
-        
-        # STEP 3: Find rules whose weight range includes the product weight
-        # min_weight ≤ weight ≤ max_weight
-        matching_country_rules = country_rules_query.filter(
-            LegacyShippingRule.min_weight <= weight,
-            LegacyShippingRule.max_weight >= weight
-        ).order_by(
-            LegacyShippingRule.priority.desc(),  # STEP 4: Highest priority first
-            LegacyShippingRule.min_weight.asc()
-        ).all()
-        
-        if matching_country_rules:
-            # STEP 4: If multiple rules match, select the one with highest priority
-            selected_rule = matching_country_rules[0]  # Already sorted by priority DESC
-            
-            debug_info = {
-                'chosen_country': country_name,
-                'chosen_country_id': country_id,
-                'shipping_method': shipping_method,
-                'weight_kg': float(weight),
-                'applied_rule_id': selected_rule.id,
-                'weight_range_matched': f"{float(selected_rule.min_weight)}-{float(selected_rule.max_weight)}kg",
-                'final_shipping_price': float(selected_rule.price_gmd),
-                'rule_selection_reason': f"Country-specific rule matched for {country_name}",
-                'rule_priority': selected_rule.priority,
-                'matching_rules_count': len(matching_country_rules),
-                'other_shipping_sources_used': False,
-                'shipping_source': 'Shipping Rules Table ONLY',
-                'confirmation': 'No other shipping sources used - ONLY Shipping Rules table checked'
-            }
-            
-            rule_name = f"{country_name} ({float(selected_rule.min_weight)}-{float(selected_rule.max_weight)}kg)"
-            
-            current_app.logger.info(
-                f"✅ SHIPPING CALCULATED FROM SHIPPING RULES TABLE ONLY: "
-                f"Country={country_name}, Country ID={country_id}, "
-                f"Method={shipping_method or 'any'}, Weight={float(weight)}kg, Rule ID={selected_rule.id}, "
-                f"Rule={rule_name}, Price={float(selected_rule.price_gmd)}GMD, "
-                f"Priority={selected_rule.priority}, Debug: {debug_info}"
-            )
-            
-            return {
-                'rule': selected_rule,
-                'price_gmd': float(selected_rule.price_gmd),
-                'delivery_time': selected_rule.delivery_time,
-                'rule_name': rule_name,
-                'rule_type': 'country',
-                'country_id': country_id,
-                'country_name': country_name,
-                'shipping_method': selected_rule.shipping_method or shipping_method,
-                'debug_info': debug_info,
-                'available': True
-            }
+    # Ensure we have a valid country_iso string (use '*' for global if None)
+    country_iso_str = country_iso or country_name or '*'
     
-    # STEP 5: If no country-specific rule matches, only then check Global rules
-    global_rules_query = LegacyShippingRule.query.filter(
-        LegacyShippingRule.rule_type == 'global',
-        LegacyShippingRule.status == True,
-        LegacyShippingRule.min_weight <= weight,
-        LegacyShippingRule.max_weight >= weight
+    # If no shipping method specified, try all methods and return the first match
+    if not shipping_mode_key:
+        # Try each method in order of preference
+        for mode_key in ['express', 'economy_plus', 'economy']:
+            result = ShippingService.calculate_shipping(
+                country_iso=country_iso_str,
+                shipping_mode_key=mode_key,
+                total_weight_kg=total_weight_kg
+            )
+            if result.get('available'):
+                # Convert result to expected format
+                return {
+                    'rule': None,  # Can't return rule object directly
+                    'price_gmd': result.get('shipping_fee_gmd', 0.0),
+                    'delivery_time': result.get('delivery_time'),
+                    'rule_name': f"{country_name or 'Global'} ({mode_key})",
+                    'rule_type': 'country' if country_iso else 'global',
+                    'country_id': country_id,
+                    'country_name': country_name,
+                    'shipping_method': mode_key,
+                    'debug_info': {
+                        'chosen_country': country_name,
+                        'chosen_country_id': country_id,
+                        'shipping_method': mode_key,
+                        'weight_kg': total_weight_kg,
+                        'applied_rule_id': result.get('rule_id'),
+                        'final_shipping_price': result.get('shipping_fee_gmd', 0.0),
+                        'rule_selection_reason': f"Matched {mode_key} mode",
+                        'shipping_source': 'New Shipping System'
+                    },
+                    'available': True
+                }
+        # No method matched
+        return None
+    
+    # Calculate with specific method
+    result = ShippingService.calculate_shipping(
+        country_iso=country_iso_str,
+        shipping_mode_key=shipping_mode_key,
+        total_weight_kg=total_weight_kg
     )
     
-    # Filter by shipping method if provided
-    if shipping_method:
-        global_rules_query = global_rules_query.filter(
-            db.or_(
-                LegacyShippingRule.shipping_method == shipping_method,
-                LegacyShippingRule.shipping_method.is_(None)
-            )
-        )
-    
-    global_rules = global_rules_query.order_by(
-        LegacyShippingRule.priority.desc(),  # Highest priority first
-        LegacyShippingRule.min_weight.asc()
-    ).all()
-    
-    if global_rules:
-        selected_rule = global_rules[0]  # Already sorted by priority DESC
-        
-        debug_info = {
-            'chosen_country': country_name or None,
-            'chosen_country_id': country_id,
-            'shipping_method': shipping_method,
-            'weight_kg': float(weight),
-            'applied_rule_id': selected_rule.id,
-            'weight_range_matched': f"{float(selected_rule.min_weight)}-{float(selected_rule.max_weight)}kg",
-            'final_shipping_price': float(selected_rule.price_gmd),
-            'rule_selection_reason': 'No country-specific rule matched, using Global rule',
-            'rule_priority': selected_rule.priority,
-            'matching_rules_count': len(global_rules),
-            'other_shipping_sources_used': False,
-            'shipping_source': 'Shipping Rules Table ONLY',
-            'confirmation': 'No other shipping sources used - ONLY Shipping Rules table checked'
-        }
-        
-        rule_name = f"Global ({float(selected_rule.min_weight)}-{float(selected_rule.max_weight)}kg)"
-        
-        current_app.logger.info(
-            f"✅ SHIPPING CALCULATED FROM SHIPPING RULES TABLE ONLY: "
-            f"Global Rule, Country={country_name or 'None'}, "
-            f"Method={shipping_method or 'any'}, Weight={float(weight)}kg, Rule ID={selected_rule.id}, "
-            f"Rule={rule_name}, Price={float(selected_rule.price_gmd)}GMD, "
-            f"Priority={selected_rule.priority}, Debug: {debug_info}"
-        )
+    if result.get('available'):
+        # Get the rule object for compatibility
+        rule_obj = None
+        if result.get('rule_id'):
+            rule_obj = NewShippingRule.query.get(result['rule_id'])
         
         return {
-            'rule': selected_rule,
-            'price_gmd': float(selected_rule.price_gmd),
-            'delivery_time': selected_rule.delivery_time,
-            'rule_name': rule_name,
-            'rule_type': 'global',
-            'country_id': None,
-            'country_name': None,
-            'shipping_method': selected_rule.shipping_method or shipping_method,
-            'debug_info': debug_info,
+            'rule': rule_obj,
+            'price_gmd': result.get('shipping_fee_gmd', 0.0),
+            'delivery_time': result.get('delivery_time'),
+            'rule_name': f"{country_name or 'Global'} ({shipping_mode_key})",
+            'rule_type': 'country' if country_iso else 'global',
+            'country_id': country_id,
+            'country_name': country_name,
+            'shipping_method': shipping_mode_key,
+            'debug_info': {
+                'chosen_country': country_name,
+                'chosen_country_id': country_id,
+                'shipping_method': shipping_mode_key,
+                'weight_kg': total_weight_kg,
+                'applied_rule_id': result.get('rule_id'),
+                'final_shipping_price': result.get('shipping_fee_gmd', 0.0),
+                'rule_selection_reason': 'Matched shipping rule',
+                'shipping_source': 'New Shipping System'
+            },
             'available': True
         }
     
-    # STEP 6: If still no match, return None (will default to 0)
-    # NO fallback, NO nearest rule logic - only exact weight range matches allowed
-    
-    # Build comprehensive debug info
+    # No rule found
     debug_info = {
         'chosen_country': country_name if country_id else None,
         'chosen_country_id': country_id,
-        'shipping_method': shipping_method,
-        'weight_kg': float(weight),
+        'shipping_method': shipping_mode_key,
+        'weight_kg': total_weight_kg,
         'applied_rule_id': None,
         'weight_range_matched': None,
         'final_shipping_price': 0.0,
         'rule_selection_reason': 'No matching rule found',
         'other_shipping_sources_used': False,
-        'shipping_source': 'Shipping Rules Table ONLY',
-        'confirmation': 'No other shipping sources used - ONLY Shipping Rules table checked'
+        'shipping_source': 'New Shipping System',
+        'confirmation': 'No matching rule found in new shipping system'
     }
     
     current_app.logger.warning(
         f"❌ NO SHIPPING RULE MATCHED: "
         f"Country={country_name if country_id else 'None'}, "
-        f"Country ID={country_id}, Method={shipping_method or 'any'}, Weight={float(weight)}kg. "
+        f"Country ID={country_id}, Method={shipping_method or 'any'}, Weight={total_weight_kg}kg. "
         f"Shipping fee will default to 0. "
         f"Debug Info: {debug_info}. "
-        f"CONFIRMED: Shipping Rules Table ONLY - no other sources used."
+        f"CONFIRMED: New Shipping System - no other sources used."
     )
     
     return None

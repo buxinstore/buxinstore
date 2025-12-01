@@ -32,6 +32,10 @@ class ShippingService:
             Dict with shipping fee, delivery time, mode info, and rule_id
             or error message if no rule found
         """
+        # Ensure country_iso is a string
+        if not country_iso:
+            country_iso = '*'
+        
         # Convert country name to ISO if needed
         if len(country_iso) > 3:
             from app.models.country import Country
