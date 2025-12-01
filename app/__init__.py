@@ -1813,6 +1813,7 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
             if country:
                 country_iso = country.code  # Use ISO code (e.g., 'GMB')
                 country_name = country.name
+                current_app.logger.debug(f"Shipping calculation: country_id={country_id}, country_iso={country_iso}, country_name={country_name}")
         except (ValueError, TypeError):
             country_id = None
     
@@ -1827,7 +1828,10 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         shipping_mode_key = method_mapping.get(shipping_method, shipping_method)
     
     # Ensure we have a valid country_iso string (use '*' for global if None)
-    country_iso_str = country_iso or country_name or '*'
+    # Always prefer ISO code over country name
+    country_iso_str = country_iso if country_iso else '*'
+    
+    current_app.logger.debug(f"Shipping calculation: country_iso_str={country_iso_str}, shipping_mode_key={shipping_mode_key}, weight={total_weight_kg}kg")
     
     # If no shipping method specified, try all methods and return the first match
     if not shipping_mode_key:

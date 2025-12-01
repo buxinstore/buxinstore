@@ -36,8 +36,9 @@ class ShippingService:
         if not country_iso:
             country_iso = '*'
         
-        # Convert country name to ISO if needed
-        if len(country_iso) > 3:
+        # Convert country name to ISO if needed (if longer than 3 chars, it's likely a name)
+        original_country_iso = country_iso
+        if len(country_iso) > 3 and country_iso != '*':
             from app.models.country import Country
             country = Country.query.filter(Country.name.ilike(f'%{country_iso}%')).first()
             if country:
@@ -48,6 +49,9 @@ class ShippingService:
                 if country:
                     country_iso = country.code
         
+        # Normalize to uppercase
+        country_iso = country_iso.upper() if country_iso else '*'
+        
         # Ensure weight is valid
         if total_weight_kg is None or total_weight_kg < 0:
             total_weight_kg = 0.0
@@ -56,7 +60,7 @@ class ShippingService:
         
         # Step 1: Try country-specific rules first
         country_rules = ShippingRule.query.filter(
-            ShippingRule.country_iso == country_iso.upper(),
+            ShippingRule.country_iso == country_iso,
             ShippingRule.shipping_mode_key == shipping_mode_key,
             ShippingRule.active == True,
             ShippingRule.min_weight <= weight,
@@ -65,6 +69,14 @@ class ShippingService:
             ShippingRule.priority.desc(),
             ShippingRule.created_at.asc()
         ).all()
+        
+        # Debug logging
+        from flask import current_app
+        if current_app:
+            current_app.logger.debug(
+                f"ShippingService.calculate_shipping: country_iso={country_iso} (from '{original_country_iso}'), "
+                f"mode={shipping_mode_key}, weight={weight}kg, found {len(country_rules)} country rules"
+            )
         
         if country_rules:
             rule = country_rules[0]
@@ -80,16 +92,23 @@ class ShippingService:
             }
         
         # Step 2: Try global rules (country_iso = '*')
-        global_rules = ShippingRule.query.filter(
-            ShippingRule.country_iso == '*',
-            ShippingRule.shipping_mode_key == shipping_mode_key,
-            ShippingRule.active == True,
-            ShippingRule.min_weight <= weight,
-            ShippingRule.max_weight >= weight
-        ).order_by(
-            ShippingRule.priority.desc(),
-            ShippingRule.created_at.asc()
-        ).all()
+        global_rules = []
+        if country_iso != '*':
+            global_rules = ShippingRule.query.filter(
+                ShippingRule.country_iso == '*',
+                ShippingRule.shipping_mode_key == shipping_mode_key,
+                ShippingRule.active == True,
+                ShippingRule.min_weight <= weight,
+                ShippingRule.max_weight >= weight
+            ).order_by(
+                ShippingRule.priority.desc(),
+                ShippingRule.created_at.asc()
+            ).all()
+            
+            if current_app:
+                current_app.logger.debug(
+                    f"ShippingService: found {len(global_rules)} global rules for mode={shipping_mode_key}, weight={weight}kg"
+                )
         
         if global_rules:
             rule = global_rules[0]
@@ -104,7 +123,21 @@ class ShippingService:
                 'available': True
             }
         
-        # Step 3: No rule found
+        # Step 3: No rule found - log available rules for debugging
+        if current_app:
+            # Check if any rules exist at all for this country/mode
+            all_rules = ShippingRule.query.filter(
+                ShippingRule.country_iso == country_iso,
+                ShippingRule.shipping_mode_key == shipping_mode_key,
+                ShippingRule.active == True
+            ).all()
+            
+            current_app.logger.warning(
+                f"No shipping rule found: country_iso={country_iso}, mode={shipping_mode_key}, weight={weight}kg. "
+                f"Found {len(all_rules)} active rules for this country/mode (but none match weight range). "
+                f"Available weight ranges: {[(r.min_weight, r.max_weight) for r in all_rules]}"
+            )
+        
         return {
             'error': f"No shipping rule found for {country_iso}, {shipping_mode_key}, {total_weight_kg} kg",
             'available': False
