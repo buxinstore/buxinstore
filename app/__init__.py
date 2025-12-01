@@ -5400,7 +5400,7 @@ def admin_shipping_rules():
     
     if status_filter == 'active':
         query = query.filter(LegacyShippingRule.status == True)
-        elif status_filter == 'inactive':
+    elif status_filter == 'inactive':
         query = query.filter(LegacyShippingRule.status == False)
     
     # Join with Country for sorting and filtering
