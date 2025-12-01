@@ -1650,7 +1650,7 @@ class Order(db.Model):
     submitted_at = db.Column(db.DateTime, nullable=True)  # When details were submitted
     
     # Shipping rule fields (for automatic shipping calculation)
-    shipping_rule_id = db.Column(db.Integer, db.ForeignKey('shipping_rule.id'), nullable=True)  # Which shipping rule was applied
+    shipping_rule_id = db.Column(db.Integer, db.ForeignKey('shipping_rules.id'), nullable=True)  # Which shipping rule was applied (new system)
     shipping_method = db.Column(db.String(20), nullable=True)  # Selected shipping method: 'express', 'ecommerce', 'economy'
     shipping_delivery_estimate = db.Column(db.String(100), nullable=True)  # Delivery time estimate from rule
     shipping_display_currency = db.Column(db.String(10), nullable=True)  # Currency used for display (e.g., 'GMD', 'XOF')
@@ -1661,7 +1661,7 @@ class Order(db.Model):
     
     # Relationship for assigned user
     assigned_user = db.relationship('User', primaryjoin='Order.assigned_to == User.id', foreign_keys=[assigned_to], backref=db.backref('assigned_orders', lazy=True))
-    shipping_rule = db.relationship('ShippingRule', backref='orders', lazy=True)
+    shipping_rule = db.relationship('app.shipping.models.ShippingRule', foreign_keys=[shipping_rule_id], backref='orders', lazy=True)
 
 class OrderItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1694,8 +1694,8 @@ class ShipmentRecord(db.Model):
     submitter = db.relationship('User', foreign_keys=[submitted_by], backref='shipment_records')
     verifier = db.relationship('User', foreign_keys=[verified_by], backref='verified_shipments')
 
-class ShippingRule(db.Model):
-    """Shipping rules for calculating shipping costs based on country and weight"""
+class LegacyShippingRule(db.Model):
+    """Legacy shipping rules - DEPRECATED: Use app.shipping.models.ShippingRule instead"""
     __tablename__ = 'shipping_rule'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -1830,10 +1830,10 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     # Ignore all other countries - ONLY match the selected country
     if country_id:
         # Get ALL matching country rules (we'll filter by weight and method in subsequent steps)
-        country_rules_query = ShippingRule.query.filter(
-            ShippingRule.rule_type == 'country',
-            ShippingRule.country_id == country_id,  # STRICT match - no other countries
-            ShippingRule.status == True
+        country_rules_query = LegacyShippingRule.query.filter(
+            LegacyShippingRule.rule_type == 'country',
+            LegacyShippingRule.country_id == country_id,  # STRICT match - no other countries
+            LegacyShippingRule.status == True
         )
         
         # STEP 2: Filter by shipping method if provided
@@ -1841,19 +1841,19 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         if shipping_method:
             country_rules_query = country_rules_query.filter(
                 db.or_(
-                    ShippingRule.shipping_method == shipping_method,
-                    ShippingRule.shipping_method.is_(None)
+                    LegacyShippingRule.shipping_method == shipping_method,
+                    LegacyShippingRule.shipping_method.is_(None)
                 )
             )
         
         # STEP 3: Find rules whose weight range includes the product weight
         # min_weight ≤ weight ≤ max_weight
         matching_country_rules = country_rules_query.filter(
-            ShippingRule.min_weight <= weight,
-            ShippingRule.max_weight >= weight
+            LegacyShippingRule.min_weight <= weight,
+            LegacyShippingRule.max_weight >= weight
         ).order_by(
-            ShippingRule.priority.desc(),  # STEP 4: Highest priority first
-            ShippingRule.min_weight.asc()
+            LegacyShippingRule.priority.desc(),  # STEP 4: Highest priority first
+            LegacyShippingRule.min_weight.asc()
         ).all()
         
         if matching_country_rules:
@@ -1900,25 +1900,25 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
             }
     
     # STEP 5: If no country-specific rule matches, only then check Global rules
-    global_rules_query = ShippingRule.query.filter(
-        ShippingRule.rule_type == 'global',
-        ShippingRule.status == True,
-        ShippingRule.min_weight <= weight,
-        ShippingRule.max_weight >= weight
+    global_rules_query = LegacyShippingRule.query.filter(
+        LegacyShippingRule.rule_type == 'global',
+        LegacyShippingRule.status == True,
+        LegacyShippingRule.min_weight <= weight,
+        LegacyShippingRule.max_weight >= weight
     )
     
     # Filter by shipping method if provided
     if shipping_method:
         global_rules_query = global_rules_query.filter(
             db.or_(
-                ShippingRule.shipping_method == shipping_method,
-                ShippingRule.shipping_method.is_(None)
+                LegacyShippingRule.shipping_method == shipping_method,
+                LegacyShippingRule.shipping_method.is_(None)
             )
         )
     
     global_rules = global_rules_query.order_by(
-        ShippingRule.priority.desc(),  # Highest priority first
-        ShippingRule.min_weight.asc()
+        LegacyShippingRule.priority.desc(),  # Highest priority first
+        LegacyShippingRule.min_weight.asc()
     ).all()
     
     if global_rules:
@@ -2731,27 +2731,27 @@ def api_shipping_rules():
     weight = request.args.get('weight', type=float)
     rule_type = request.args.get('type', '')  # 'country' or 'global'
     
-    query = ShippingRule.query.filter_by(status=True)
+    query = LegacyShippingRule.query.filter_by(status=True)
     
     if rule_type:
-        query = query.filter(ShippingRule.rule_type == rule_type)
+        query = query.filter(LegacyShippingRule.rule_type == rule_type)
     
     if country_id:
         query = query.filter(
             db.or_(
-                ShippingRule.country_id == country_id,
-                ShippingRule.rule_type == 'global'
+                LegacyShippingRule.country_id == country_id,
+                LegacyShippingRule.rule_type == 'global'
             )
         )
     
     if weight is not None:
         weight_decimal = Decimal(str(weight))
         query = query.filter(
-            ShippingRule.min_weight <= weight_decimal,
-            ShippingRule.max_weight >= weight_decimal
+            LegacyShippingRule.min_weight <= weight_decimal,
+            LegacyShippingRule.max_weight >= weight_decimal
         )
     
-    rules = query.order_by(ShippingRule.priority.desc(), ShippingRule.min_weight.asc()).all()
+    rules = query.order_by(LegacyShippingRule.priority.desc(), LegacyShippingRule.min_weight.asc()).all()
     
     return jsonify({
         'success': True,
@@ -5381,27 +5381,27 @@ def admin_shipping_rules():
     per_page = 20
     
     # Build query
-    query = ShippingRule.query
+    query = LegacyShippingRule.query
     
     # Apply filters
     if search:
         query = query.filter(
             db.or_(
-                ShippingRule.note.ilike(f'%{search}%'),
+                LegacyShippingRule.note.ilike(f'%{search}%'),
                 Country.name.ilike(f'%{search}%')
             )
         )
     
     if rule_type:
-        query = query.filter(ShippingRule.rule_type == rule_type)
+        query = query.filter(LegacyShippingRule.rule_type == rule_type)
     
     if country_id:
-        query = query.filter(ShippingRule.country_id == country_id)
+        query = query.filter(LegacyShippingRule.country_id == country_id)
     
     if status_filter == 'active':
-        query = query.filter(ShippingRule.status == True)
-    elif status_filter == 'inactive':
-        query = query.filter(ShippingRule.status == False)
+        query = query.filter(LegacyShippingRule.status == True)
+        elif status_filter == 'inactive':
+        query = query.filter(LegacyShippingRule.status == False)
     
     # Join with Country for sorting and filtering
     query = query.outerjoin(Country)
@@ -5409,35 +5409,35 @@ def admin_shipping_rules():
     # Apply sorting
     if sort_by == 'country':
         if sort_order == 'asc':
-            query = query.order_by(db.func.coalesce(Country.name, db.literal('Global')).asc(), ShippingRule.priority.desc())
+            query = query.order_by(db.func.coalesce(Country.name, db.literal('Global')).asc(), LegacyShippingRule.priority.desc())
         else:
-            query = query.order_by(db.func.coalesce(Country.name, db.literal('Global')).desc(), ShippingRule.priority.desc())
+            query = query.order_by(db.func.coalesce(Country.name, db.literal('Global')).desc(), LegacyShippingRule.priority.desc())
     elif sort_by == 'min_weight':
         if sort_order == 'asc':
-            query = query.order_by(ShippingRule.min_weight.asc())
+            query = query.order_by(LegacyShippingRule.min_weight.asc())
         else:
-            query = query.order_by(ShippingRule.min_weight.desc())
+            query = query.order_by(LegacyShippingRule.min_weight.desc())
     elif sort_by == 'price':
         if sort_order == 'asc':
-            query = query.order_by(ShippingRule.price_gmd.asc())
+            query = query.order_by(LegacyShippingRule.price_gmd.asc())
         else:
-            query = query.order_by(ShippingRule.price_gmd.desc())
+            query = query.order_by(LegacyShippingRule.price_gmd.desc())
     else:  # priority (default)
         if sort_order == 'asc':
-            query = query.order_by(ShippingRule.priority.asc())
+            query = query.order_by(LegacyShippingRule.priority.asc())
         else:
-            query = query.order_by(ShippingRule.priority.desc())
+            query = query.order_by(LegacyShippingRule.priority.desc())
     
     # Paginate
     rules = query.paginate(page=page, per_page=per_page, error_out=False)
     
     # Get statistics
-    total_rules = ShippingRule.query.count()
-    active_rules = ShippingRule.query.filter_by(status=True).count()
-    global_rules = ShippingRule.query.filter_by(rule_type='global', status=True).count()
-    countries_with_rules = db.session.query(db.func.count(db.distinct(ShippingRule.country_id))).filter(
-        ShippingRule.rule_type == 'country',
-        ShippingRule.status == True
+    total_rules = LegacyShippingRule.query.count()
+    active_rules = LegacyShippingRule.query.filter_by(status=True).count()
+    global_rules = LegacyShippingRule.query.filter_by(rule_type='global', status=True).count()
+    countries_with_rules = db.session.query(db.func.count(db.distinct(LegacyShippingRule.country_id))).filter(
+        LegacyShippingRule.rule_type == 'country',
+        LegacyShippingRule.status == True
     ).scalar() or 0
     
     # Get all countries for filter dropdown
@@ -5512,27 +5512,27 @@ def admin_new_shipping_rule():
             
             # Check for overlapping rules (same country/global and overlapping weight ranges)
             if rule_type == 'country' and country_id:
-                overlapping = ShippingRule.query.filter(
-                    ShippingRule.rule_type == 'country',
-                    ShippingRule.country_id == country_id,
-                    ShippingRule.status == True,
+                overlapping = LegacyShippingRule.query.filter(
+                    LegacyShippingRule.rule_type == 'country',
+                    LegacyShippingRule.country_id == country_id,
+                    LegacyShippingRule.status == True,
                     db.or_(
-                        db.and_(ShippingRule.min_weight <= min_weight, ShippingRule.max_weight >= min_weight),
-                        db.and_(ShippingRule.min_weight <= max_weight, ShippingRule.max_weight >= max_weight),
-                        db.and_(ShippingRule.min_weight >= min_weight, ShippingRule.max_weight <= max_weight)
+                        db.and_(LegacyShippingRule.min_weight <= min_weight, LegacyShippingRule.max_weight >= min_weight),
+                        db.and_(LegacyShippingRule.min_weight <= max_weight, LegacyShippingRule.max_weight >= max_weight),
+                        db.and_(LegacyShippingRule.min_weight >= min_weight, LegacyShippingRule.max_weight <= max_weight)
                     )
                 ).first()
                 
                 if overlapping:
                     flash(f'Warning: Overlapping rule exists for this country and weight range. Rule created anyway.', 'warning')
             elif rule_type == 'global':
-                overlapping = ShippingRule.query.filter(
-                    ShippingRule.rule_type == 'global',
-                    ShippingRule.status == True,
+                overlapping = LegacyShippingRule.query.filter(
+                    LegacyShippingRule.rule_type == 'global',
+                    LegacyShippingRule.status == True,
                     db.or_(
-                        db.and_(ShippingRule.min_weight <= min_weight, ShippingRule.max_weight >= min_weight),
-                        db.and_(ShippingRule.min_weight <= max_weight, ShippingRule.max_weight >= max_weight),
-                        db.and_(ShippingRule.min_weight >= min_weight, ShippingRule.max_weight <= max_weight)
+                        db.and_(LegacyShippingRule.min_weight <= min_weight, LegacyShippingRule.max_weight >= min_weight),
+                        db.and_(LegacyShippingRule.min_weight <= max_weight, LegacyShippingRule.max_weight >= max_weight),
+                        db.and_(LegacyShippingRule.min_weight >= min_weight, LegacyShippingRule.max_weight <= max_weight)
                     )
                 ).first()
                 
@@ -5540,7 +5540,7 @@ def admin_new_shipping_rule():
                     flash(f'Warning: Overlapping global rule exists for this weight range. Rule created anyway.', 'warning')
             
             # Create rule (country_id is already validated as integer above)
-            rule = ShippingRule(
+            rule = LegacyShippingRule(
                 rule_type=rule_type,
                 country_id=country_id,
                 shipping_method=shipping_method,
@@ -5574,7 +5574,7 @@ def admin_new_shipping_rule():
 @admin_required
 def admin_edit_shipping_rule(rule_id):
     """Edit an existing shipping rule."""
-    rule = ShippingRule.query.get_or_404(rule_id)
+    rule = LegacyShippingRule.query.get_or_404(rule_id)
     
     if request.method == 'POST':
         try:
@@ -5634,29 +5634,29 @@ def admin_edit_shipping_rule(rule_id):
             
             # Check for overlapping rules (excluding current rule)
             if rule_type == 'country' and country_id:
-                overlapping = ShippingRule.query.filter(
-                    ShippingRule.id != rule_id,
-                    ShippingRule.rule_type == 'country',
-                    ShippingRule.country_id == country_id,
-                    ShippingRule.status == True,
+                overlapping = LegacyShippingRule.query.filter(
+                    LegacyShippingRule.id != rule_id,
+                    LegacyShippingRule.rule_type == 'country',
+                    LegacyShippingRule.country_id == country_id,
+                    LegacyShippingRule.status == True,
                     db.or_(
-                        db.and_(ShippingRule.min_weight <= min_weight, ShippingRule.max_weight >= min_weight),
-                        db.and_(ShippingRule.min_weight <= max_weight, ShippingRule.max_weight >= max_weight),
-                        db.and_(ShippingRule.min_weight >= min_weight, ShippingRule.max_weight <= max_weight)
+                        db.and_(LegacyShippingRule.min_weight <= min_weight, LegacyShippingRule.max_weight >= min_weight),
+                        db.and_(LegacyShippingRule.min_weight <= max_weight, LegacyShippingRule.max_weight >= max_weight),
+                        db.and_(LegacyShippingRule.min_weight >= min_weight, LegacyShippingRule.max_weight <= max_weight)
                     )
                 ).first()
                 
                 if overlapping:
                     flash(f'Warning: Overlapping rule exists for this country and weight range. Rule updated anyway.', 'warning')
             elif rule_type == 'global':
-                overlapping = ShippingRule.query.filter(
-                    ShippingRule.id != rule_id,
-                    ShippingRule.rule_type == 'global',
-                    ShippingRule.status == True,
+                overlapping = LegacyShippingRule.query.filter(
+                    LegacyShippingRule.id != rule_id,
+                    LegacyShippingRule.rule_type == 'global',
+                    LegacyShippingRule.status == True,
                     db.or_(
-                        db.and_(ShippingRule.min_weight <= min_weight, ShippingRule.max_weight >= min_weight),
-                        db.and_(ShippingRule.min_weight <= max_weight, ShippingRule.max_weight >= max_weight),
-                        db.and_(ShippingRule.min_weight >= min_weight, ShippingRule.max_weight <= max_weight)
+                        db.and_(LegacyShippingRule.min_weight <= min_weight, LegacyShippingRule.max_weight >= min_weight),
+                        db.and_(LegacyShippingRule.min_weight <= max_weight, LegacyShippingRule.max_weight >= max_weight),
+                        db.and_(LegacyShippingRule.min_weight >= min_weight, LegacyShippingRule.max_weight <= max_weight)
                     )
                 ).first()
                 
@@ -5696,7 +5696,7 @@ def admin_edit_shipping_rule(rule_id):
 @admin_required
 def admin_delete_shipping_rule(rule_id):
     """Delete a shipping rule."""
-    rule = ShippingRule.query.get_or_404(rule_id)
+    rule = LegacyShippingRule.query.get_or_404(rule_id)
     
     try:
         db.session.delete(rule)
@@ -5717,7 +5717,7 @@ def admin_duplicate_shipping_rule(rule_id):
     original_rule = ShippingRule.query.get_or_404(rule_id)
     
     try:
-        new_rule = ShippingRule(
+        new_rule = LegacyShippingRule(
             rule_type=original_rule.rule_type,
             country_id=original_rule.country_id,
             min_weight=original_rule.min_weight,
@@ -5745,7 +5745,7 @@ def admin_duplicate_shipping_rule(rule_id):
 @admin_required
 def admin_toggle_shipping_rule_status(rule_id):
     """Toggle shipping rule active/inactive status."""
-    rule = ShippingRule.query.get_or_404(rule_id)
+    rule = LegacyShippingRule.query.get_or_404(rule_id)
     
     try:
         rule.status = not rule.status
@@ -5768,7 +5768,7 @@ def admin_export_shipping_rules():
     """Export shipping rules to CSV or JSON."""
     export_format = request.args.get('format', 'csv')  # 'csv' or 'json'
     
-    rules = ShippingRule.query.outerjoin(Country).order_by(ShippingRule.id).all()
+    rules = LegacyShippingRule.query.outerjoin(Country).order_by(LegacyShippingRule.id).all()
     
     if export_format == 'json':
         rules_data = [rule.to_dict() for rule in rules]
@@ -9516,8 +9516,8 @@ def admin_order_detail(order_id):
     
     # Load shipping rule with country relationship
     if order.shipping_rule_id:
-        order.shipping_rule = ShippingRule.query.options(
-            joinedload(ShippingRule.country)
+        order.shipping_rule = LegacyShippingRule.query.options(
+            joinedload(LegacyShippingRule.country)
         ).get(order.shipping_rule_id)
     
     return render_template('admin/admin/order_detail.html', order=order, order_country=order_country, order_country_obj=order_country_obj)

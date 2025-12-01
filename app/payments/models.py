@@ -124,7 +124,7 @@ class PendingPayment(db.Model):
     location = db.Column(db.String(50), nullable=True)
     
     # Shipping rule fields (for automatic shipping calculation)
-    shipping_rule_id = db.Column(db.Integer, db.ForeignKey('shipping_rule.id'), nullable=True)  # Which shipping rule was applied
+    shipping_rule_id = db.Column(db.Integer, db.ForeignKey('shipping_rules.id'), nullable=True)  # Which shipping rule was applied (new system)
     shipping_method = db.Column(db.String(20), nullable=True)  # Selected shipping method: 'express', 'ecommerce', 'economy'
     shipping_delivery_estimate = db.Column(db.String(100), nullable=True)  # Delivery time estimate from rule
     shipping_display_currency = db.Column(db.String(10), nullable=True)  # Currency used for display (e.g., 'GMD', 'XOF')
@@ -134,7 +134,7 @@ class PendingPayment(db.Model):
     
     # Relationships
     user = db.relationship('User', backref='pending_payments', lazy=True)
-    shipping_rule = db.relationship('ShippingRule', backref='pending_payments', lazy=True)
+    shipping_rule = db.relationship('app.shipping.models.ShippingRule', foreign_keys=[shipping_rule_id], backref='pending_payments', lazy=True)
     
     def __repr__(self):
         return f'<PendingPayment {self.id} - User {self.user_id} - {self.status}>'
