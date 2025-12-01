@@ -11691,6 +11691,121 @@ def api_profile():
 
     return jsonify({'status': 'success', 'profile': user.to_profile_dict()})
 
+@app.route('/api/checkout/update-pending-payment', methods=['POST'])
+@login_required
+def api_update_pending_payment():
+    """Update pending payment with shipping method and recalculate totals."""
+    try:
+        from app.payments.models import PendingPayment
+        import json
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        pending_payment_id = data.get('pending_payment_id')
+        if not pending_payment_id:
+            return jsonify({'success': False, 'message': 'pending_payment_id is required'}), 400
+        
+        pending_payment = PendingPayment.query.get(pending_payment_id)
+        if not pending_payment:
+            return jsonify({'success': False, 'message': 'PendingPayment not found'}), 404
+        
+        # Verify ownership
+        if pending_payment.user_id != current_user.id and not current_user.is_admin:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+        
+        # Get shipping method
+        shipping_method = data.get('shipping_method', '').strip() or None
+        
+        # Get country
+        country = None
+        country_id = None
+        if data.get('country'):
+            country = Country.query.filter_by(name=data['country'], is_active=True).first()
+            if country:
+                country_id = country.id
+        
+        # Get cart items
+        cart_items = json.loads(pending_payment.cart_items_json) if pending_payment.cart_items_json else []
+        
+        # Calculate total cart weight
+        total_weight = 0.0
+        for item in cart_items:
+            product = Product.query.get(item.get('id'))
+            if product and product.weight_kg:
+                total_weight += float(product.weight_kg) * item.get('quantity', 1)
+        
+        # Calculate shipping with selected method
+        shipping_result = calculate_shipping_price(total_weight, country_id, shipping_method, default_weight=0.0)
+        
+        shipping_price_gmd = 0.0
+        shipping_rule_id = None
+        shipping_delivery_estimate = None
+        
+        if shipping_result and shipping_result.get('available'):
+            shipping_price_gmd = float(shipping_result['price_gmd'])
+            shipping_rule_id = shipping_result['rule'].id
+            shipping_delivery_estimate = shipping_result['delivery_time']
+        
+        # Calculate subtotal
+        subtotal = 0.0
+        for item in cart_items:
+            product = Product.query.get(item.get('id'))
+            if product:
+                from app import get_product_price_with_profit
+                base_price = float(product.price)
+                final_price, _, _ = get_product_price_with_profit(base_price)
+                subtotal += final_price * item.get('quantity', 1)
+        
+        # Calculate tax
+        tax_rate = Decimal(str(current_app.config.get('CART_TAX_RATE', 0) or 0))
+        tax = float(Decimal(str(subtotal)) * tax_rate)
+        
+        # Convert shipping to display currency if needed
+        from .utils.currency_rates import convert_price
+        if country and country.currency != 'GMD':
+            shipping_price_display = float(convert_price(shipping_price_gmd, 'GMD', country.currency))
+        else:
+            shipping_price_display = shipping_price_gmd
+        
+        # Calculate total
+        total_cost = subtotal + tax + shipping_price_display
+        
+        # Update pending payment
+        pending_payment.shipping_method = shipping_method
+        pending_payment.shipping_price = shipping_price_gmd
+        pending_payment.shipping_rule_id = shipping_rule_id
+        pending_payment.shipping_delivery_estimate = shipping_delivery_estimate
+        pending_payment.shipping_display_currency = country.currency if country else 'GMD'
+        pending_payment.amount = total_cost
+        pending_payment.total_cost = total_cost
+        
+        # Update address fields if provided
+        if 'full_name' in data:
+            pending_payment.customer_name = data['full_name'].strip()
+        if 'phone' in data:
+            pending_payment.customer_phone = data['phone'].strip()
+        if 'email' in data:
+            pending_payment.customer_email = data['email'].strip()
+        if 'delivery_address' in data:
+            pending_payment.delivery_address = data['delivery_address'].strip()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'pending_payment_id': pending_payment.id,
+            'amount': total_cost,
+            'shipping_price': shipping_price_gmd,
+            'shipping_method': shipping_method
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error updating pending payment: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @app.route('/api/checkout/save-address', methods=['POST'])
 @login_required
 def api_save_checkout_address():
@@ -12180,43 +12295,46 @@ def product(product_id):
     else:
         product_weight = float(product.weight_kg)
     
-    # Calculate shipping using shipping rules (will try country-specific first, then global)
-    shipping_result = calculate_shipping_price(product_weight, country_id, default_weight=0.0)
+    # Get all shipping methods with prices for this product
+    from app.shipping import get_all_shipping_methods
+    shipping_methods_data = []
+    all_methods = get_all_shipping_methods()
     
+    for method in all_methods:
+        method_id = method['id']
+        shipping_result = calculate_shipping_price(product_weight, country_id, method_id, default_weight=0.0)
+        
+        if shipping_result and shipping_result.get('available'):
+            price_gmd = shipping_result['price_gmd']
+            # Convert to display currency if needed
+            if country and country.currency != 'GMD':
+                from .utils.currency_rates import convert_price
+                price_display = convert_price(price_gmd, 'GMD', country.currency)
+            else:
+                price_display = price_gmd
+            
+            shipping_methods_data.append({
+                **method,
+                'price_gmd': price_gmd,
+                'price_display': price_display,
+                'delivery_time': shipping_result.get('delivery_time') or method['guarantee'],
+                'available': True
+            })
+        else:
+            shipping_methods_data.append({
+                **method,
+                'price_gmd': None,
+                'price_display': None,
+                'delivery_time': method['guarantee'],
+                'available': False
+            })
+    
+    # For backward compatibility, calculate default shipping (first available or 0)
     shipping_fee = 0.0
     shipping_delivery_time = None
-    shipping_rule_name = None
-    shipping_debug_info = None
-    
-    if shipping_result and shipping_result.get('available'):
-        shipping_fee = shipping_result['price_gmd']
-        shipping_delivery_time = shipping_result['delivery_time']
-        shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
-        shipping_debug_info = shipping_result.get('debug_info', {})
-        
-        # Convert to display currency if needed
-        if country and country.currency != 'GMD':
-            from .utils.currency_rates import convert_price
-            shipping_fee = convert_price(shipping_fee, 'GMD', country.currency)
-        
-        # Admin debug output (temporary)
-        if current_user.is_authenticated and (current_user.is_admin or current_user.role == 'admin'):
-            current_app.logger.info(
-                f"🔍 ADMIN DEBUG - Product Page Shipping: "
-                f"Product ID={product_id}, Product Weight={product_weight}kg, "
-                f"Quantity=1, Total Weight={product_weight}kg, "
-                f"Country={country.name if country else 'None'}, "
-                f"Rule ID={shipping_debug_info.get('applied_rule_id')}, "
-                f"Shipping Fee={shipping_fee}, "
-                f"Debug Info={shipping_debug_info}"
-            )
-    else:
-        # If no rule found, default to 0
-        current_app.logger.debug(
-            f"No shipping rule found for product {product_id}: "
-            f"Country ID={country_id}, Weight={product_weight}kg. "
-            f"Shipping fee defaulted to 0"
-        )
+    if shipping_methods_data and shipping_methods_data[0].get('available'):
+        shipping_fee = shipping_methods_data[0]['price_display'] or 0.0
+        shipping_delivery_time = shipping_methods_data[0]['delivery_time']
     
     final_price = product.price + shipping_fee
     
@@ -12233,7 +12351,9 @@ def product(product_id):
                          related_products=related_products,
                          shipping_fee=shipping_fee,
                          shipping_delivery_time=shipping_delivery_time,
-                         final_price=final_price)
+                         final_price=final_price,
+                         shipping_methods=shipping_methods_data,
+                         selected_country=country)
 
 @app.route('/test/users')
 @login_required

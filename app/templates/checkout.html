@@ -420,6 +420,12 @@
                     errorEl.classList.add('hidden');
                     validationState[fieldName] = true;
                 }
+            } else if (fieldName === 'shipping_method') {
+                // For shipping method, hide error message
+                if (errorEl) {
+                    errorEl.classList.add('hidden');
+                    validationState[fieldName] = true;
+                }
             } else if (field && errorEl) {
                 field.classList.remove('border-red-500', 'dark:border-red-500');
                 field.classList.add('border-slate-300', 'dark:border-slate-600');
@@ -463,6 +469,13 @@
                         return false;
                     }
                     break;
+                case 'shipping_method':
+                    const shippingMethodInput = document.getElementById('shipping_method');
+                    if (!shippingMethodInput || !shippingMethodInput.value || shippingMethodInput.value.trim() === '') {
+                        showError(fieldName, 'Please select a shipping method');
+                        return false;
+                    }
+                    break;
             }
             clearError(fieldName);
             return true;
@@ -473,6 +486,15 @@
             let isValid = true;
             for (const [fieldName, field] of Object.entries(fields)) {
                 if (!validateField(fieldName, field.value)) {
+                    isValid = false;
+                }
+            }
+            // Also validate shipping method
+            if (!validationState.shipping_method) {
+                const shippingMethodInput = document.getElementById('shipping_method');
+                if (shippingMethodInput && shippingMethodInput.value) {
+                    validationState.shipping_method = true;
+                } else {
                     isValid = false;
                 }
             }
@@ -705,6 +727,10 @@
                     shippingMethods = data.methods;
                     renderShippingMethods();
                     shippingSection.classList.remove('hidden');
+                    // Scroll to shipping methods section
+                    setTimeout(() => {
+                        shippingSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 100);
                 } else {
                     methodsContainer.innerHTML = '<p class="text-sm text-red-500">Unable to load shipping methods. Please try again.</p>';
                     shippingSection.classList.remove('hidden');
@@ -955,6 +981,13 @@
                 if (firstError) {
                     firstError[1].scrollIntoView({ behavior: 'smooth', block: 'center' });
                     firstError[1].focus();
+                } else if (!validationState.shipping_method) {
+                    // Scroll to shipping method section if that's the issue
+                    const shippingSection = document.getElementById('shipping-method-section');
+                    if (shippingSection) {
+                        shippingSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        showError('shipping_method', 'Please select a shipping method');
+                    }
                 }
                 return;
             }
@@ -964,8 +997,9 @@
             buttonText.classList.add('hidden');
             buttonLoading.classList.remove('hidden');
             
-            // Save address before proceeding
+            // Save address and update pending payment with shipping method
             try {
+                // Save address
                 await fetch('/api/checkout/save-address', {
                     method: 'POST',
                     headers: {
@@ -981,8 +1015,38 @@
                         delivery_address: fields.delivery_address.value
                     })
                 });
+                
+                // Update pending payment with shipping method and recalculate totals
+                const pendingPaymentId = document.getElementById('pending_payment_id').value;
+                const shippingMethod = document.getElementById('shipping_method').value;
+                
+                const updateResponse = await fetch('/api/checkout/update-pending-payment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    body: JSON.stringify({
+                        pending_payment_id: pendingPaymentId,
+                        shipping_method: shippingMethod,
+                        country: fields.country.value,
+                        full_name: fields.full_name.value,
+                        phone: fields.phone.value,
+                        email: fields.email.value,
+                        delivery_address: fields.delivery_address.value
+                    })
+                });
+                
+                const updateData = await updateResponse.json();
+                if (updateData.success) {
+                    // Update amount field with new total
+                    const amountInput = document.getElementById('amount');
+                    if (amountInput) {
+                        amountInput.value = updateData.amount.toFixed(2);
+                    }
+                }
             } catch (error) {
-                console.error('Error saving address:', error);
+                console.error('Error saving address/updating payment:', error);
             }
             
             // Get form values
