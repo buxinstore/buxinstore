@@ -141,12 +141,9 @@
       };
     })();
   </script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class'
-    };
-  </script>
   <!-- 1. Include Tailwind CSS -->
+  <!-- Note: Tailwind CDN doesn't expose a global tailwind object -->
+  <!-- Dark mode is handled via the 'dark' class on the html element -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- 2. Include Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
