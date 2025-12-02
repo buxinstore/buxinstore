@@ -652,111 +652,49 @@
             validationState.country = true;
             updateButtonState();
             
-            // Automatically calculate and set shipping method based on country and rules
-            await autoSelectShippingMethod(country.id);
+            // CRITICAL FIX: Do NOT recalculate shipping method when country changes
+            // The shipping method and price are already set from the cart
+            // Only update the hidden input if it's not already set
+            const shippingMethodInput = document.getElementById('shipping_mode_key');
+            if (shippingMethodInput && !shippingMethodInput.value) {
+                // Try to get from page data (set by server from session)
+                const initialValue = shippingMethodInput.getAttribute('value') || '';
+                if (initialValue) {
+                    shippingMethodInput.value = initialValue;
+                }
+            }
+            
+            // DO NOT call autoSelectShippingMethod - it would recalculate and change the total
+            // await autoSelectShippingMethod(country.id); // DISABLED
             
             // Trigger auto-save
             autoSaveAddress();
         }
         
-        // Automatically select shipping method based on country and rules
+        // CRITICAL FIX: Do NOT auto-select shipping method - use the one from cart session
+        // This function is now disabled to prevent checkout from recalculating shipping
+        // Checkout should ONLY use the shipping method and price already selected in cart
         async function autoSelectShippingMethod(countryId) {
-            try {
-                // Get cart summary data
-                const summaryData = JSON.parse(document.getElementById('checkout-summary-data').textContent);
-                const cartItems = summaryData.items || [];
-                
-                // Calculate total weight
-                let totalWeight = 0;
-                for (const item of cartItems) {
-                    const itemWeight = item.weight_kg || 0.1; // Default 0.1kg per item
-                    totalWeight += itemWeight * item.quantity;
+            // DISABLED: Checkout should NOT recalculate shipping
+            // The shipping method and price are already set in the cart and saved to session
+            // Using those values ensures Cart Total = Checkout Total = Payment Total
+            
+            // Only set the hidden input if it's not already set (from cart selection)
+            const shippingMethodInput = document.getElementById('shipping_mode_key');
+            if (shippingMethodInput && !shippingMethodInput.value) {
+                // If no method is set, try to get it from the page data (set by server)
+                const initialValue = shippingMethodInput.getAttribute('value') || '';
+                if (initialValue) {
+                    shippingMethodInput.value = initialValue;
                 }
-                
-                // Call shipping methods API to get available methods
-                const response = await fetch('/api/shipping/methods', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        country_id: countryId,
-                        weight: totalWeight
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success && data.methods && data.methods.length > 0) {
-                    // Find the first available method (prefer express, then economy_plus, then economy)
-                    const methodPriority = ['express', 'economy_plus', 'economy'];
-                    let selectedMethod = null;
-                    
-                    for (const priority of methodPriority) {
-                        const method = data.methods.find(m => {
-                            const methodId = m.id;
-                            const mapping = {
-                                'ecommerce': 'economy_plus',
-                                'express': 'express',
-                                'economy': 'economy'
-                            };
-                            const modeKey = mapping[methodId] || methodId;
-                            return modeKey === priority && m.available && m.price_gmd !== null;
-                        });
-                        
-                        if (method) {
-                            selectedMethod = method;
-                            break;
-                        }
-                    }
-                    
-                    // If no method found by priority, use first available
-                    if (!selectedMethod) {
-                        selectedMethod = data.methods.find(m => m.available && m.price_gmd !== null);
-                    }
-                    
-                    if (selectedMethod) {
-                        // Map method ID to shipping_mode_key
-                        const methodMapping = {
-                            'ecommerce': 'economy_plus',
-                            'express': 'express',
-                            'economy': 'economy'
-                        };
-                        const shipping_mode_key = methodMapping[selectedMethod.id] || selectedMethod.id;
-                        
-                        // Set the hidden input
-                        const shippingMethodInput = document.getElementById('shipping_mode_key');
-                        if (shippingMethodInput) {
-                            shippingMethodInput.value = shipping_mode_key;
-                        }
-                        
-                        // Save to session
-                        try {
-                            await fetch('/api/cart/select-shipping-method', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                                },
-                                body: JSON.stringify({ shipping_mode_key: shipping_mode_key })
-                            });
-                        } catch (error) {
-                            console.error('Error saving shipping method to session:', error);
-                        }
-                        
-                        // Update cart summary to reflect new shipping
-                        const cartSummaryResponse = await fetch('/api/cart/summary');
-                        if (cartSummaryResponse.ok) {
-                            const cartData = await cartSummaryResponse.json();
-                            if (cartData.cart) {
-                                updateCheckoutSummary(cartData.cart);
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Error auto-selecting shipping method:', error);
             }
+            
+            // DO NOT call the API to recalculate shipping
+            // DO NOT update the cart summary
+            // DO NOT change the shipping method
+            // The server-side checkout route already uses session['cart_shipping_price'] and session['cart_total']
+            
+            console.log('Checkout: Using shipping method from cart session (no recalculation)');
         }
         
         // Update checkout summary display
@@ -1158,9 +1096,11 @@
                 const countryName = countryInput.value.trim();
                 if (countryName && checkoutCountries.length > 0) {
                     const country = checkoutCountries.find(c => c.name === countryName);
-                    if (country && country.id) {
-                        await autoSelectShippingMethod(country.id);
-                    }
+                    // CRITICAL FIX: Do NOT recalculate shipping method
+                    // The shipping method is already set from cart session
+                    // if (country && country.id) {
+                    //     await autoSelectShippingMethod(country.id); // DISABLED
+                    // }
                 }
             }
         });

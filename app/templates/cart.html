@@ -666,6 +666,27 @@
         if (errorDiv) errorDiv.classList.add('hidden');
         if (container) container.style.opacity = '0.6';
         
+        // CRITICAL FIX: Update visual highlight BEFORE API call for immediate feedback
+        // Remove selected styling from all labels
+        const allLabels = document.querySelectorAll('[data-shipping-method]');
+        allLabels.forEach(label => {
+            label.classList.remove('border-cyan-500', 'bg-cyan-50', 'dark:bg-cyan-900/20');
+            label.classList.add('border-gray-200', 'dark:border-gray-700');
+        });
+        
+        // Add selected styling to the clicked method
+        const selectedLabel = document.querySelector(`[data-shipping-method="${methodKey}"]`);
+        if (selectedLabel) {
+            selectedLabel.classList.remove('border-gray-200', 'dark:border-gray-700');
+            selectedLabel.classList.add('border-cyan-500', 'bg-cyan-50', 'dark:bg-cyan-900/20');
+        }
+        
+        // Ensure radio button is checked
+        const radio = document.querySelector(`input[name="shipping_method"][value="${methodKey}"]`);
+        if (radio) {
+            radio.checked = true;
+        }
+        
         try {
             const response = await fetch('/api/cart/select-shipping-method', {
                 method: 'POST',
@@ -699,15 +720,30 @@
             }
             showFlashMessage(error.message || 'Failed to select shipping method', 'error');
             
-            // Revert radio button selection
-            const radio = document.querySelector(`input[name="shipping_method"][value="${methodKey}"]`);
-            if (radio && radio.checked) {
-                const previousMethod = '{{ selected_shipping_method or "" }}';
-                if (previousMethod) {
-                    const prevRadio = document.querySelector(`input[name="shipping_method"][value="${previousMethod}"]`);
-                    if (prevRadio) prevRadio.checked = true;
-                } else {
-                    radio.checked = false;
+            // Revert radio button selection and visual highlight
+            const previousMethod = '{{ selected_shipping_method or "" }}';
+            if (previousMethod) {
+                const prevRadio = document.querySelector(`input[name="shipping_method"][value="${previousMethod}"]`);
+                if (prevRadio) {
+                    prevRadio.checked = true;
+                    const prevLabel = prevRadio.closest('[data-shipping-method]');
+                    if (prevLabel) {
+                        // Restore previous selection highlight
+                        allLabels.forEach(label => {
+                            label.classList.remove('border-cyan-500', 'bg-cyan-50', 'dark:bg-cyan-900/20');
+                            label.classList.add('border-gray-200', 'dark:border-gray-700');
+                        });
+                        prevLabel.classList.remove('border-gray-200', 'dark:border-gray-700');
+                        prevLabel.classList.add('border-cyan-500', 'bg-cyan-50', 'dark:bg-cyan-900/20');
+                    }
+                }
+            } else {
+                // No previous selection, just uncheck
+                if (radio) radio.checked = false;
+                // Remove highlight from clicked method
+                if (selectedLabel) {
+                    selectedLabel.classList.remove('border-cyan-500', 'bg-cyan-50', 'dark:bg-cyan-900/20');
+                    selectedLabel.classList.add('border-gray-200', 'dark:border-gray-700');
                 }
             }
         } finally {
