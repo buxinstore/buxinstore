@@ -5,7 +5,7 @@ Database models for shipping modes and rules.
 
 from datetime import datetime
 from app.extensions import db
-from sqlalchemy import CheckConstraint, Index
+from sqlalchemy import CheckConstraint, Index, ForeignKey
 
 
 class ShippingMode(db.Model):
@@ -75,16 +75,40 @@ class ShippingRule(db.Model):
         Index('idx_priority', 'priority'),
     )
     
+    # Relationship to ShippingMode - access via shipping_mode_key foreign key
+    # Using primaryjoin to match on key field instead of id
+    shipping_mode = db.relationship('ShippingMode',
+                                    primaryjoin='ShippingRule.shipping_mode_key == ShippingMode.key',
+                                    foreign_keys='[ShippingRule.shipping_mode_key]',
+                                    viewonly=True,
+                                    lazy='select')
+    
     def __repr__(self):
         return f'<ShippingRule {self.id}: {self.country_iso} {self.shipping_mode_key} {self.min_weight}-{self.max_weight}kg = D{self.price_gmd}>'
     
     def to_dict(self):
         """Convert shipping rule to dictionary."""
+        # Safely access shipping_mode relationship
+        shipping_mode_obj = None
+        shipping_mode_label = None
+        try:
+            # Try to access the relationship
+            if hasattr(self, 'shipping_mode') and self.shipping_mode:
+                shipping_mode_obj = self.shipping_mode
+                shipping_mode_label = shipping_mode_obj.label if shipping_mode_obj else None
+        except (AttributeError, Exception):
+            # If relationship fails, query directly using shipping_mode_key (NOT shipping_method)
+            try:
+                shipping_mode_obj = ShippingMode.query.filter_by(key=self.shipping_mode_key).first()
+                shipping_mode_label = shipping_mode_obj.label if shipping_mode_obj else None
+            except Exception:
+                shipping_mode_label = None
+        
         return {
             'id': self.id,
             'country_iso': self.country_iso,
             'shipping_mode_key': self.shipping_mode_key,
-            'shipping_mode_label': self.shipping_mode.label if self.shipping_mode else None,
+            'shipping_mode_label': shipping_mode_label,
             'min_weight': float(self.min_weight) if self.min_weight else 0.0,
             'max_weight': float(self.max_weight) if self.max_weight else 0.0,
             'price_gmd': float(self.price_gmd) if self.price_gmd else 0.0,

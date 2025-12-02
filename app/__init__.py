@@ -2801,10 +2801,19 @@ def api_shipping_methods():
         all_methods = get_all_shipping_methods()
         methods_with_prices = []
         
+        # Map old method IDs to new shipping_mode_key values
+        method_mapping = {
+            'ecommerce': 'economy_plus',
+            'express': 'express',
+            'economy': 'economy'
+        }
+        
         # Calculate price for each method
         for method in all_methods:
             method_id = method['id']
-            result = calculate_shipping_price(weight, country_id, method_id)
+            # Map to shipping_mode_key (new system uses economy_plus instead of ecommerce)
+            shipping_mode_key = method_mapping.get(method_id, method_id)
+            result = calculate_shipping_price(weight, country_id, shipping_mode_key)
             
             if result:
                 methods_with_prices.append({
@@ -3089,9 +3098,12 @@ def calculate_cart_totals(cart_items):
                 )
                 # Don't add weight - product must have weight set
     
-    # Calculate shipping using shipping rules system (based on total cart weight)
+    # Get selected shipping method from session
+    selected_shipping_mode_key = session.get('selected_shipping_method')
+    
+    # Calculate shipping using shipping rules system (based on total cart weight and selected method)
     # Always try to calculate shipping, even if no country is selected (will use global rules)
-    shipping_result = calculate_shipping_price(float(total_weight), country_id, default_weight=0.0)
+    shipping_result = calculate_shipping_price(float(total_weight), country_id, selected_shipping_mode_key, default_weight=0.0)
     
     total_shipping_gmd = Decimal('0.00')
     shipping_delivery_time = None
@@ -3284,7 +3296,17 @@ def get_cart_summary():
 def cart():
     cart_items, _ = update_cart()
     summary = serialize_cart_summary(cart_items)
-    return render_template('cart.html', cart_items=cart_items, cart_summary=summary)
+    
+    # Get available shipping methods for display
+    from app.shipping import get_all_shipping_methods
+    shipping_methods = get_all_shipping_methods()
+    selected_shipping_method = session.get('selected_shipping_method')
+    
+    return render_template('cart.html', 
+                         cart_items=cart_items, 
+                         cart_summary=summary,
+                         shipping_methods=shipping_methods,
+                         selected_shipping_method=selected_shipping_method)
 
 @app.route('/cart/proceed', methods=['GET'])
 def cart_proceed():
@@ -3592,6 +3614,42 @@ def api_get_cart_summary():
     response = build_cart_response(summary, message='Cart summary retrieved', item=None, removed=False)
     return jsonify(response)
 
+@app.route('/api/cart/select-shipping-method', methods=['POST'])
+@csrf.exempt
+def api_select_shipping_method():
+    """Save selected shipping method in session and recalculate shipping."""
+    try:
+        data = request.get_json() if request.is_json else request.form.to_dict()
+        shipping_mode_key = data.get('shipping_mode_key', '').strip()
+        
+        if not shipping_mode_key:
+            return jsonify({'success': False, 'message': 'Shipping method is required'}), 400
+        
+        # Validate shipping mode key
+        valid_keys = ['express', 'economy_plus', 'economy']
+        if shipping_mode_key not in valid_keys:
+            return jsonify({'success': False, 'message': f'Invalid shipping method. Must be one of: {", ".join(valid_keys)}'}), 400
+        
+        # Save to session
+        session['selected_shipping_method'] = shipping_mode_key
+        session.modified = True
+        
+        current_app.logger.info(f'Shipping method selected: {shipping_mode_key} for user {current_user.id if current_user.is_authenticated else "guest"}')
+        
+        # Recalculate cart summary with new shipping method
+        cart_items = get_cart()
+        summary = serialize_cart_summary(cart_items)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Shipping method selected successfully',
+            'cart': summary,
+            'selected_shipping_method': shipping_mode_key
+        })
+    except Exception as e:
+        current_app.logger.error(f'Error selecting shipping method: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 # ======================
 # Country Localization API Routes
 # ======================
@@ -3808,7 +3866,9 @@ def checkout():
                     if country:
                         country_id = country.id
                         total_weight = calculate_cart_total_weight(cart_items, default_weight=0.0)
-                        shipping_result = calculate_shipping_price(total_weight, country_id, default_weight=0.0)
+                        # Get selected shipping method from session
+                        selected_shipping_mode_key = session.get('selected_shipping_method')
+                        shipping_result = calculate_shipping_price(total_weight, country_id, selected_shipping_mode_key, default_weight=0.0)
                         
                         # Default to 0 if no rule found (as requested)
                         shipping_price_gmd = 0.0
@@ -3865,6 +3925,11 @@ def checkout():
                 delivery_address=user_address
             )
 
+            # Get available shipping methods for display
+            from app.shipping import get_all_shipping_methods
+            shipping_methods = get_all_shipping_methods()
+            selected_shipping_method = session.get('selected_shipping_method')
+            
             return render_template('checkout.html', 
                                  cart_items=cart_items, 
                                  cart_summary=cart_summary,
@@ -3875,6 +3940,8 @@ def checkout():
                                  user_email=user_email,
                                  pending_payment_id=pending_payment.id,
                                  shipping_info=shipping_info,
+                                 shipping_methods=shipping_methods,
+                                 selected_shipping_method=selected_shipping_method,
                                  has_saved_address=bool(profile.address and profile.city and profile.country))  # Pass pending_payment_id instead of order_id
             
         except Exception as e:
@@ -3904,8 +3971,8 @@ def checkout():
             # Calculate total cart weight
             total_weight = calculate_cart_total_weight(cart_items, default_weight=0.0)
             
-            # Get shipping method from form
-            shipping_mode_key = request.form.get('shipping_mode_key', '').strip() or None
+            # Get shipping method from form or session
+            shipping_mode_key = request.form.get('shipping_mode_key', '').strip() or session.get('selected_shipping_method') or None
             
             # Calculate shipping using shipping rules
             shipping_result = calculate_shipping_price(total_weight, country_id, shipping_mode_key, default_weight=0.0)
@@ -4062,12 +4129,19 @@ def checkout():
             return redirect(url_for('cart'))
 
     # If form is not valid or it's a GET request with a form error
+    # Get available shipping methods for display
+    from app.shipping import get_all_shipping_methods
+    shipping_methods = get_all_shipping_methods()
+    selected_shipping_method = session.get('selected_shipping_method')
+    
     return render_template('checkout.html', 
                            cart_items=cart_items, 
                            cart_summary=cart_summary,
                            checkout_summary=checkout_summary,
                            total=checkout_summary['total'],
-                           form=form)
+                           form=form,
+                           shipping_methods=shipping_methods,
+                           selected_shipping_method=selected_shipping_method)
 
 # Admin routes
 class MigrationForm(FlaskForm):
@@ -12550,9 +12624,20 @@ def product(product_id):
     shipping_methods_data = []
     all_methods = get_all_shipping_methods()
     
+    # Map old method IDs to new shipping_mode_key values
+    method_mapping = {
+        'ecommerce': 'economy_plus',
+        'express': 'express',
+        'economy': 'economy'
+    }
+    
     for method in all_methods:
         method_id = method['id']
-        shipping_result = calculate_shipping_price(product_weight, country_id, method_id, default_weight=0.0)
+        # Map to shipping_mode_key (new system uses economy_plus instead of ecommerce)
+        shipping_mode_key = method_mapping.get(method_id, method_id)
+        
+        # Check if a rule exists for this method, country, and weight
+        shipping_result = calculate_shipping_price(product_weight, country_id, shipping_mode_key, default_weight=0.0)
         
         if shipping_result and shipping_result.get('available'):
             price_gmd = shipping_result['price_gmd']
@@ -12567,7 +12652,7 @@ def product(product_id):
                 **method,
                 'price_gmd': price_gmd,
                 'price_display': price_display,
-                'delivery_time': shipping_result.get('delivery_time') or method['guarantee'],
+                'delivery_time': shipping_result.get('delivery_time') or method.get('guarantee', ''),
                 'available': True
             })
         else:
@@ -12575,7 +12660,7 @@ def product(product_id):
                 **method,
                 'price_gmd': None,
                 'price_display': None,
-                'delivery_time': method['guarantee'],
+                'delivery_time': method.get('guarantee', ''),
                 'available': False
             })
     

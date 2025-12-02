@@ -20,7 +20,7 @@ SHIPPING_METHODS = [
         "icon": "🚀"
     },
     {
-        "id": "ecommerce",
+        "id": "economy_plus",
         "label": "DHL eCommerce (Standard)",
         "short_label": "eCommerce (Standard)",
         "description": "Reliable shipping with tracking. Delivered by DHL partner or Post Office in your country.",

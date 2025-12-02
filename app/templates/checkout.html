@@ -268,8 +268,8 @@
                                 <div id="shipping-methods-container" class="space-y-3">
                                     <!-- Shipping methods will be loaded dynamically -->
                                 </div>
-                                <input type="hidden" id="shipping_method" name="shipping_method" value="" required>
-                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="shipping_method-error">Please select a shipping method</p>
+                                <input type="hidden" id="shipping_mode_key" name="shipping_mode_key" value="" required>
+                                <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="shipping_mode_key-error">Please select a shipping method</p>
                             </div>
 
                             <!-- Amount (hidden, from cart total) -->
@@ -361,8 +361,25 @@
             phone: false,
             country: false,
             city: false,
-            delivery_address: false
+            delivery_address: false,
+            shipping_mode_key: false
         };
+        
+        // Shipping method state
+        let shippingMethods = [];
+        let selectedShippingMethod = null;
+        
+        // Initialize selected shipping method from session
+        {% if selected_shipping_method %}
+        // Map shipping_mode_key back to method ID for display
+        const shippingModeKeyToMethodId = {
+            'economy_plus': 'ecommerce',
+            'express': 'express',
+            'economy': 'economy'
+        };
+        const sessionShippingModeKey = '{{ selected_shipping_method }}';
+        selectedShippingMethod = shippingModeKeyToMethodId[sessionShippingModeKey] || sessionShippingModeKey;
+        {% endif %}
         
         // Validation functions
         function validateFullName(value) {
@@ -420,7 +437,7 @@
                     errorEl.classList.add('hidden');
                     validationState[fieldName] = true;
                 }
-            } else if (fieldName === 'shipping_method') {
+            } else if (fieldName === 'shipping_mode_key') {
                 // For shipping method, hide error message
                 if (errorEl) {
                     errorEl.classList.add('hidden');
@@ -469,8 +486,8 @@
                         return false;
                     }
                     break;
-                case 'shipping_method':
-                    const shippingMethodInput = document.getElementById('shipping_method');
+                case 'shipping_mode_key':
+                    const shippingMethodInput = document.getElementById('shipping_mode_key');
                     if (!shippingMethodInput || !shippingMethodInput.value || shippingMethodInput.value.trim() === '') {
                         showError(fieldName, 'Please select a shipping method');
                         return false;
@@ -490,10 +507,10 @@
                 }
             }
             // Also validate shipping method
-            if (!validationState.shipping_method) {
-                const shippingMethodInput = document.getElementById('shipping_method');
+            if (!validationState.shipping_mode_key) {
+                const shippingMethodInput = document.getElementById('shipping_mode_key');
                 if (shippingMethodInput && shippingMethodInput.value) {
-                    validationState.shipping_method = true;
+                    validationState.shipping_mode_key = true;
                 } else {
                     isValid = false;
                 }
@@ -679,11 +696,11 @@
             
             // Reset shipping method selection
             selectedShippingMethod = null;
-            const shippingMethodInput = document.getElementById('shipping_method');
+            const shippingMethodInput = document.getElementById('shipping_mode_key');
             if (shippingMethodInput) {
                 shippingMethodInput.value = '';
             }
-            validationState.shipping_method = false;
+            validationState.shipping_mode_key = false;
             updateButtonState();
             
             // Trigger auto-save
@@ -803,15 +820,51 @@
             }).join('');
         }
         
+        // Map old method IDs to new shipping_mode_key values
+        function mapMethodIdToShippingModeKey(methodId) {
+            const mapping = {
+                'ecommerce': 'economy_plus',
+                'express': 'express',
+                'economy': 'economy'
+            };
+            return mapping[methodId] || methodId;
+        }
+        
         // Select shipping method
-        function selectShippingMethod(methodId) {
+        async function selectShippingMethod(methodId) {
             const method = shippingMethods.find(m => m.id === methodId);
-            if (!method || !method.available) return;
+            if (!method || !method.available) {
+                showError('shipping_mode_key', 'This shipping method is not available for your location and weight.');
+                return;
+            }
+            
+            // Map to shipping_mode_key
+            const shipping_mode_key = mapMethodIdToShippingModeKey(methodId);
+            
+            // Save to session via API
+            try {
+                const response = await fetch('/api/cart/select-shipping-method', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    body: JSON.stringify({ shipping_mode_key: shipping_mode_key })
+                });
+                
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Failed to save shipping method');
+                }
+            } catch (error) {
+                console.error('Error saving shipping method to session:', error);
+                // Continue anyway - the form will still work
+            }
             
             selectedShippingMethod = methodId;
-            const shippingMethodInput = document.getElementById('shipping_method');
+            const shippingMethodInput = document.getElementById('shipping_mode_key');
             if (shippingMethodInput) {
-                shippingMethodInput.value = methodId;
+                shippingMethodInput.value = shipping_mode_key;  // Use mapped value
             }
             
             // Update UI
@@ -821,8 +874,8 @@
             updateShippingTotal(method.price_gmd);
             
             // Validate
-            clearError('shipping_method');
-            validationState.shipping_method = true;
+            clearError('shipping_mode_key');
+            validationState.shipping_mode_key = true;
             updateButtonState();
         }
         
@@ -981,12 +1034,12 @@
                 if (firstError) {
                     firstError[1].scrollIntoView({ behavior: 'smooth', block: 'center' });
                     firstError[1].focus();
-                } else if (!validationState.shipping_method) {
+                } else if (!validationState.shipping_mode_key) {
                     // Scroll to shipping method section if that's the issue
                     const shippingSection = document.getElementById('shipping-method-section');
                     if (shippingSection) {
                         shippingSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        showError('shipping_method', 'Please select a shipping method');
+                        showError('shipping_mode_key', 'Please select a shipping method');
                     }
                 }
                 return;
@@ -1018,7 +1071,7 @@
                 
                 // Update pending payment with shipping method and recalculate totals
                 const pendingPaymentId = document.getElementById('pending_payment_id').value;
-                const shippingMethod = document.getElementById('shipping_method').value;
+                const shippingMethod = document.getElementById('shipping_mode_key').value;
                 
                 const updateResponse = await fetch('/api/checkout/update-pending-payment', {
                     method: 'POST',
@@ -1028,7 +1081,7 @@
                     },
                     body: JSON.stringify({
                         pending_payment_id: pendingPaymentId,
-                        shipping_method: shippingMethod,
+                        shipping_mode_key: shippingMethod,
                         country: fields.country.value,
                         full_name: fields.full_name.value,
                         phone: fields.phone.value,

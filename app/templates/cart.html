@@ -126,7 +126,19 @@
                     </div>
                     <div class="flex items-center justify-between border-t border-[color:var(--app-border)] dark:border-slate-800 pt-4">
                         <dt class="text-sm text-[color:var(--app-muted)] dark:text-slate-300">Shipping</dt>
-                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-shipping>{{ cart_summary.cart_shipping|price_with_symbol }}</dd>
+                        <dd class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-cart-shipping>
+                            {% if cart_summary.cart_shipping > 0 %}
+                                {{ cart_summary.cart_shipping|price_with_symbol }}
+                            {% else %}
+                                <span class="text-amber-600 dark:text-amber-400" id="shipping-not-available-message" style="display: none;">
+                                    Select shipping method
+                                </span>
+                                <span id="shipping-zero-display">D0.00</span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                    <div id="shipping-error-message" class="hidden text-xs text-red-600 dark:text-red-400 mt-1">
+                        Shipping method not available for this weight.
                     </div>
                     <div class="border-t border-[color:var(--app-border)] dark:border-slate-800 pt-4 flex items-center justify-between">
                         <dt class="text-base font-semibold text-[color:var(--app-text)] dark:text-white">Order Total</dt>
@@ -134,36 +146,49 @@
                     </div>
                 </dl>
 
-                <!-- Shipping Methods Info -->
+                <!-- Shipping Method Selection -->
                 <div class="mt-6 pt-6 border-t border-[color:var(--app-border)] dark:border-slate-800">
-                    <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white mb-3">Available Shipping Methods</h3>
-                    <div class="space-y-2 text-sm text-[color:var(--app-muted)] dark:text-slate-400">
-                        <p>At checkout, you can choose from:</p>
-                        <div class="space-y-2 mt-3">
-                            <div class="flex items-center gap-2 p-2 rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20">
-                                <span class="text-lg">🚀</span>
+                    <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white mb-3">Choose Your Shipping Method</h3>
+                    <div class="space-y-2" id="shipping-methods-container">
+                        {% if shipping_methods %}
+                            {% for method in shipping_methods %}
+                            {% set method_key = method.get('id', '') %}
+                            {% set is_selected = selected_shipping_method == method_key %}
+                            <label class="flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all {% if is_selected %}border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20{% else %}border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600{% endif %}" 
+                                   data-shipping-method="{{ method_key }}">
+                                <input type="radio" 
+                                       name="shipping_method" 
+                                       value="{{ method_key }}"
+                                       class="mt-1 h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 dark:border-gray-600"
+                                       {% if is_selected %}checked{% endif %}
+                                       onchange="selectShippingMethod('{{ method_key }}')">
                                 <div class="flex-1">
-                                    <div class="text-xs font-semibold text-red-700 dark:text-red-300">Express (Fast)</div>
-                                    <div class="text-xs text-red-600 dark:text-red-400">3–7 days</div>
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <div class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white">
+                                                <span class="text-lg mr-2">{{ method.get('icon', '📦') }}</span>
+                                                {{ method.get('label', method.get('short_label', method_key)) }}
+                                            </div>
+                                            <div class="text-xs text-[color:var(--app-muted)] dark:text-slate-400 mt-1">
+                                                {{ method.get('delivery_time_range', method.get('guarantee', '')) }}
+                                            </div>
+                                        </div>
+                                        <div class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white" data-shipping-price-{{ method_key }}>
+                                            {% if cart_summary.shipping > 0 and is_selected %}
+                                                {{ cart_summary.shipping|price_with_symbol }}
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="flex items-center gap-2 p-2 rounded-lg border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20">
-                                <span class="text-lg">📦</span>
-                                <div class="flex-1">
-                                    <div class="text-xs font-semibold text-yellow-700 dark:text-yellow-300">eCommerce (Standard)</div>
-                                    <div class="text-xs text-yellow-600 dark:text-yellow-400">10–20 days</div>
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-2 p-2 rounded-lg border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20">
-                                <span class="text-lg">📮</span>
-                                <div class="flex-1">
-                                    <div class="text-xs font-semibold text-green-700 dark:text-green-300">Economy Mail (PO Pickup)</div>
-                                    <div class="text-xs text-green-600 dark:text-green-400">20–60 days</div>
-                                </div>
-                            </div>
-                        </div>
-                        <p class="mt-3 text-xs">Select your country at checkout to see exact prices for each method.</p>
+                            </label>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-400">Loading shipping methods...</p>
+                        {% endif %}
                     </div>
+                    <div id="shipping-method-error" class="mt-2 text-xs text-red-600 dark:text-red-400 hidden"></div>
                 </div>
 
                 <!-- Shipping Summary -->
@@ -304,7 +329,15 @@
             return;
         }
 
-        if (disabled) {
+        // Also check if shipping method is selected and available
+        const selectedMethod = document.querySelector('input[name="shipping_method"]:checked');
+        const shippingErrorMsg = document.getElementById('shipping-error-message');
+        const hasShippingError = shippingErrorMsg && !shippingErrorMsg.classList.contains('hidden');
+        
+        // Disable if cart is empty, or if shipping method is selected but not available
+        const shouldDisable = disabled || (selectedMethod && hasShippingError);
+
+        if (shouldDisable) {
             checkoutButton.classList.add('opacity-60', 'cursor-not-allowed');
             checkoutButton.setAttribute('aria-disabled', 'true');
             checkoutButton.setAttribute('tabindex', '-1');
@@ -341,7 +374,33 @@
         const shippingEl = document.querySelector('[data-cart-shipping]');
         if (shippingEl) {
             const value = summary.shipping ?? summary.cart_shipping ?? 0;
-            shippingEl.textContent = formatCurrency(value, currency);
+            const shippingErrorMsg = document.getElementById('shipping-error-message');
+            const shippingNotAvailableMsg = document.getElementById('shipping-not-available-message');
+            const shippingZeroDisplay = document.getElementById('shipping-zero-display');
+            
+            if (value > 0) {
+                // Shipping is available
+                shippingEl.innerHTML = formatCurrency(value, currency);
+                if (shippingErrorMsg) shippingErrorMsg.classList.add('hidden');
+                if (shippingNotAvailableMsg) shippingNotAvailableMsg.style.display = 'none';
+                if (shippingZeroDisplay) shippingZeroDisplay.style.display = 'none';
+            } else {
+                // No shipping available - check if method is selected
+                const selectedMethod = document.querySelector('input[name="shipping_method"]:checked');
+                if (selectedMethod) {
+                    // Method selected but no rule found
+                    shippingEl.innerHTML = formatCurrency(0, currency);
+                    if (shippingErrorMsg) shippingErrorMsg.classList.remove('hidden');
+                    if (shippingNotAvailableMsg) shippingNotAvailableMsg.style.display = 'none';
+                    if (shippingZeroDisplay) shippingZeroDisplay.style.display = 'inline';
+                } else {
+                    // No method selected yet
+                    shippingEl.innerHTML = formatCurrency(0, currency);
+                    if (shippingErrorMsg) shippingErrorMsg.classList.add('hidden');
+                    if (shippingNotAvailableMsg) shippingNotAvailableMsg.style.display = 'inline';
+                    if (shippingZeroDisplay) shippingZeroDisplay.style.display = 'none';
+                }
+            }
         }
 
         const totalEl = document.querySelector('[data-cart-total]');
@@ -595,6 +654,78 @@
             if (cartItem) {
                 cartItem.style.opacity = '1';
                 cartItem.style.pointerEvents = 'auto';
+            }
+        }
+    }
+
+    async function selectShippingMethod(methodKey) {
+        const errorDiv = document.getElementById('shipping-method-error');
+        const container = document.getElementById('shipping-methods-container');
+        
+        // Update UI to show loading state
+        if (errorDiv) errorDiv.classList.add('hidden');
+        if (container) container.style.opacity = '0.6';
+        
+        try {
+            const response = await fetch('/api/cart/select-shipping-method', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ shipping_mode_key: methodKey })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || 'Failed to select shipping method');
+            }
+            
+            // Update cart summary with new shipping
+            if (data.cart) {
+                applyCartSummary(data.cart);
+            }
+            
+            // Update shipping prices for all methods
+            updateShippingMethodPrices(data.cart);
+            
+            showFlashMessage('Shipping method selected successfully', 'success');
+        } catch (error) {
+            console.error('Error selecting shipping method:', error);
+            if (errorDiv) {
+                errorDiv.textContent = error.message || 'Failed to select shipping method. Please try again.';
+                errorDiv.classList.remove('hidden');
+            }
+            showFlashMessage(error.message || 'Failed to select shipping method', 'error');
+            
+            // Revert radio button selection
+            const radio = document.querySelector(`input[name="shipping_method"][value="${methodKey}"]`);
+            if (radio && radio.checked) {
+                const previousMethod = '{{ selected_shipping_method or "" }}';
+                if (previousMethod) {
+                    const prevRadio = document.querySelector(`input[name="shipping_method"][value="${previousMethod}"]`);
+                    if (prevRadio) prevRadio.checked = true;
+                } else {
+                    radio.checked = false;
+                }
+            }
+        } finally {
+            if (container) container.style.opacity = '1';
+        }
+    }
+    
+    function updateShippingMethodPrices(cartSummary) {
+        if (!cartSummary) return;
+        
+        // Update the price display for the selected method
+        const selectedRadio = document.querySelector('input[name="shipping_method"]:checked');
+        if (selectedRadio) {
+            const methodKey = selectedRadio.value;
+            const priceEl = document.querySelector(`[data-shipping-price-${methodKey}]`);
+            if (priceEl && cartSummary.shipping) {
+                const currency = cartSummary.currency || 'D';
+                priceEl.textContent = formatCurrency(cartSummary.shipping, currency);
             }
         }
     }

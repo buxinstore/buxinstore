@@ -57,10 +57,11 @@
                         <option value="">Select Country</option>
                         {% for country in countries %}
                         <option value="{{ country.id }}" 
-                                {% if rule and rule.country_id == country.id %}selected{% endif %}
+                                {% if rule and rule.country_iso == country.code %}selected{% endif %}
                                 data-flag="{{ country.get_flag_url() }}"
-                                data-name="{{ country.name }}">
-                            {{ country.name }}
+                                data-name="{{ country.name }}"
+                                data-code="{{ country.code }}">
+                            {{ country.name }} ({{ country.code }})
                         </option>
                         {% endfor %}
                     </select>
@@ -68,18 +69,21 @@
                 </div>
 
                 <div>
-                    <label for="shipping_method" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Shipping Method
+                    <label for="shipping_mode_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Shipping Method <span class="text-red-500">*</span>
                     </label>
-                    <select id="shipping_method" 
-                            name="shipping_method" 
+                    <select id="shipping_mode_key" 
+                            name="shipping_mode_key" 
+                            required
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                        <option value="">All Methods (Default)</option>
-                        <option value="express" {% if rule and rule.shipping_method == 'express' %}selected{% endif %}>DHL Express (Fast)</option>
-                        <option value="ecommerce" {% if rule and rule.shipping_method == 'ecommerce' %}selected{% endif %}>DHL eCommerce (Standard)</option>
-                        <option value="economy" {% if rule and rule.shipping_method == 'economy' %}selected{% endif %}>Economy Mail (PO Pickup)</option>
+                        <option value="">Select Shipping Method</option>
+                        {% for mode in shipping_modes %}
+                        <option value="{{ mode.key }}" {% if rule and rule.shipping_mode_key == mode.key %}selected{% endif %}>
+                            {{ mode.label }} {% if mode.delivery_time_range %}({{ mode.delivery_time_range }}){% endif %}
+                        </option>
+                        {% endfor %}
                     </select>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select a specific shipping method, or leave blank to apply to all methods</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select the shipping method this rule applies to</p>
                 </div>
 
                 <div>
@@ -89,12 +93,12 @@
                     <input type="number" 
                            id="min_weight" 
                            name="min_weight" 
-                           step="0.000001"
+                           step="0.001"
                            min="0"
-                           value="{{ "%.6f"|format(rule.min_weight) if rule else '0.0' }}" 
+                           value="{{ "%.3f"|format(rule.min_weight) if rule else '0.0' }}" 
                            required
                            class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Minimum weight in kilograms (e.g., 0.00015)</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Minimum weight in kilograms (e.g., 0.5)</p>
                 </div>
 
                 <div>
@@ -104,9 +108,9 @@
                     <input type="number" 
                            id="max_weight" 
                            name="max_weight" 
-                           step="0.000001"
+                           step="0.001"
                            min="0"
-                           value="{{ "%.6f"|format(rule.max_weight) if rule else '1.0' }}" 
+                           value="{{ "%.3f"|format(rule.max_weight) if rule else '1.0' }}" 
                            required
                            class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Maximum weight in kilograms (must be greater than min weight)</p>
@@ -155,11 +159,11 @@
                 </div>
 
                 <div>
-                    <label for="status" class="flex items-center">
+                    <label for="active" class="flex items-center">
                         <input type="checkbox" 
-                               id="status" 
-                               name="status" 
-                               {% if not rule or rule.status %}checked{% endif %}
+                               id="active" 
+                               name="active" 
+                               {% if not rule or rule.active %}checked{% endif %}
                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
                         <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
                     </label>
@@ -168,14 +172,14 @@
             </div>
 
             <div>
-                <label for="note" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label for="notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Notes
                 </label>
-                <textarea id="note" 
-                          name="note" 
+                <textarea id="notes" 
+                          name="notes" 
                           rows="3"
                           placeholder="Optional notes about this rule..."
-                          class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">{{ rule.note if rule else '' }}</textarea>
+                          class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">{{ rule.notes if rule else '' }}</textarea>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional notes for internal reference</p>
             </div>
 
