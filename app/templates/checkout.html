@@ -27,7 +27,7 @@
                             <li class="py-6 px-4 sm:px-6" data-checkout-item="{{ item.id }}">
                             <div class="flex items-center">
                                     <div class="flex-shrink-0 w-20 h-20 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                                        <img data-checkout-image src="{{ url_for('static', filename=item.image) if item.image else url_for('static', filename='images/placeholder.png') }}" alt="{{ item.name }}" class="w-full h-full object-center object-cover" onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/placeholder.png') }}';">
+                                        <img data-checkout-image src="{{ item.image|product_image_url if item.image else url_for('static', filename='images/placeholder.png') }}" alt="{{ item.name }}" class="w-full h-full object-center object-cover" onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/placeholder.png') }}';">
                                     </div>
 
                                     <div class="ml-6 flex-1 flex flex-col">
@@ -542,7 +542,7 @@
                     if (savedCountryName && savedCountryName.trim()) {
                         const savedCountry = checkoutCountries.find(c => c.name === savedCountryName.trim());
                         if (savedCountry) {
-                            selectCheckoutCountry(savedCountry);
+                            await selectCheckoutCountry(savedCountry);
                         }
                     }
                 } else {
@@ -602,18 +602,18 @@
             
             // Add click handlers
             countryList.querySelectorAll('button[data-country-id]').forEach(btn => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     const countryId = parseInt(btn.dataset.countryId);
                     const country = checkoutCountries.find(c => c.id === countryId);
                     if (country) {
-                        selectCheckoutCountry(country);
+                        await selectCheckoutCountry(country);
                     }
                 });
             });
         }
         
         // Select country
-        function selectCheckoutCountry(country) {
+        async function selectCheckoutCountry(country) {
             selectedCountry = country;
             countryInput.value = country.name;
             
