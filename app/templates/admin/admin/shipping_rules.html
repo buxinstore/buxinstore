@@ -10,6 +10,13 @@
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage shipping costs based on country and weight</p>
         </div>
         <div class="flex gap-2">
+            <button type="button" 
+                    id="bulk-delete-btn"
+                    onclick="bulkDeleteRules()"
+                    disabled
+                    class="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-600 text-sm font-medium rounded-md shadow-sm text-red-700 dark:text-red-300 bg-white dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="fas fa-trash mr-2"></i> Delete Selected
+            </button>
             <a href="{{ url_for('admin_export_shipping_rules', format='csv') }}" 
                class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                 <i class="fas fa-file-csv mr-2"></i> Export CSV
@@ -114,23 +121,25 @@
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
             </div>
             <div class="min-w-[150px]">
-                <label for="type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rule Type</label>
-                <select id="type" 
-                        name="type" 
+                <label for="country_iso" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
+                <select id="country_iso" 
+                        name="country_iso" 
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                    <option value="">All</option>
-                    <option value="country" {% if rule_type == 'country' %}selected{% endif %}>Country</option>
-                    <option value="global" {% if rule_type == 'global' %}selected{% endif %}>Global</option>
+                    <option value="">All Countries</option>
+                    <option value="*" {% if country_iso == '*' %}selected{% endif %}>Global</option>
+                    {% for country in countries %}
+                    <option value="{{ country.code }}" {% if country_iso == country.code %}selected{% endif %}>{{ country.name }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="min-w-[150px]">
-                <label for="country_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
-                <select id="country_id" 
-                        name="country_id" 
+                <label for="mode_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Shipping Method</label>
+                <select id="mode_key" 
+                        name="mode_key" 
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                    <option value="">All Countries</option>
-                    {% for country in countries %}
-                    <option value="{{ country.id }}" {% if country_id == country.id %}selected{% endif %}>{{ country.name }}</option>
+                    <option value="">All Methods</option>
+                    {% for mode in shipping_modes %}
+                    <option value="{{ mode.key }}" {% if mode_key == mode.key %}selected{% endif %}>{{ mode.label }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -179,6 +188,12 @@
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            <input type="checkbox" 
+                                   id="select-all-checkbox" 
+                                   onchange="toggleAllCheckboxes(this)"
+                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                        </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Country</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Method</th>
@@ -192,9 +207,23 @@
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% for rule in rules.items %}
+                    {% set country = None %}
+                    {% if rule.country_iso and rule.country_iso != '*' %}
+                        {% for c in countries %}
+                            {% if c.code == rule.country_iso %}
+                                {% set country = c %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            {% if rule.rule_type == 'global' %}
+                            <input type="checkbox" 
+                                   class="rule-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                   value="{{ rule.id }}"
+                                   onchange="updateBulkDeleteButton()">
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if rule.country_iso == '*' %}
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                                     🌍 Global
                                 </span>
@@ -205,48 +234,54 @@
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            {% if rule.country %}
+                            {% if country %}
                                 <div class="flex items-center gap-2">
                                     <div class="flex-shrink-0 w-6 h-6 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700">
-                                        <img src="{{ rule.country.get_flag_url() }}" alt="{{ rule.country.name }}" class="w-full h-full object-cover" onerror="this.style.display='none';">
+                                        <img src="{{ country.get_flag_url() }}" alt="{{ country.name }}" class="w-full h-full object-cover" onerror="this.style.display='none';">
                                     </div>
-                                    <span class="text-sm text-gray-900 dark:text-white">{{ rule.country.name }}</span>
+                                    <span class="text-sm text-gray-900 dark:text-white">{{ country.name }} ({{ rule.country_iso }})</span>
                                 </div>
+                            {% elif rule.country_iso == '*' %}
+                                <span class="text-sm text-gray-400 dark:text-gray-500">Global</span>
                             {% else %}
-                                <span class="text-sm text-gray-400 dark:text-gray-500">—</span>
+                                <span class="text-sm text-gray-400 dark:text-gray-500">{{ rule.country_iso }}</span>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            {% if rule.shipping_method == 'express' %}
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                                    🚀 Express
-                                </span>
-                            {% elif rule.shipping_method == 'ecommerce' %}
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                    📦 eCommerce
-                                </span>
-                            {% elif rule.shipping_method == 'economy' %}
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                    📮 Economy
-                                </span>
+                            {% if rule.shipping_mode %}
+                                {% if rule.shipping_mode_key == 'express' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                        🚀 {{ rule.shipping_mode.label }}
+                                    </span>
+                                {% elif rule.shipping_mode_key == 'economy_plus' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                        📦 {{ rule.shipping_mode.label }}
+                                    </span>
+                                {% elif rule.shipping_mode_key == 'economy' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                        📮 {{ rule.shipping_mode.label }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-sm text-gray-900 dark:text-white">{{ rule.shipping_mode.label }}</span>
+                                {% endif %}
                             {% else %}
-                                <span class="text-sm text-gray-400 dark:text-gray-500">All</span>
+                                <span class="text-sm text-gray-400 dark:text-gray-500">{{ rule.shipping_mode_key }}</span>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {{ "%.6f"|format(rule.min_weight) }} - {{ "%.6f"|format(rule.max_weight) }}
+                            {{ "%.3f"|format(rule.min_weight) }} - {{ "%.3f"|format(rule.max_weight) }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                             D{{ "%.2f"|format(rule.price_gmd) }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {{ rule.delivery_time or '—' }}
+                            {{ rule.delivery_time or (rule.shipping_mode.delivery_time_range if rule.shipping_mode else '—') }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {{ rule.priority }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            {% if rule.status %}
+                            {% if rule.active %}
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                                     Active
                                 </span>
@@ -271,7 +306,7 @@
                                 <form method="POST" action="{{ url_for('admin_toggle_shipping_rule_status', rule_id=rule.id) }}" class="inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300" title="Toggle Status">
-                                        <i class="fas fa-toggle-{% if rule.status %}on{% else %}off{% endif %}"></i>
+                                        <i class="fas fa-toggle-{% if rule.active %}on{% else %}off{% endif %}"></i>
                                     </button>
                                 </form>
                                 <form method="POST" action="{{ url_for('admin_delete_shipping_rule', rule_id=rule.id) }}" 
@@ -287,7 +322,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="9" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                        <td colspan="10" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                             No shipping rules found.
                         </td>
                     </tr>
@@ -304,13 +339,13 @@
             </div>
             <div class="flex space-x-2">
                 {% if rules.has_prev %}
-                <a href="{{ url_for('admin_shipping_rules', page=rules.prev_num, search=search, type=rule_type, country_id=country_id, status=status_filter, sort=sort_by, order=sort_order) }}" 
+                <a href="{{ url_for('admin_shipping_rules', page=rules.prev_num, search=search, country_iso=country_iso, mode_key=mode_key, status=status_filter, sort=sort_by, order=sort_order) }}" 
                    class="px-3 py-1 rounded-md border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                     Previous
                 </a>
                 {% endif %}
                 {% if rules.has_next %}
-                <a href="{{ url_for('admin_shipping_rules', page=rules.next_num, search=search, type=rule_type, country_id=country_id, status=status_filter, sort=sort_by, order=sort_order) }}" 
+                <a href="{{ url_for('admin_shipping_rules', page=rules.next_num, search=search, country_iso=country_iso, mode_key=mode_key, status=status_filter, sort=sort_by, order=sort_order) }}" 
                    class="px-3 py-1 rounded-md border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                     Next
                 </a>
@@ -385,6 +420,60 @@ function calculateShipping() {
         `;
         resultDiv.classList.remove('hidden');
     });
+}
+
+function toggleAllCheckboxes(checkbox) {
+    const checkboxes = document.querySelectorAll('.rule-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+    updateBulkDeleteButton();
+}
+
+function updateBulkDeleteButton() {
+    const checkboxes = document.querySelectorAll('.rule-checkbox:checked');
+    const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.disabled = checkboxes.length === 0;
+    }
+}
+
+function bulkDeleteRules() {
+    const checkboxes = document.querySelectorAll('.rule-checkbox:checked');
+    const ruleIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (ruleIds.length === 0) {
+        alert('Please select at least one rule to delete.');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${ruleIds.length} rule(s)? Rules with dependencies will be deactivated instead of deleted.`)) {
+        return;
+    }
+    
+    // Create form and submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ url_for("admin_bulk_delete_shipping_rules") }}';
+    
+    // Add CSRF token
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = '{{ csrf_token() }}';
+    form.appendChild(csrfInput);
+    
+    // Add rule IDs
+    ruleIds.forEach(ruleId => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'rule_ids[]';
+        input.value = ruleId;
+        form.appendChild(input);
+    });
+    
+    document.body.appendChild(form);
+    form.submit();
 }
 </script>
 {% endblock %}

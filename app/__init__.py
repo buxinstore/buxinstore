@@ -5755,18 +5755,55 @@ def admin_edit_shipping_rule(rule_id):
 @login_required
 @admin_required
 def admin_delete_shipping_rule(rule_id):
-    """Delete a shipping rule using NEW ShippingRule system."""
+    """Delete a shipping rule using NEW ShippingRule system with dependency checking."""
     from app.shipping.models import ShippingRule
+    
+    current_app.logger.info(f'Attempting to delete shipping rule ID: {rule_id}')
     
     rule = ShippingRule.query.get_or_404(rule_id)
     
     try:
-        db.session.delete(rule)
-        db.session.commit()
-        flash('Shipping rule deleted successfully!', 'success')
+        # Check for dependencies using shipping_rule_id (NOT shipping_method)
+        # Use direct SQL count queries to avoid loading full objects which might reference old columns
+        from sqlalchemy import text
+        
+        # Check pending_payments dependencies - use shipping_rule_id only
+        pending_count = db.session.execute(
+            text("SELECT COUNT(*) FROM pending_payments WHERE shipping_rule_id = :rule_id"),
+            {"rule_id": rule_id}
+        ).scalar()
+        
+        # Check orders dependencies - use shipping_rule_id only
+        order_count = db.session.execute(
+            text("SELECT COUNT(*) FROM \"order\" WHERE shipping_rule_id = :rule_id"),
+            {"rule_id": rule_id}
+        ).scalar()
+        
+        current_app.logger.info(
+            f'Rule {rule_id} dependencies - PendingPayments: {pending_count}, Orders: {order_count}'
+        )
+        
+        # If dependencies exist, deactivate instead of deleting
+        if pending_count > 0 or order_count > 0:
+            rule.active = False
+            rule.updated_at = datetime.utcnow()
+            db.session.commit()
+            current_app.logger.info(f'Rule {rule_id} deactivated due to {pending_count + order_count} dependencies')
+            flash(
+                f'Shipping rule deactivated (not deleted) because it is used by {pending_count + order_count} order(s). '
+                'You can delete it after those orders are completed.',
+                'warning'
+            )
+        else:
+            # No dependencies - safe to delete
+            db.session.delete(rule)
+            db.session.commit()
+            current_app.logger.info(f'Rule {rule_id} deleted successfully (no dependencies)')
+            flash('Shipping rule deleted successfully!', 'success')
+            
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f'Error deleting shipping rule: {e}')
+        current_app.logger.error(f'Error deleting shipping rule {rule_id}: {e}', exc_info=True)
         flash(f'Error deleting shipping rule: {str(e)}', 'error')
     
     return redirect(url_for('admin_shipping_rules'))
@@ -5827,6 +5864,101 @@ def admin_toggle_shipping_rule_status(rule_id):
         db.session.rollback()
         current_app.logger.error(f'Error toggling shipping rule status: {e}')
         flash(f'Error toggling shipping rule status: {str(e)}', 'error')
+    
+    return redirect(url_for('admin_shipping_rules'))
+
+@app.route('/admin/shipping/bulk-delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_bulk_delete_shipping_rules():
+    """Bulk delete shipping rules with dependency checking."""
+    from app.shipping.models import ShippingRule
+    from sqlalchemy import text
+    
+    try:
+        rule_ids = request.form.getlist('rule_ids[]')
+        if not rule_ids:
+            flash('No rules selected for deletion.', 'warning')
+            return redirect(url_for('admin_shipping_rules'))
+        
+        # Convert to integers
+        try:
+            rule_ids = [int(rid) for rid in rule_ids]
+        except (ValueError, TypeError):
+            flash('Invalid rule IDs provided.', 'error')
+            return redirect(url_for('admin_shipping_rules'))
+        
+        current_app.logger.info(f'Bulk delete requested for {len(rule_ids)} rules: {rule_ids}')
+        
+        deleted_count = 0
+        deactivated_count = 0
+        failed_count = 0
+        failed_ids = []
+        
+        for rule_id in rule_ids:
+            try:
+                rule = ShippingRule.query.get(rule_id)
+                if not rule:
+                    failed_count += 1
+                    failed_ids.append(rule_id)
+                    continue
+                
+                # Check dependencies using shipping_rule_id (NOT shipping_method)
+                pending_count = db.session.execute(
+                    text("SELECT COUNT(*) FROM pending_payments WHERE shipping_rule_id = :rule_id"),
+                    {"rule_id": rule_id}
+                ).scalar()
+                
+                order_count = db.session.execute(
+                    text("SELECT COUNT(*) FROM \"order\" WHERE shipping_rule_id = :rule_id"),
+                    {"rule_id": rule_id}
+                ).scalar()
+                
+                if pending_count > 0 or order_count > 0:
+                    # Deactivate instead of delete
+                    rule.active = False
+                    rule.updated_at = datetime.utcnow()
+                    deactivated_count += 1
+                    current_app.logger.info(
+                        f'Rule {rule_id} deactivated (has {pending_count + order_count} dependencies)'
+                    )
+                else:
+                    # Safe to delete
+                    db.session.delete(rule)
+                    deleted_count += 1
+                    current_app.logger.info(f'Rule {rule_id} deleted (no dependencies)')
+                    
+            except Exception as e:
+                db.session.rollback()
+                failed_count += 1
+                failed_ids.append(rule_id)
+                current_app.logger.error(f'Error processing rule {rule_id} in bulk delete: {e}', exc_info=True)
+        
+        # Commit all changes
+        db.session.commit()
+        
+        # Build success message
+        messages = []
+        if deleted_count > 0:
+            messages.append(f'{deleted_count} rule(s) deleted')
+        if deactivated_count > 0:
+            messages.append(f'{deactivated_count} rule(s) deactivated (had dependencies)')
+        if failed_count > 0:
+            messages.append(f'{failed_count} rule(s) failed: {failed_ids}')
+        
+        if messages:
+            flash(' | '.join(messages), 'success' if failed_count == 0 else 'warning')
+        else:
+            flash('No rules were processed.', 'warning')
+            
+        current_app.logger.info(
+            f'Bulk delete completed - Deleted: {deleted_count}, Deactivated: {deactivated_count}, Failed: {failed_count}'
+        )
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error in bulk delete: {e}', exc_info=True)
+        flash(f'Error during bulk delete: {str(e)}', 'error')
     
     return redirect(url_for('admin_shipping_rules'))
 
