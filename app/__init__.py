@@ -3880,8 +3880,24 @@ def checkout():
                     if country:
                         country_id = country.id
                         total_weight = calculate_cart_total_weight(cart_items, default_weight=0.0)
-                        # Get selected shipping method from session
+                        # Get selected shipping method from session, or auto-select one
                         selected_shipping_mode_key = session.get('selected_shipping_method')
+                        
+                        # If no shipping method is selected, auto-select based on priority (express > economy_plus > economy)
+                        if not selected_shipping_mode_key:
+                            from app.shipping.service import ShippingService
+                            # Try to find the first available method
+                            for mode_key in ['express', 'economy_plus', 'economy']:
+                                test_result = ShippingService.calculate_shipping(
+                                    country_iso=country.code.upper(),
+                                    shipping_mode_key=mode_key,
+                                    weight_kg=total_weight
+                                )
+                                if test_result and test_result.get('available'):
+                                    selected_shipping_mode_key = mode_key
+                                    session['selected_shipping_method'] = mode_key
+                                    break
+                        
                         shipping_result = calculate_shipping_price(total_weight, country_id, selected_shipping_mode_key, default_weight=0.0)
                         
                         # Default to 0 if no rule found (as requested)
