@@ -496,14 +496,19 @@
         // Country dropdown functionality
         let checkoutCountries = [];
         let selectedCountry = null;
-        const countryToggle = document.getElementById('checkout-country-toggle');
-        const countryDropdown = document.getElementById('checkout-country-dropdown');
-        const countryList = document.getElementById('checkout-country-list');
-        const countrySearch = document.getElementById('checkout-country-search');
-        const countryName = document.getElementById('checkout-country-name');
-        const countryFlag = document.getElementById('checkout-country-flag');
-        const countryInput = document.getElementById('country');
+        let countryToggle, countryDropdown, countryList, countrySearch, countryName, countryFlag, countryInput;
         const savedCountryName = '{{ form.country.data or '' }}';
+        
+        // Initialize country dropdown elements (called after DOM is ready)
+        function initCountryDropdownElements() {
+            countryToggle = document.getElementById('checkout-country-toggle');
+            countryDropdown = document.getElementById('checkout-country-dropdown');
+            countryList = document.getElementById('checkout-country-list');
+            countrySearch = document.getElementById('checkout-country-search');
+            countryName = document.getElementById('checkout-country-name');
+            countryFlag = document.getElementById('checkout-country-flag');
+            countryInput = document.getElementById('country');
+        }
         
         // Load countries from API
         async function loadCheckoutCountries() {
@@ -817,43 +822,60 @@
             }
         }
         
-        if (countryToggle && countryDropdown) {
-            countryToggle.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleCountryDropdown();
-            });
-        }
-        
-        // Search functionality
-        if (countrySearch) {
-            countrySearch.addEventListener('input', (e) => {
-                renderCheckoutCountryList(e.target.value);
-            });
-        }
-        
-        // Close dropdown when clicking outside
-        document.addEventListener('click', (e) => {
-            if (countryDropdown && countryToggle && 
-                !countryDropdown.contains(e.target) && 
-                !countryToggle.contains(e.target)) {
-                countryDropdown.classList.add('hidden');
-                countryToggle.setAttribute('aria-expanded', 'false');
-                const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
-                if (chevron) {
-                    chevron.style.transform = '';
-                }
+        // Initialize country dropdown on page load
+        function initCountryDropdown() {
+            initCountryDropdownElements();
+            
+            if (!countryToggle || !countryDropdown || !countryList) {
+                console.error('Country dropdown elements not found, retrying...');
+                setTimeout(initCountryDropdown, 100);
+                return;
             }
-        });
+            
+            // Load countries
+            loadCheckoutCountries();
+            
+            // Set up event listeners
+            if (countryToggle) {
+                countryToggle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleCountryDropdown();
+                });
+            }
+            
+            // Search functionality
+            if (countrySearch) {
+                countrySearch.addEventListener('input', (e) => {
+                    renderCheckoutCountryList(e.target.value);
+                });
+            }
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (countryDropdown && countryToggle && 
+                    !countryDropdown.contains(e.target) && 
+                    !countryToggle.contains(e.target)) {
+                    countryDropdown.classList.add('hidden');
+                    if (countryToggle) {
+                        countryToggle.setAttribute('aria-expanded', 'false');
+                        const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
+                        if (chevron) {
+                            chevron.style.transform = '';
+                        }
+                    }
+                }
+            });
+        }
         
         // Load countries immediately on page load
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
-                loadCheckoutCountries();
+                initCountryDropdown();
             });
         } else {
             // DOM is already loaded
-            loadCheckoutCountries();
+            initCountryDropdown();
         }
         
         // Auto-save address on blur (debounced)
