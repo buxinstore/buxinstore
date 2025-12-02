@@ -27,7 +27,7 @@
                             <li class="py-6 px-4 sm:px-6" data-checkout-item="{{ item.id }}">
                             <div class="flex items-center">
                                     <div class="flex-shrink-0 w-20 h-20 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                                        <img data-checkout-image src="{{ url_for('static', filename=item.image) if item.image else url_for('static', filename='images/placeholder.png') }}" alt="{{ item.name }}" class="w-full h-full object-center object-cover">
+                                        <img data-checkout-image src="{{ url_for('static', filename=item.image) if item.image else url_for('static', filename='images/placeholder.png') }}" alt="{{ item.name }}" class="w-full h-full object-center object-cover" onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/placeholder.png') }}';">
                                     </div>
 
                                     <div class="ml-6 flex-1 flex flex-col">
@@ -174,14 +174,13 @@
                                 <label for="country" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                                     Country <span class="text-red-500">*</span>
                                 </label>
-                                <div class="relative">
+                                <div class="relative" style="z-index: 10;">
                                     <button 
                                         type="button"
                                         id="checkout-country-toggle"
                                         class="w-full flex items-center justify-between rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all text-left cursor-pointer"
                                         aria-haspopup="true"
                                         aria-expanded="false"
-                                        style="pointer-events: auto;"
                                     >
                                         <span class="flex items-center gap-3 flex-1 min-w-0">
                                             <span id="checkout-country-flag" class="flex-shrink-0 w-6 h-6 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
@@ -194,7 +193,7 @@
                                     <input type="hidden" id="country" name="country" value="{{ form.country.data or '' }}" required>
                                     
                                     <!-- Country Dropdown Menu -->
-                                    <div id="checkout-country-dropdown" class="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl shadow-lg hidden max-h-80 overflow-hidden flex flex-col">
+                                    <div id="checkout-country-dropdown" class="absolute z-[100] w-full mt-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl shadow-lg hidden max-h-80 overflow-hidden flex flex-col" style="top: 100%; left: 0;">
                                         <!-- Search Input -->
                                         <div class="p-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
                                             <input 
@@ -509,9 +508,16 @@
         // Load countries from API
         async function loadCheckoutCountries() {
             if (!countryToggle || !countryDropdown || !countryList) {
-                console.error('Country dropdown elements not found');
+                console.error('Country dropdown elements not found', {
+                    toggle: !!countryToggle,
+                    dropdown: !!countryDropdown,
+                    list: !!countryList
+                });
                 return;
             }
+            
+            // Show loading state
+            countryList.innerHTML = '<p class="p-4 text-sm text-slate-500">Loading countries...</p>';
             
             try {
                 const response = await fetch('/api/countries');
@@ -1101,10 +1107,17 @@
             return PLACEHOLDER_IMAGE;
         }
 
+        // Handle full URLs (http/https) - return as-is
         if (/^https?:\/\//i.test(imagePath)) {
             return imagePath;
         }
+        
+        // Handle absolute paths that don't start with /static/ - return as-is
+        if (imagePath.startsWith('/') && !imagePath.startsWith('/static/')) {
+            return imagePath;
+        }
 
+        // Handle relative paths - prepend /static/
         const trimmed = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
         return `${STATIC_BASE}${trimmed}`;
     }
