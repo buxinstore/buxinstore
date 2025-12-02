@@ -51,6 +51,34 @@
         {% endif %}
     {% endwith %}
 
+    <!-- New Simplified System Notice -->
+    <div class="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-info-circle text-blue-400"></i>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    🚀 Simplified Shipping Pricing System
+                </h3>
+                <div class="mt-2 text-sm text-blue-700 dark:text-blue-300">
+                    <p class="mb-2">
+                        <strong>New System:</strong> You only need to enter <strong>one base price for 0.5 kg</strong> per shipping method and country.
+                    </p>
+                    <p class="mb-2">
+                        The system automatically calculates shipping for any weight using the formula:
+                    </p>
+                    <p class="font-mono bg-blue-100 dark:bg-blue-900/40 p-2 rounded mb-2">
+                        <strong>Total Shipping Price = (Product Weight / 0.5) × Base Price for 0.5 kg</strong>
+                    </p>
+                    <p class="text-xs">
+                        <strong>Example:</strong> If Express base price is D30 for 0.5kg, a 1.5kg product = (1.5 / 0.5) × 30 = D90
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Statistics Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4">

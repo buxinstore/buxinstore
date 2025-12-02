@@ -86,39 +86,19 @@
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select the shipping method this rule applies to</p>
                 </div>
 
-                <div>
-                    <label for="min_weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Min Weight (kg) <span class="text-red-500">*</span>
-                    </label>
-                    <input type="number" 
-                           id="min_weight" 
-                           name="min_weight" 
-                           step="0.001"
-                           min="0"
-                           value="{{ "%.3f"|format(rule.min_weight) if rule else '0.0' }}" 
-                           required
-                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Minimum weight in kilograms (e.g., 0.5)</p>
-                </div>
-
-                <div>
-                    <label for="max_weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Max Weight (kg) <span class="text-red-500">*</span>
-                    </label>
-                    <input type="number" 
-                           id="max_weight" 
-                           name="max_weight" 
-                           step="0.001"
-                           min="0"
-                           value="{{ "%.3f"|format(rule.max_weight) if rule else '1.0' }}" 
-                           required
-                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Maximum weight in kilograms (must be greater than min weight)</p>
-                </div>
+                <!-- Hidden fields for min/max weight - automatically set to 0.5 and 999999 -->
+                <input type="hidden" 
+                       id="min_weight" 
+                       name="min_weight" 
+                       value="0.5">
+                <input type="hidden" 
+                       id="max_weight" 
+                       name="max_weight" 
+                       value="999999">
 
                 <div>
                     <label for="price_gmd" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Price (GMD) <span class="text-red-500">*</span>
+                        Base Price for 0.5 kg (GMD) <span class="text-red-500">*</span>
                     </label>
                     <input type="number" 
                            id="price_gmd" 
@@ -128,7 +108,14 @@
                            value="{{ "%.2f"|format(rule.price_gmd) if rule else '0.00' }}" 
                            required
                            class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Shipping price in Gambian Dalasi (GMD)</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        <strong>New Simplified System:</strong> Enter the base price for 0.5 kg. 
+                        The system will automatically calculate shipping for any weight using the formula: 
+                        <strong>(Product Weight / 0.5) × Base Price</strong>
+                    </p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Example: If base price is D30 for 0.5kg, a 1.5kg product = (1.5 / 0.5) × 30 = D90
+                    </p>
                 </div>
 
                 <div>
