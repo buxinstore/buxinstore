@@ -103,12 +103,38 @@
             </div>
             
             <!-- Shipping Method -->
-            {% if order.shipping_mode_key %}
+            {% set has_local_products = false %}
+            {% if order.items %}
+                {% for item in order.items %}
+                    {% if item.product and item.product.available_in_gambia %}
+                        {% set has_local_products = true %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+            
+            {% if has_local_products and (not order.shipping_mode_key or (order.shipping_price or 0) == 0) %}
+            <!-- Local Gambian Products - Same-day Pickup/Delivery Message -->
+            <div class="mt-6 border-t border-slate-200 dark:border-slate-800 pt-6">
+                <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0">
+                            <span class="text-2xl">🚚</span>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-semibold text-green-800 dark:text-green-200 mb-1">Available in The Gambia</h3>
+                            <p class="text-sm text-green-700 dark:text-green-300">
+                                This product is available in The Gambia. No shipping fee. Same-day pickup or delivery.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% elif order.shipping_mode_key %}
             {% set shipping_method_map = {
-                'express': {'name': 'DHL Express (Fast)', 'timeframe': '3–7 days'},
-                'economy_plus': {'name': 'DHL eCommerce (Standard)', 'timeframe': '10–20 days'},
-                'economy': {'name': 'Economy Mail (PO Pickup)', 'timeframe': '20–60 days'},
-                'ecommerce': {'name': 'DHL eCommerce (Standard)', 'timeframe': '10–20 days'}
+                'express': {'name': '✈️ DHL Express', 'timeframe': '3–7 days'},
+                'economy_plus': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'},
+                'economy': {'name': '🌐 Economy Mail', 'timeframe': '20–60 days'},
+                'ecommerce': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'}
             } %}
             {% set shipping_info = shipping_method_map.get(order.shipping_mode_key, {'name': order.shipping_mode_key|title, 'timeframe': order.shipping_delivery_estimate or 'N/A'}) %}
             <div class="mt-6 border-t border-slate-200 dark:border-slate-800 pt-6">
@@ -116,6 +142,7 @@
                 <div class="text-sm text-slate-600 dark:text-slate-300">
                     <div class="font-medium text-slate-900 dark:text-white">{{ shipping_info.name }}</div>
                     <div class="mt-1 text-slate-500 dark:text-slate-400">Delivery: {{ shipping_info.timeframe }}</div>
+                    {% set shipping_cost = order.shipping_price or order.shipping_price_gmd or 0 %}
                     {% if shipping_cost > 0 %}
                     <div class="mt-1 text-slate-500 dark:text-slate-400">Cost: D{{ "%.2f"|format(shipping_cost) }}</div>
                     {% endif %}

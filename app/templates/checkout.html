@@ -67,7 +67,14 @@
                             </div>
                             <div class="flex items-center justify-between">
                                 <dt class="text-sm">Shipping</dt>
-                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-shipping>{{ checkout_summary.shipping|price_with_symbol }}</dd>
+                                <dd class="text-sm font-semibold text-slate-900 dark:text-white" data-checkout-shipping>
+                                    {% set is_all_local = cart_summary.get('is_all_local', false) %}
+                                    {% if is_all_local %}
+                                        <span class="text-green-600 dark:text-green-400">Free (Local)</span>
+                                    {% else %}
+                                        {{ checkout_summary.shipping|price_with_symbol }}
+                                    {% endif %}
+                                </dd>
                             </div>
                             <div class="flex items-center justify-between border-t border-[color:var(--app-border)] dark:border-slate-800 pt-6">
                                 <dt class="text-base font-semibold text-slate-900 dark:text-white">Total</dt>
@@ -76,6 +83,25 @@
                         </dl>
 
                         <!-- Shipping Details -->
+                        {% set is_all_local = cart_summary.get('is_all_local', false) %}
+                        {% if is_all_local %}
+                        <!-- Local Gambian Products - Same-day Pickup/Delivery Message -->
+                        <div class="border-t border-[color:var(--app-border)] dark:border-slate-800 px-4 pt-6 pb-4 sm:px-6">
+                            <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex-shrink-0">
+                                        <span class="text-2xl">🚚</span>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-green-800 dark:text-green-200 mb-1">Available in The Gambia</h3>
+                                        <p class="text-sm text-green-700 dark:text-green-300">
+                                            This product is available in The Gambia. No shipping fee. Same-day pickup or delivery.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
                         <div class="border-t border-[color:var(--app-border)] dark:border-slate-800 px-4 pt-6 pb-4 sm:px-6">
                             <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">Shipping Details</h3>
                             <div class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
@@ -98,6 +124,7 @@
                                 </p>
                             </div>
                         </div>
+                        {% endif %}
                     </div>
                 </div>
 

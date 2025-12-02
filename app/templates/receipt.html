@@ -187,12 +187,29 @@
 							</tfoot>
 						</table>
 						{% if order %}
-							{% if order.shipping_mode_key %}
+							{% set has_local_products = false %}
+							{% if order.items %}
+								{% for item in order.items %}
+									{% if item.product and item.product.available_in_gambia %}
+										{% set has_local_products = true %}
+									{% endif %}
+								{% endfor %}
+							{% endif %}
+							
+							{% if has_local_products and (not order.shipping_mode_key or (order.shipping_price or 0) == 0) %}
+							<!-- Local Gambian Products - Same-day Pickup/Delivery Message -->
+							<div style="margin-top:16px; padding-top:16px; border-top:1px solid #e5e7eb;">
+								<h2 style="font-size:14px; margin-bottom:8px; color:#059669;">🚚 Available in The Gambia</h2>
+								<div class="value" style="color:#059669; font-weight:500;">
+									This product is available in The Gambia. No shipping fee. Same-day pickup or delivery.
+								</div>
+							</div>
+							{% elif order.shipping_mode_key %}
 							{% set shipping_method_map = {
-								'express': {'name': 'DHL Express (Fast)', 'timeframe': '3–7 days'},
-								'economy_plus': {'name': 'DHL eCommerce (Standard)', 'timeframe': '10–20 days'},
-								'economy': {'name': 'Economy Mail (PO Pickup)', 'timeframe': '20–60 days'},
-								'ecommerce': {'name': 'DHL eCommerce (Standard)', 'timeframe': '10–20 days'}
+								'express': {'name': '✈️ DHL Express', 'timeframe': '3–7 days'},
+								'economy_plus': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'},
+								'economy': {'name': '🌐 Economy Mail', 'timeframe': '20–60 days'},
+								'ecommerce': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'}
 							} %}
 							{% set shipping_info = shipping_method_map.get(order.shipping_mode_key, {'name': order.shipping_mode_key|title, 'timeframe': order.shipping_delivery_estimate or 'N/A'}) %}
 							<div style="margin-top:16px; padding-top:16px; border-top:1px solid #e5e7eb;">

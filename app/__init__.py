@@ -3079,8 +3079,11 @@ def calculate_cart_totals(cart_items):
 
     subtotal = Decimal('0.00')
     total_weight = Decimal('0.00')
+    has_local_gambia_products = False
+    has_china_products = False
     
     # Calculate subtotal and total weight
+    # CRITICAL: Separate local Gambian products from China products for shipping calculation
     for item in cart_items:
         # Ensure item is a dictionary, not a string
         if not isinstance(item, dict):
@@ -3096,78 +3099,109 @@ def calculate_cart_totals(cart_items):
         item_subtotal = Decimal(str(converted_price * Decimal(str(item['quantity']))))
         subtotal += item_subtotal
         
-        # Calculate weight for this item - REQUIRED (no default fallback)
+        # Check if product is available in Gambia (local product - no shipping)
         product_id = item.get('id')
         if product_id:
             product = Product.query.get(product_id)
-            if product and product.weight_kg and product.weight_kg > 0:
-                item_weight = Decimal(str(product.weight_kg)) * Decimal(str(item['quantity']))
-                total_weight += item_weight
+            if product:
+                # Mark item as local or China product
+                if product.available_in_gambia:
+                    has_local_gambia_products = True
+                    item['is_local_gambia'] = True
+                    # Local products have no shipping - skip weight calculation for shipping
+                else:
+                    has_china_products = True
+                    item['is_local_gambia'] = False
+                    # Only calculate weight for China products (for shipping calculation)
+                    if product.weight_kg and product.weight_kg > 0:
+                        item_weight = Decimal(str(product.weight_kg)) * Decimal(str(item['quantity']))
+                        total_weight += item_weight
+                    else:
+                        # Product missing weight - log error but continue with 0 weight
+                        current_app.logger.error(
+                            f"Product {product_id} ({product.name}) has no valid weight. "
+                            f"Skipping weight for this item. Please set weight in admin."
+                        )
             else:
-                # Product missing weight - log error but continue with 0 weight
-                current_app.logger.error(
-                    f"Product {product_id} ({product.name if product else 'Unknown'}) has no valid weight. "
-                    f"Skipping weight for this item. Please set weight in admin."
-                )
-                # Don't add weight - product must have weight set
+                # Product not found - treat as China product (will need shipping)
+                has_china_products = True
+                item['is_local_gambia'] = False
     
-    # Get selected shipping method from session
-    selected_shipping_mode_key = session.get('selected_shipping_method')
-    
-    # Calculate shipping using shipping rules system (based on total cart weight and selected method)
-    # Always try to calculate shipping, even if no country is selected (will use global rules)
-    shipping_result = calculate_shipping_price(float(total_weight), country_id, selected_shipping_mode_key, default_weight=0.0)
-    
-    total_shipping_gmd = Decimal('0.00')
-    shipping_delivery_time = None
-    shipping_rule_name = None
-    
-    if shipping_result and isinstance(shipping_result, dict) and shipping_result.get('available'):
-        total_shipping_gmd = Decimal(str(shipping_result.get('price_gmd', 0.0)))
-        shipping_delivery_time = shipping_result.get('delivery_time')
-        shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
-        shipping_debug_info = shipping_result.get('debug_info', {})
-        
-        # Admin debug output (temporary)
-        if current_user.is_authenticated and (current_user.is_admin or current_user.role == 'admin'):
-            # Calculate item details for debug
-            item_details = []
-            for item in cart_items:
-                product_id = item.get('id')
-                if product_id:
-                    product = Product.query.get(product_id)
-                    if product:
-                        item_weight = float(product.weight_kg) if product.weight_kg else 0.0
-                        item_details.append({
-                            'product_id': product_id,
-                            'product_name': product.name,
-                            'weight_kg': item_weight,
-                            'quantity': item['quantity'],
-                            'total_weight': item_weight * item['quantity']
-                        })
-            
-            current_app.logger.info(
-                f"🔍 ADMIN DEBUG - Cart Shipping: "
-                f"Total Weight={float(total_weight)}kg, "
-                f"Country={country.name if country else 'None'}, "
-                f"Rule ID={shipping_debug_info.get('applied_rule_id')}, "
-                f"Shipping Fee={float(total_shipping_gmd)}GMD, "
-                f"Items={item_details}, "
-                f"Debug Info={shipping_debug_info}"
-            )
-        
-        current_app.logger.debug(
-            f"Cart shipping calculated: Rule={shipping_rule_name}, "
-            f"Country ID={country_id}, Weight={float(total_weight)}kg, "
-            f"Shipping={float(total_shipping_gmd)}GMD"
-        )
+    # CRITICAL: If cart contains ONLY local Gambian products, shipping is always 0
+    # If cart contains a mix, only calculate shipping for China products (total_weight already excludes local products)
+    if has_local_gambia_products and not has_china_products:
+        # All products are local - no shipping needed
+        total_shipping_gmd = Decimal('0.00')
+        shipping_delivery_time = None
+        shipping_rule_name = None
+        shipping_result = None
+        current_app.logger.info("Cart contains only local Gambian products - shipping set to 0")
     else:
-        # If no rule found, default to 0 (as requested)
-        current_app.logger.debug(
-            f"No shipping rule found for cart: "
-            f"Country ID={country_id}, Weight={float(total_weight)}kg. "
-            f"Shipping fee defaulted to 0"
-        )
+        # Cart has China products (or mix) - calculate shipping for China products only
+        # Get selected shipping method from session
+        selected_shipping_mode_key = session.get('selected_shipping_method')
+        
+        # Calculate shipping using shipping rules system (based on total cart weight and selected method)
+        # Only calculate if there are China products (total_weight > 0)
+        if total_weight > 0:
+            shipping_result = calculate_shipping_price(float(total_weight), country_id, selected_shipping_mode_key, default_weight=0.0)
+        else:
+            shipping_result = None
+    
+        # Initialize shipping variables
+        total_shipping_gmd = Decimal('0.00')
+        shipping_delivery_time = None
+        shipping_rule_name = None
+        
+        if shipping_result and isinstance(shipping_result, dict) and shipping_result.get('available'):
+            total_shipping_gmd = Decimal(str(shipping_result.get('price_gmd', 0.0)))
+            shipping_delivery_time = shipping_result.get('delivery_time')
+            shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
+            shipping_debug_info = shipping_result.get('debug_info', {})
+            
+            # Admin debug output (temporary)
+            if current_user.is_authenticated and (current_user.is_admin or current_user.role == 'admin'):
+                # Calculate item details for debug
+                item_details = []
+                for item in cart_items:
+                    product_id = item.get('id')
+                    if product_id:
+                        product = Product.query.get(product_id)
+                        if product:
+                            item_weight = float(product.weight_kg) if product.weight_kg else 0.0
+                            item_details.append({
+                                'product_id': product_id,
+                                'product_name': product.name,
+                                'weight_kg': item_weight,
+                                'quantity': item['quantity'],
+                                'total_weight': item_weight * item['quantity'],
+                                'is_local_gambia': product.available_in_gambia
+                            })
+                
+                current_app.logger.info(
+                    f"🔍 ADMIN DEBUG - Cart Shipping: "
+                    f"Total Weight={float(total_weight)}kg (China products only), "
+                    f"Country={country.name if country else 'None'}, "
+                    f"Rule ID={shipping_debug_info.get('applied_rule_id')}, "
+                    f"Shipping Fee={float(total_shipping_gmd)}GMD, "
+                    f"Has Local Products={has_local_gambia_products}, "
+                    f"Has China Products={has_china_products}, "
+                    f"Items={item_details}, "
+                    f"Debug Info={shipping_debug_info}"
+                )
+            
+            current_app.logger.debug(
+                f"Cart shipping calculated: Rule={shipping_rule_name}, "
+                f"Country ID={country_id}, Weight={float(total_weight)}kg (China products only), "
+                f"Shipping={float(total_shipping_gmd)}GMD"
+            )
+        else:
+            # If no rule found, default to 0 (as requested)
+            current_app.logger.debug(
+                f"No shipping rule found for cart: "
+                f"Country ID={country_id}, Weight={float(total_weight)}kg. "
+                f"Shipping fee defaulted to 0"
+            )
     
     # Convert shipping to display currency if needed
     if country and country.currency != 'GMD':
@@ -3176,19 +3210,36 @@ def calculate_cart_totals(cart_items):
         shipping_display = total_shipping_gmd
     
     # If shipping was calculated by rules (not per-item), distribute it proportionally
-    if shipping_result and shipping_result.get('available'):
-        # Distribute total shipping proportionally by item weight
-        if total_weight > 0:
-            for item in cart_items:
-                product_id = item.get('id')
-                if product_id:
-                    product = Product.query.get(product_id)
-                    item_weight = Decimal(str(product.weight_kg)) if (product and product.weight_kg) else Decimal('0.1')
+    # CRITICAL: Only distribute shipping to China products, not local Gambian products
+    if shipping_result and shipping_result.get('available') and total_weight > 0:
+        # Distribute total shipping proportionally by item weight (only for China products)
+        for item in cart_items:
+            # Skip local Gambian products - they have no shipping
+            if item.get('is_local_gambia'):
+                item['shipping'] = 0.0
+                item['shipping_per_unit'] = 0.0
+                continue
+            
+            # Only calculate shipping for China products
+            product_id = item.get('id')
+            if product_id:
+                product = Product.query.get(product_id)
+                if product and product.weight_kg and product.weight_kg > 0:
+                    item_weight = Decimal(str(product.weight_kg))
                     item_weight_total = item_weight * Decimal(str(item['quantity']))
                     weight_ratio = item_weight_total / total_weight if total_weight > 0 else Decimal('0')
                     item_shipping = (shipping_display * weight_ratio).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
                     item['shipping'] = float(item_shipping)
                     item['shipping_per_unit'] = float(item_shipping / Decimal(str(item['quantity']))) if item['quantity'] > 0 else 0.0
+                else:
+                    # Product without weight - no shipping assigned
+                    item['shipping'] = 0.0
+                    item['shipping_per_unit'] = 0.0
+    else:
+        # No shipping calculated - set all items to 0 shipping
+        for item in cart_items:
+            item['shipping'] = 0.0
+            item['shipping_per_unit'] = 0.0
 
     tax = (subtotal * tax_rate).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if tax_rate else Decimal('0.00')
     shipping = shipping_display.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -3200,7 +3251,10 @@ def calculate_cart_totals(cart_items):
         'tax': tax,
         'shipping': shipping,
         'total': total,
-        'shipping_delivery_time': shipping_delivery_time
+        'shipping_delivery_time': shipping_delivery_time,
+        'has_local_gambia_products': has_local_gambia_products,
+        'has_china_products': has_china_products,
+        'is_all_local': has_local_gambia_products and not has_china_products
     }
 
 
@@ -3242,6 +3296,9 @@ def serialize_cart_summary(cart_items):
         'cart_shipping': _to_float(totals['shipping']),
         'total': _to_float(totals['total']),
         'cart_total': _to_float(totals['total']),
+        'has_local_gambia_products': totals.get('has_local_gambia_products', False),
+        'has_china_products': totals.get('has_china_products', False),
+        'is_all_local': totals.get('is_all_local', False)
     }
 
     summary['checkout'] = {
@@ -3252,7 +3309,10 @@ def serialize_cart_summary(cart_items):
         'shipping': summary['shipping'],
         'total': summary['total'],
         'count': cart_count,
-        'is_empty': is_empty
+        'is_empty': is_empty,
+        'has_local_gambia_products': totals.get('has_local_gambia_products', False),
+        'has_china_products': totals.get('has_china_products', False),
+        'is_all_local': totals.get('is_all_local', False)
     }
 
     return summary
@@ -3816,7 +3876,7 @@ class ProductForm(FlaskForm):
     image = FileField('Product Image', validators=[
         FileAllowed(['jpg', 'jpeg', 'png'], 'Images only!')
     ])
-    available_in_gambia = BooleanField('Available in Gambia', default=False)
+    available_in_gambia = BooleanField('Available in The Gambia (No Shipping)', default=False)
     delivery_price = FloatField('Delivery Fee', validators=[NumberRange(min=0)])
     shipping_price = FloatField('Shipping Price', validators=[NumberRange(min=0)])
     location = SelectField('Product Location', 
