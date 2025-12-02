@@ -53,13 +53,15 @@
                     <h2 class="sr-only">Product information</h2>
                     <p class="text-3xl font-bold text-[color:var(--app-text)] dark:text-white">{{ product|product_price_with_profit }}</p>
                     
-                    {% if shipping_fee and shipping_fee > 0 %}
-                    <p class="mt-2 text-lg text-[color:var(--app-muted)] dark:text-slate-400">
-                        <span class="font-medium">Shipping Fee:</span> {{ shipping_fee|price_with_symbol }}
-                        {% if shipping_delivery_time %}
-                            <span class="text-sm">({{ shipping_delivery_time }})</span>
+                    {% if not product.available_in_gambia %}
+                        {% if shipping_fee and shipping_fee > 0 %}
+                        <p class="mt-2 text-lg text-[color:var(--app-muted)] dark:text-slate-400">
+                            <span class="font-medium">Shipping Fee:</span> {{ shipping_fee|price_with_symbol }}
+                            {% if shipping_delivery_time %}
+                                <span class="text-sm">({{ shipping_delivery_time }})</span>
+                            {% endif %}
+                        </p>
                         {% endif %}
-                    </p>
                     {% endif %}
                     
                     {% if product.stock > 0 %}
@@ -79,67 +81,84 @@
                     {% endif %}
                 </div>
 
-                <!-- Delivery Information -->
-                {% if product.location %}
-                <div class="mt-4 p-4 rounded-xl border border-[color:var(--app-border)] dark:border-slate-800 bg-[color:var(--app-card)] dark:bg-slate-900/60">
-                    {% if product.location == 'In The Gambia' %}
+                <!-- Available in Gambia Message -->
+                {% if product.available_in_gambia %}
+                <div class="mt-4 p-4 rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20">
                     <div class="flex items-start gap-3">
                         <div class="flex-shrink-0 mt-0.5">
-                            <span class="text-2xl">🕒</span>
+                            <span class="text-2xl">🇬🇲</span>
                         </div>
                         <div>
-                            <p class="text-sm font-medium text-[color:var(--app-text)] dark:text-white">
-                                You can receive your order the same day. Just call our support team after placing your order.
+                            <h3 class="text-sm font-semibold text-green-800 dark:text-green-200 mb-1">Available in The Gambia</h3>
+                            <p class="text-sm text-green-700 dark:text-green-300">
+                                You can receive your order the same day.
                             </p>
                         </div>
                     </div>
-                    {% elif product.location == 'Outside The Gambia' %}
-                    <div class="flex items-start gap-3">
-                        <div class="flex-shrink-0 mt-0.5">
-                            <span class="text-2xl">🕐</span>
+                </div>
+                {% else %}
+                    <!-- Delivery Information (for non-Gambia products) -->
+                    {% if product.location %}
+                    <div class="mt-4 p-4 rounded-xl border border-[color:var(--app-border)] dark:border-slate-800 bg-[color:var(--app-card)] dark:bg-slate-900/60">
+                        {% if product.location == 'In The Gambia' %}
+                        <div class="flex items-start gap-3">
+                            <div class="flex-shrink-0 mt-0.5">
+                                <span class="text-2xl">🕒</span>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-[color:var(--app-text)] dark:text-white">
+                                    You can receive your order the same day. Just call our support team after placing your order.
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <p class="text-sm font-medium text-[color:var(--app-text)] dark:text-white">
-                                Estimated delivery: minimum 14 days, maximum 30 days.
-                            </p>
+                        {% elif product.location == 'Outside The Gambia' %}
+                        <div class="flex items-start gap-3">
+                            <div class="flex-shrink-0 mt-0.5">
+                                <span class="text-2xl">🕐</span>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-[color:var(--app-text)] dark:text-white">
+                                    Estimated delivery: minimum 14 days, maximum 30 days.
+                                </p>
+                            </div>
                         </div>
+                        {% endif %}
                     </div>
                     {% endif %}
-                </div>
-                {% endif %}
 
-                <!-- Shipping Methods Display -->
-                <div id="product-shipping-methods" class="mt-6 p-4 rounded-xl border border-[color:var(--app-border)] dark:border-slate-800 bg-[color:var(--app-card)] dark:bg-slate-900/60">
-                    <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white mb-3">Available Shipping Methods</h3>
-                    {% if selected_country %}
-                        {% if shipping_methods %}
-                            <div class="space-y-3">
-                                {% for method in shipping_methods %}
-                                    <div class="flex items-center justify-between p-3 rounded-lg border {% if method.color == 'red' %}border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20{% elif method.color == 'yellow' %}border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20{% elif method.color == 'green' %}border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20{% else %}border-slate-300 dark:border-slate-700{% endif %}">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-lg">{{ method.icon }}</span>
-                                            <div>
-                                                <div class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white">{{ method.short_label }}</div>
-                                                <div class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">{{ method.guarantee }}</div>
+                    <!-- Shipping Methods Display (only for non-Gambia products) -->
+                    <div id="product-shipping-methods" class="mt-6 p-4 rounded-xl border border-[color:var(--app-border)] dark:border-slate-800 bg-[color:var(--app-card)] dark:bg-slate-900/60">
+                        <h3 class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white mb-3">Available Shipping Methods</h3>
+                        {% if selected_country %}
+                            {% if shipping_methods %}
+                                <div class="space-y-3">
+                                    {% for method in shipping_methods %}
+                                        <div class="flex items-center justify-between p-3 rounded-lg border {% if method.color == 'red' %}border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20{% elif method.color == 'yellow' %}border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20{% elif method.color == 'green' %}border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20{% else %}border-slate-300 dark:border-slate-700{% endif %}">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-lg">{{ method.icon }}</span>
+                                                <div>
+                                                    <div class="text-sm font-semibold text-[color:var(--app-text)] dark:text-white">{{ method.short_label }}</div>
+                                                    <div class="text-xs text-[color:var(--app-muted)] dark:text-slate-400">{{ method.guarantee }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="text-right">
+                                                {% if method.available and method.price_display %}
+                                                    <div class="text-sm font-bold text-[color:var(--app-text)] dark:text-white">D{{ "%.2f"|format(method.price_display) }}</div>
+                                                {% else %}
+                                                    <div class="text-xs text-slate-400">Not available</div>
+                                                {% endif %}
                                             </div>
                                         </div>
-                                        <div class="text-right">
-                                            {% if method.available and method.price_display %}
-                                                <div class="text-sm font-bold text-[color:var(--app-text)] dark:text-white">D{{ "%.2f"|format(method.price_display) }}</div>
-                                            {% else %}
-                                                <div class="text-xs text-slate-400">Not available</div>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                {% endfor %}
-                            </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-400">No shipping methods available for {{ selected_country.name }}.</p>
+                            {% endif %}
                         {% else %}
-                            <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-400">No shipping methods available for {{ selected_country.name }}.</p>
+                            <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-400">Select your country at checkout to view shipping costs.</p>
                         {% endif %}
-                    {% else %}
-                        <p class="text-sm text-[color:var(--app-muted)] dark:text-slate-400">Select your country at checkout to view shipping costs.</p>
-                    {% endif %}
-                </div>
+                    </div>
+                {% endif %}
 
                 <div class="mt-6">
                     <h3 class="sr-only">Description</h3>

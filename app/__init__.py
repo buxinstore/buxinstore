@@ -1834,8 +1834,11 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
     
     # If no shipping method specified, try all methods and return the first match
     if not shipping_mode_key:
-        # Try each method in order of preference
-        for mode_key in ['express', 'economy_plus', 'economy']:
+        # Try each active method from database in order
+        from app.shipping.models import ShippingMode
+        active_methods = ShippingMode.query.filter_by(active=True).order_by(ShippingMode.id).all()
+        for mode in active_methods:
+            mode_key = mode.key
             result = ShippingService.calculate_shipping(
                 country_iso=country_iso_str,
                 shipping_mode_key=mode_key,
@@ -3698,10 +3701,14 @@ def api_select_shipping_method():
         if not shipping_mode_key:
             return jsonify({'success': False, 'message': 'Shipping method is required'}), 400
         
-        # Validate shipping mode key
-        valid_keys = ['express', 'economy_plus', 'economy']
-        if shipping_mode_key not in valid_keys:
-            return jsonify({'success': False, 'message': f'Invalid shipping method. Must be one of: {", ".join(valid_keys)}'}), 400
+        # Validate shipping mode key - check against database
+        from app.shipping.models import ShippingMode
+        valid_method = ShippingMode.query.filter_by(key=shipping_mode_key, active=True).first()
+        if not valid_method:
+            # Get list of valid keys for error message
+            valid_methods = ShippingMode.query.filter_by(active=True).all()
+            valid_keys = [m.key for m in valid_methods]
+            return jsonify({'success': False, 'message': f'Invalid shipping method. Must be one of: {", ".join(valid_keys) if valid_keys else "No active shipping methods available"}'}), 400
         
         # Save to session
         session['selected_shipping_method'] = shipping_mode_key
@@ -4003,11 +4010,14 @@ def checkout():
                         # Get selected shipping method from session, or auto-select one
                         selected_shipping_mode_key = session.get('selected_shipping_method')
                         
-                        # If no shipping method is selected, auto-select based on priority (express > economy_plus > economy)
+                        # If no shipping method is selected, auto-select based on priority (first active method from database)
                         if not selected_shipping_mode_key:
                             from app.shipping.service import ShippingService
-                            # Try to find the first available method
-                            for mode_key in ['express', 'economy_plus', 'economy']:
+                            from app.shipping.models import ShippingMode
+                            # Try to find the first available method from database
+                            active_methods = ShippingMode.query.filter_by(active=True).order_by(ShippingMode.id).all()
+                            for mode in active_methods:
+                                mode_key = mode.key
                                 test_result = ShippingService.calculate_shipping(
                                     country_iso=country.code.upper(),
                                     shipping_mode_key=mode_key,
@@ -6422,6 +6432,180 @@ def admin_import_shipping_rules():
         flash(f'Error importing shipping rules: {str(e)}', 'error')
     
     return redirect(url_for('admin_shipping_rules'))
+
+# ======================
+# Admin Shipping Methods Management API
+# ======================
+
+@app.route('/admin/api/shipping-methods', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_api_shipping_methods():
+    """API endpoint for managing shipping methods (add, list)."""
+    from app.shipping.models import ShippingMode
+    
+    if request.method == 'GET':
+        # Return list of all shipping methods (including inactive for management)
+        include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
+        
+        query = ShippingMode.query
+        if not include_inactive:
+            query = query.filter_by(active=True)
+        
+        methods = query.order_by(ShippingMode.id).all()
+        
+        return jsonify({
+            'success': True,
+            'methods': [method.to_dict() for method in methods]
+        })
+    
+    elif request.method == 'POST':
+        # Create new shipping method
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'success': False, 'message': 'No data provided'}), 400
+            
+            key = data.get('key', '').strip()
+            label = data.get('label', '').strip()
+            delivery_time_range = data.get('delivery_time_range', '').strip() or None
+            description = data.get('description', '').strip() or None
+            icon = data.get('icon', '📦')
+            color = data.get('color', 'blue')
+            
+            # Validation
+            if not key:
+                return jsonify({'success': False, 'message': 'Shipping method key is required'}), 400
+            
+            if not label:
+                return jsonify({'success': False, 'message': 'Shipping method label is required'}), 400
+            
+            # Check if key already exists
+            existing = ShippingMode.query.filter_by(key=key).first()
+            if existing:
+                return jsonify({'success': False, 'message': f'Shipping method with key "{key}" already exists'}), 400
+            
+            # Create new shipping method
+            new_method = ShippingMode(
+                key=key,
+                label=label,
+                description=description,
+                delivery_time_range=delivery_time_range,
+                icon=icon,
+                color=color,
+                active=True
+            )
+            
+            db.session.add(new_method)
+            db.session.commit()
+            
+            current_app.logger.info(f'New shipping method created: {key} - {label}')
+            
+            return jsonify({
+                'success': True,
+                'message': 'Shipping method created successfully',
+                'method': new_method.to_dict()
+            }), 201
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f'Error creating shipping method: {e}', exc_info=True)
+            return jsonify({'success': False, 'message': f'Error creating shipping method: {str(e)}'}), 500
+
+@app.route('/admin/api/shipping-methods/<string:method_key>', methods=['DELETE'])
+@login_required
+@admin_required
+def admin_api_delete_shipping_method(method_key):
+    """Delete (soft delete) a shipping method. Preserves historical orders."""
+    from app.shipping.models import ShippingMode, ShippingRule
+    from sqlalchemy import text
+    
+    try:
+        method = ShippingMode.query.filter_by(key=method_key).first_or_404()
+        
+        # Check if method is used in any active shipping rules
+        active_rules_count = ShippingRule.query.filter_by(
+            shipping_mode_key=method_key,
+            active=True
+        ).count()
+        
+        # Check if method is used in any orders (for information only - we'll soft delete)
+        order_count = db.session.execute(
+            text("SELECT COUNT(*) FROM orders WHERE shipping_mode_key = :key"),
+            {"key": method_key}
+        ).scalar()
+        
+        # Check if method is used in any pending payments
+        pending_count = db.session.execute(
+            text("SELECT COUNT(*) FROM pending_payments WHERE shipping_mode_key = :key"),
+            {"key": method_key}
+        ).scalar()
+        
+        # Soft delete: Set active=False instead of actually deleting
+        # This preserves the method for historical orders while hiding it from new selections
+        method.active = False
+        db.session.commit()
+        
+        current_app.logger.info(
+            f'Shipping method "{method_key}" soft-deleted. '
+            f'Active rules: {active_rules_count}, Orders: {order_count}, Pending: {pending_count}'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Shipping method "{method.label}" has been deactivated. '
+                      f'It will not appear in new selections but existing orders will still show the method name.',
+            'active_rules_count': active_rules_count,
+            'order_count': order_count,
+            'pending_count': pending_count
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error deleting shipping method: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': f'Error deleting shipping method: {str(e)}'}), 500
+
+@app.route('/admin/shipping-methods', methods=['GET'])
+@login_required
+@admin_required
+def admin_shipping_methods():
+    """Admin page for managing shipping methods (list and delete)."""
+    from app.shipping.models import ShippingMode, ShippingRule
+    from sqlalchemy import text
+    
+    # Get all shipping methods (including inactive)
+    methods = ShippingMode.query.order_by(ShippingMode.active.desc(), ShippingMode.id).all()
+    
+    # Get usage statistics for each method
+    methods_with_stats = []
+    for method in methods:
+        # Count active rules
+        active_rules = ShippingRule.query.filter_by(
+            shipping_mode_key=method.key,
+            active=True
+        ).count()
+        
+        # Count orders using this method
+        order_count = db.session.execute(
+            text("SELECT COUNT(*) FROM orders WHERE shipping_mode_key = :key"),
+            {"key": method.key}
+        ).scalar()
+        
+        # Count pending payments
+        pending_count = db.session.execute(
+            text("SELECT COUNT(*) FROM pending_payments WHERE shipping_mode_key = :key"),
+            {"key": method.key}
+        ).scalar()
+        
+        methods_with_stats.append({
+            'method': method,
+            'active_rules_count': active_rules,
+            'order_count': order_count,
+            'pending_count': pending_count,
+            'total_usage': active_rules + order_count + pending_count
+        })
+    
+    return render_template('admin/admin/shipping_methods.html', methods_with_stats=methods_with_stats)
 
 # ======================
 # Admin Country Management Routes
@@ -12839,75 +13023,83 @@ def category(category_id):
 def product(product_id):
     product = Product.query.get_or_404(product_id)
     
-    # Calculate shipping fee using new shipping rules system
-    # Get user's country (or use None to try global rules)
-    country = get_current_country()
-    country_id = country.id if country else None
-    
-    # Get product weight - REQUIRED (no default fallback)
-    if not product.weight_kg or product.weight_kg <= 0:
-        current_app.logger.error(
-            f"Product {product_id} ({product.name}) has no valid weight. "
-            f"Shipping cannot be calculated. Please set weight in admin."
-        )
-        flash('This product has no weight set. Shipping cannot be calculated. Please contact support.', 'error')
-        product_weight = 0.0
+    # If product is available in Gambia, skip all shipping calculations
+    if product.available_in_gambia:
+        shipping_fee = 0.0
+        shipping_delivery_time = None
+        shipping_methods_data = []
+        final_price = product.price
+        country = None
     else:
-        product_weight = float(product.weight_kg)
-    
-    # Get all shipping methods with prices for this product
-    from app.shipping import get_all_shipping_methods
-    shipping_methods_data = []
-    all_methods = get_all_shipping_methods()
-    
-    # Map old method IDs to new shipping_mode_key values
-    method_mapping = {
-        'ecommerce': 'economy_plus',
-        'express': 'express',
-        'economy': 'economy'
-    }
-    
-    for method in all_methods:
-        method_id = method['id']
-        # Map to shipping_mode_key (new system uses economy_plus instead of ecommerce)
-        shipping_mode_key = method_mapping.get(method_id, method_id)
+        # Calculate shipping fee using new shipping rules system
+        # Get user's country (or use None to try global rules)
+        country = get_current_country()
+        country_id = country.id if country else None
         
-        # Check if a rule exists for this method, country, and weight
-        shipping_result = calculate_shipping_price(product_weight, country_id, shipping_mode_key, default_weight=0.0)
-        
-        if shipping_result and isinstance(shipping_result, dict) and shipping_result.get('available'):
-            price_gmd = shipping_result.get('price_gmd', 0.0)
-            # Convert to display currency if needed
-            if country and country.currency != 'GMD':
-                from .utils.currency_rates import convert_price
-                price_display = convert_price(price_gmd, 'GMD', country.currency)
-            else:
-                price_display = price_gmd
-            
-            shipping_methods_data.append({
-                **method,
-                'price_gmd': price_gmd,
-                'price_display': price_display,
-                'delivery_time': shipping_result.get('delivery_time') or method.get('guarantee', ''),
-                'available': True
-            })
+        # Get product weight - REQUIRED (no default fallback)
+        if not product.weight_kg or product.weight_kg <= 0:
+            current_app.logger.error(
+                f"Product {product_id} ({product.name}) has no valid weight. "
+                f"Shipping cannot be calculated. Please set weight in admin."
+            )
+            flash('This product has no weight set. Shipping cannot be calculated. Please contact support.', 'error')
+            product_weight = 0.0
         else:
-            shipping_methods_data.append({
-                **method,
-                'price_gmd': None,
-                'price_display': None,
-                'delivery_time': method.get('guarantee', ''),
-                'available': False
-            })
-    
-    # For backward compatibility, calculate default shipping (first available or 0)
-    shipping_fee = 0.0
-    shipping_delivery_time = None
-    if shipping_methods_data and shipping_methods_data[0].get('available'):
-        shipping_fee = shipping_methods_data[0]['price_display'] or 0.0
-        shipping_delivery_time = shipping_methods_data[0]['delivery_time']
-    
-    final_price = product.price + shipping_fee
+            product_weight = float(product.weight_kg)
+        
+        # Get all shipping methods with prices for this product
+        from app.shipping import get_all_shipping_methods
+        shipping_methods_data = []
+        all_methods = get_all_shipping_methods()
+        
+        # Map old method IDs to new shipping_mode_key values
+        method_mapping = {
+            'ecommerce': 'economy_plus',
+            'express': 'express',
+            'economy': 'economy'
+        }
+        
+        for method in all_methods:
+            method_id = method['id']
+            # Map to shipping_mode_key (new system uses economy_plus instead of ecommerce)
+            shipping_mode_key = method_mapping.get(method_id, method_id)
+            
+            # Check if a rule exists for this method, country, and weight
+            shipping_result = calculate_shipping_price(product_weight, country_id, shipping_mode_key, default_weight=0.0)
+            
+            if shipping_result and isinstance(shipping_result, dict) and shipping_result.get('available'):
+                price_gmd = shipping_result.get('price_gmd', 0.0)
+                # Convert to display currency if needed
+                if country and country.currency != 'GMD':
+                    from .utils.currency_rates import convert_price
+                    price_display = convert_price(price_gmd, 'GMD', country.currency)
+                else:
+                    price_display = price_gmd
+                
+                shipping_methods_data.append({
+                    **method,
+                    'price_gmd': price_gmd,
+                    'price_display': price_display,
+                    'delivery_time': shipping_result.get('delivery_time') or method.get('guarantee', ''),
+                    'available': True
+                })
+            else:
+                shipping_methods_data.append({
+                    **method,
+                    'price_gmd': None,
+                    'price_display': None,
+                    'delivery_time': method.get('guarantee', ''),
+                    'available': False
+                })
+        
+        # For backward compatibility, calculate default shipping (first available or 0)
+        shipping_fee = 0.0
+        shipping_delivery_time = None
+        if shipping_methods_data and shipping_methods_data[0].get('available'):
+            shipping_fee = shipping_methods_data[0]['price_display'] or 0.0
+            shipping_delivery_time = shipping_methods_data[0]['delivery_time']
+        
+        final_price = product.price + shipping_fee
     
     # Note: Shipping fees come ONLY from Shipping Rules table - no product.delivery_price used
     

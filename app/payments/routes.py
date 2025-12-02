@@ -458,6 +458,12 @@ def payment_receipt():
         order = getattr(payment, 'order', None) if payment else None
         order_items = getattr(order, 'items', []) if order else []
 
+        # Get shipping method info (including inactive methods for historical orders)
+        shipping_mode = None
+        if order and order.shipping_mode_key:
+            from app.shipping.models import ShippingMode
+            shipping_mode = ShippingMode.query.filter_by(key=order.shipping_mode_key).first()
+        
         return render_template('receipt.html',
                                payment=payment,
                                order=order,

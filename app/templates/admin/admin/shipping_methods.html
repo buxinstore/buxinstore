@@ -1,0 +1,266 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}Shipping Methods Management{% endblock %}
+
+{% block content %}
+<div class="py-4">
+    <div class="flex justify-between items-center mb-4">
+        <div>
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Shipping Methods Management</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage shipping methods. Deleted methods are preserved in existing orders.</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{{ url_for('admin_shipping_rules') }}" 
+               class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                <i class="fas fa-arrow-left mr-2"></i> Back to Shipping Rules
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-4 space-y-2">
+                {% for category, message in messages %}
+                    <div class="px-4 py-3 rounded-lg text-sm {% if category == 'success' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40{% elif category == 'warning' %}bg-yellow-50 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-700/40{% else %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Info Notice -->
+    <div class="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-info-circle text-blue-400"></i>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    ℹ️ About Deleting Shipping Methods
+                </h3>
+                <div class="mt-2 text-sm text-blue-700 dark:text-blue-300">
+                    <p>When you delete a shipping method, it is <strong>deactivated</strong> (not permanently removed).</p>
+                    <ul class="list-disc list-inside mt-2 space-y-1">
+                        <li>It will no longer appear in dropdowns for new shipping rules</li>
+                        <li>Existing orders will still show the original method name</li>
+                        <li>Historical data is preserved for reporting and order history</li>
+                        <li>You can reactivate it later if needed</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shipping Methods Table -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Method</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Key</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Delivery Time</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Usage</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {% for item in methods_with_stats %}
+                {% set method = item.method %}
+                <tr class="{% if not method.active %}opacity-60{% endif %}">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <span class="text-lg mr-2">{{ method.icon or '📦' }}</span>
+                            <div>
+                                <div class="text-sm font-medium text-gray-900 dark:text-white">
+                                    {{ method.label }}
+                                </div>
+                                {% if method.description %}
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    {{ method.description[:50] }}{% if method.description|length > 50 %}...{% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <code class="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-800 dark:text-gray-200">
+                            {{ method.key }}
+                        </code>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {{ method.delivery_time_range or '—' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        <div class="space-y-1">
+                            <div>Active Rules: <span class="font-medium">{{ item.active_rules_count }}</span></div>
+                            <div>Orders: <span class="font-medium">{{ item.order_count }}</span></div>
+                            <div>Pending: <span class="font-medium">{{ item.pending_count }}</span></div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if method.active %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">
+                            Active
+                        </span>
+                        {% else %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                            Inactive
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        {% if method.active %}
+                        <button type="button"
+                                onclick="deleteShippingMethod('{{ method.key }}', '{{ method.label }}', {{ item.total_usage }})"
+                                class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                            <i class="fas fa-trash mr-1"></i> Delete
+                        </button>
+                        {% else %}
+                        <span class="text-gray-400 dark:text-gray-600">Deleted</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% if not methods_with_stats %}
+        <div class="text-center py-12">
+            <p class="text-gray-500 dark:text-gray-400">No shipping methods found.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-method-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Delete Shipping Method</h3>
+                <button type="button" 
+                        onclick="hideDeleteModal()"
+                        class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <p class="text-sm text-gray-700 dark:text-gray-300">
+                    Are you sure you want to delete <strong id="delete-method-name"></strong>?
+                </p>
+                
+                <div id="delete-method-warning" class="hidden bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                    <p class="text-sm text-yellow-800 dark:text-yellow-200">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        This method is used in <strong id="delete-method-usage"></strong> place(s). 
+                        It will be deactivated but preserved in existing orders.
+                    </p>
+                </div>
+                
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <p class="text-xs text-blue-800 dark:text-blue-200">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        The method will be deactivated (not permanently deleted). 
+                        Existing orders will still show the method name for historical accuracy.
+                    </p>
+                </div>
+                
+                <div id="delete-method-error" class="hidden text-sm text-red-600 dark:text-red-400"></div>
+            </div>
+            
+            <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button type="button" 
+                        onclick="hideDeleteModal()"
+                        class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Cancel
+                </button>
+                <button type="button" 
+                        id="confirm-delete-btn"
+                        onclick="confirmDeleteShippingMethod()"
+                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                    <i class="fas fa-trash mr-1"></i> Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let methodToDelete = null;
+
+function deleteShippingMethod(key, label, usage) {
+    methodToDelete = key;
+    document.getElementById('delete-method-name').textContent = label;
+    
+    if (usage > 0) {
+        document.getElementById('delete-method-warning').classList.remove('hidden');
+        document.getElementById('delete-method-usage').textContent = usage;
+    } else {
+        document.getElementById('delete-method-warning').classList.add('hidden');
+    }
+    
+    document.getElementById('delete-method-error').classList.add('hidden');
+    document.getElementById('delete-method-modal').classList.remove('hidden');
+}
+
+function hideDeleteModal() {
+    document.getElementById('delete-method-modal').classList.add('hidden');
+    methodToDelete = null;
+}
+
+async function confirmDeleteShippingMethod() {
+    if (!methodToDelete) return;
+    
+    const errorDiv = document.getElementById('delete-method-error');
+    const confirmBtn = document.getElementById('confirm-delete-btn');
+    
+    errorDiv.classList.add('hidden');
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Deleting...';
+    
+    try {
+        const response = await fetch(`/admin/api/shipping-methods/${methodToDelete}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Failed to delete shipping method');
+        }
+        
+        // Reload page to show updated list
+        window.location.reload();
+        
+    } catch (error) {
+        console.error('Error deleting shipping method:', error);
+        errorDiv.textContent = error.message || 'Failed to delete shipping method. Please try again.';
+        errorDiv.classList.remove('hidden');
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="fas fa-trash mr-1"></i> Delete';
+    }
+}
+
+// Close modal on backdrop click
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('delete-method-modal');
+    if (modal && e.target === modal) {
+        hideDeleteModal();
+    }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        hideDeleteModal();
+    }
+});
+</script>
+{% endblock %}
+

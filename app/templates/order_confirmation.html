@@ -130,13 +130,19 @@
                 </div>
             </div>
             {% elif order.shipping_mode_key %}
-            {% set shipping_method_map = {
-                'express': {'name': '✈️ DHL Express', 'timeframe': '3–7 days'},
-                'economy_plus': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'},
-                'economy': {'name': '🌐 Economy Mail', 'timeframe': '20–60 days'},
-                'ecommerce': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'}
-            } %}
-            {% set shipping_info = shipping_method_map.get(order.shipping_mode_key, {'name': order.shipping_mode_key|title, 'timeframe': order.shipping_delivery_estimate or 'N/A'}) %}
+            {# Use shipping_mode from backend if available (includes inactive methods for historical orders) #}
+            {% if shipping_mode %}
+                {% set shipping_info = {'name': shipping_mode.label, 'timeframe': shipping_mode.delivery_time_range or order.shipping_delivery_estimate or 'N/A'} %}
+            {% else %}
+                {# Fallback to hardcoded map if method not found in database #}
+                {% set shipping_method_map = {
+                    'express': {'name': '✈️ DHL Express', 'timeframe': '3–7 days'},
+                    'economy_plus': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'},
+                    'economy': {'name': '🌐 Economy Mail', 'timeframe': '20–60 days'},
+                    'ecommerce': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'}
+                } %}
+                {% set shipping_info = shipping_method_map.get(order.shipping_mode_key, {'name': order.shipping_mode_key|title, 'timeframe': order.shipping_delivery_estimate or 'N/A'}) %}
+            {% endif %}
             <div class="mt-6 border-t border-slate-200 dark:border-slate-800 pt-6">
                 <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">🚚 Shipping Method</h3>
                 <div class="text-sm text-slate-600 dark:text-slate-300">

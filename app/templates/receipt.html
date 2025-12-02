@@ -205,13 +205,19 @@
 								</div>
 							</div>
 							{% elif order.shipping_mode_key %}
-							{% set shipping_method_map = {
-								'express': {'name': '✈️ DHL Express', 'timeframe': '3–7 days'},
-								'economy_plus': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'},
-								'economy': {'name': '🌐 Economy Mail', 'timeframe': '20–60 days'},
-								'ecommerce': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'}
-							} %}
-							{% set shipping_info = shipping_method_map.get(order.shipping_mode_key, {'name': order.shipping_mode_key|title, 'timeframe': order.shipping_delivery_estimate or 'N/A'}) %}
+							{# Use shipping_mode from backend if available (includes inactive methods for historical orders) #}
+							{% if shipping_mode %}
+								{% set shipping_info = {'name': shipping_mode.label, 'timeframe': shipping_mode.delivery_time_range or order.shipping_delivery_estimate or 'N/A'} %}
+							{% else %}
+								{# Fallback to hardcoded map if method not found in database #}
+								{% set shipping_method_map = {
+									'express': {'name': '✈️ DHL Express', 'timeframe': '3–7 days'},
+									'economy_plus': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'},
+									'economy': {'name': '🌐 Economy Mail', 'timeframe': '20–60 days'},
+									'ecommerce': {'name': '📦 eCommerce (Standard)', 'timeframe': '10–20 days'}
+								} %}
+								{% set shipping_info = shipping_method_map.get(order.shipping_mode_key, {'name': order.shipping_mode_key|title, 'timeframe': order.shipping_delivery_estimate or 'N/A'}) %}
+							{% endif %}
 							<div style="margin-top:16px; padding-top:16px; border-top:1px solid #e5e7eb;">
 								<h2 style="font-size:14px; margin-bottom:8px;">🚚 Shipping Method</h2>
 								<div class="label">Method</div>

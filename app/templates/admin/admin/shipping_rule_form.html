@@ -72,18 +72,26 @@
                     <label for="shipping_mode_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Shipping Method <span class="text-red-500">*</span>
                     </label>
-                    <select id="shipping_mode_key" 
-                            name="shipping_mode_key" 
-                            required
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                        <option value="">Select Shipping Method</option>
-                        {% for mode in shipping_modes %}
-                        <option value="{{ mode.key }}" {% if rule and rule.shipping_mode_key == mode.key %}selected{% endif %}>
-                            {{ mode.label }} {% if mode.delivery_time_range %}({{ mode.delivery_time_range }}){% endif %}
-                        </option>
-                        {% endfor %}
-                    </select>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select the shipping method this rule applies to</p>
+                    <div class="flex gap-2">
+                        <select id="shipping_mode_key" 
+                                name="shipping_mode_key" 
+                                required
+                                class="flex-1 rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                            <option value="">Select Shipping Method</option>
+                            {% for mode in shipping_modes %}
+                            <option value="{{ mode.key }}" {% if rule and rule.shipping_mode_key == mode.key %}selected{% endif %}>
+                                {{ mode.label }} {% if mode.delivery_time_range %}({{ mode.delivery_time_range }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" 
+                                id="add-shipping-method-btn"
+                                onclick="showAddShippingMethodModal()"
+                                class="px-4 py-2 border border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-500 rounded-md shadow-sm text-sm font-medium bg-white dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            <i class="fas fa-plus mr-1"></i> Add New
+                        </button>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select the shipping method this rule applies to, or add a new one</p>
                 </div>
 
                 <!-- Hidden fields for min/max weight - automatically set to 0.5 and 999999 -->
@@ -207,6 +215,194 @@ function toggleCountryField() {
 document.addEventListener('DOMContentLoaded', function() {
     toggleCountryField();
 });
+
+// Add New Shipping Method Modal
+function showAddShippingMethodModal() {
+    const modal = document.getElementById('add-shipping-method-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        document.getElementById('new-shipping-method-name').focus();
+    }
+}
+
+function hideAddShippingMethodModal() {
+    const modal = document.getElementById('add-shipping-method-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.getElementById('new-shipping-method-name').value = '';
+        document.getElementById('new-shipping-method-delivery-time').value = '';
+        document.getElementById('new-shipping-method-description').value = '';
+        document.getElementById('add-method-error').textContent = '';
+        document.getElementById('add-method-error').classList.add('hidden');
+    }
+}
+
+async function saveNewShippingMethod() {
+    const nameInput = document.getElementById('new-shipping-method-name');
+    const deliveryTimeInput = document.getElementById('new-shipping-method-delivery-time');
+    const descriptionInput = document.getElementById('new-shipping-method-description');
+    const errorDiv = document.getElementById('add-method-error');
+    const saveBtn = document.getElementById('save-new-method-btn');
+    
+    const name = nameInput.value.trim();
+    const deliveryTime = deliveryTimeInput.value.trim();
+    const description = descriptionInput.value.trim();
+    
+    // Validation
+    if (!name) {
+        errorDiv.textContent = 'Shipping method name is required';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+    
+    // Generate key from name (lowercase, replace spaces with underscores)
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    
+    if (!key) {
+        errorDiv.textContent = 'Invalid shipping method name';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+    
+    // Disable button and show loading
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
+    errorDiv.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/admin/api/shipping-methods', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify({
+                key: key,
+                label: name,
+                delivery_time_range: deliveryTime || null,
+                description: description || null
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Failed to create shipping method');
+        }
+        
+        // Add new option to dropdown
+        const select = document.getElementById('shipping_mode_key');
+        const option = document.createElement('option');
+        option.value = data.method.key;
+        option.textContent = data.method.label + (data.method.delivery_time_range ? ` (${data.method.delivery_time_range})` : '');
+        option.selected = true;
+        select.appendChild(option);
+        
+        // Close modal
+        hideAddShippingMethodModal();
+        
+        // Show success message
+        const successMsg = document.createElement('div');
+        successMsg.className = 'mb-4 px-4 py-3 rounded-lg text-sm bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40';
+        successMsg.textContent = `Shipping method "${name}" added successfully!`;
+        document.querySelector('.bg-white.dark\\:bg-gray-800').insertBefore(successMsg, document.querySelector('.bg-white.dark\\:bg-gray-800').firstChild);
+        
+        // Remove success message after 5 seconds
+        setTimeout(() => {
+            successMsg.remove();
+        }, 5000);
+        
+    } catch (error) {
+        console.error('Error saving shipping method:', error);
+        errorDiv.textContent = error.message || 'Failed to create shipping method. Please try again.';
+        errorDiv.classList.remove('hidden');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save mr-1"></i> Save';
+    }
+}
+
+// Close modal on backdrop click
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('add-shipping-method-modal');
+    if (modal && e.target === modal) {
+        hideAddShippingMethodModal();
+    }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        hideAddShippingMethodModal();
+    }
+});
 </script>
+
+<!-- Add New Shipping Method Modal -->
+<div id="add-shipping-method-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Add New Shipping Method</h3>
+                <button type="button" 
+                        onclick="hideAddShippingMethodModal()"
+                        class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label for="new-shipping-method-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Method Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                           id="new-shipping-method-name"
+                           placeholder="e.g., Premium Express"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                           onkeydown="if(event.key === 'Enter') saveNewShippingMethod()">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">A unique key will be generated automatically</p>
+                </div>
+                
+                <div>
+                    <label for="new-shipping-method-delivery-time" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Delivery Time Range
+                    </label>
+                    <input type="text" 
+                           id="new-shipping-method-delivery-time"
+                           placeholder="e.g., 5-10 days"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                           onkeydown="if(event.key === 'Enter') saveNewShippingMethod()">
+                </div>
+                
+                <div>
+                    <label for="new-shipping-method-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Description
+                    </label>
+                    <textarea id="new-shipping-method-description"
+                              rows="2"
+                              placeholder="Optional description..."
+                              class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"></textarea>
+                </div>
+                
+                <div id="add-method-error" class="hidden text-sm text-red-600 dark:text-red-400"></div>
+            </div>
+            
+            <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button type="button" 
+                        onclick="hideAddShippingMethodModal()"
+                        class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Cancel
+                </button>
+                <button type="button" 
+                        id="save-new-method-btn"
+                        onclick="saveNewShippingMethod()"
+                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <i class="fas fa-save mr-1"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
