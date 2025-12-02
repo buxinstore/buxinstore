@@ -175,6 +175,9 @@
                             Total
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            🚚 Shipping Method
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                             Status
                         </th>
                         <th scope="col" class="relative px-6 py-3">
@@ -216,6 +219,25 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                             D{{ "%.2f"|format(order.total) }}
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                            {% if order.shipping_mode_key %}
+                                {% set shipping_key = order.shipping_mode_key %}
+                                {% if shipping_key == 'ecommerce' %}
+                                    {% set shipping_key = 'economy_plus' %}
+                                {% endif %}
+                                {% if shipping_key == 'express' %}
+                                    ✈️ DHL Express
+                                {% elif shipping_key == 'economy_plus' %}
+                                    📦 eCommerce (Standard)
+                                {% elif shipping_key == 'economy' %}
+                                    🌐 Economy Mail
+                                {% else %}
+                                    🚚 {{ order.shipping_mode_key|title }}
+                                {% endif %}
+                            {% else %}
+                                <span class="text-gray-400 dark:text-gray-500">Not Selected</span>
+                            {% endif %}
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                                 {% if order.status == 'completed' %}
@@ -236,7 +258,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                        <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                             {% if country_filter %}
                                 No fully paid orders found for {{ country_filter }} in the selected date range.
                             {% else %}

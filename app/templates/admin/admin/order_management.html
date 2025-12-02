@@ -493,6 +493,7 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">📍 Address</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">📞 Phone</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">🌍 Location</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">🚚 Shipping Method</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">🚦 Status</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">⚙️ Actions</th>
                     </tr>
@@ -566,6 +567,29 @@
                                         🇬🇲 Gambia
                                     {% else %}
                                         🇨🇳 China
+                                    {% endif %}
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                {% if loop.first %}
+                                    {% if order.shipping_mode_key %}
+                                        {% set shipping_key = order.shipping_mode_key %}
+                                        {% if shipping_key == 'ecommerce' %}
+                                            {% set shipping_key = 'economy_plus' %}
+                                        {% endif %}
+                                        {% if shipping_key == 'express' %}
+                                            ✈️ DHL Express
+                                        {% elif shipping_key == 'economy_plus' %}
+                                            📦 eCommerce (Standard)
+                                        {% elif shipping_key == 'economy' %}
+                                            🌐 Economy Mail
+                                        {% else %}
+                                            🚚 {{ order.shipping_mode_key|title }}
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-gray-400 dark:text-gray-500">Not Selected</span>
                                     {% endif %}
                                 {% else %}
                                 <span class="text-gray-400">—</span>
