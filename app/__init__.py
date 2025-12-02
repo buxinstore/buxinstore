@@ -6518,7 +6518,7 @@ def admin_api_shipping_methods():
 def admin_api_delete_shipping_method(method_key):
     """Delete (soft delete) a shipping method. Preserves historical orders."""
     from app.shipping.models import ShippingMode, ShippingRule
-    from sqlalchemy import text
+    from sqlalchemy import text, inspect
     
     try:
         method = ShippingMode.query.filter_by(key=method_key).first_or_404()
@@ -6529,17 +6529,44 @@ def admin_api_delete_shipping_method(method_key):
             active=True
         ).count()
         
+        # Check if tables exist and get their actual names
+        inspector = inspect(db.engine)
+        tables = inspector.get_table_names()
+        order_table_name = None
+        if 'order' in tables:
+            order_table_name = 'order'
+        elif 'orders' in tables:
+            order_table_name = 'orders'
+        
+        pending_payments_table_exists = 'pending_payments' in tables
+        
         # Check if method is used in any orders (for information only - we'll soft delete)
-        order_count = db.session.execute(
-            text("SELECT COUNT(*) FROM orders WHERE shipping_mode_key = :key"),
-            {"key": method_key}
-        ).scalar()
+        order_count = 0
+        if order_table_name:
+            try:
+                columns = [col['name'] for col in inspector.get_columns(order_table_name)]
+                if 'shipping_mode_key' in columns:
+                    order_count = db.session.execute(
+                        text(f'SELECT COUNT(*) FROM "{order_table_name}" WHERE shipping_mode_key = :key'),
+                        {"key": method_key}
+                    ).scalar() or 0
+            except Exception as e:
+                current_app.logger.warning(f"Could not count orders for shipping method {method_key}: {e}")
+                order_count = 0
         
         # Check if method is used in any pending payments
-        pending_count = db.session.execute(
-            text("SELECT COUNT(*) FROM pending_payments WHERE shipping_mode_key = :key"),
-            {"key": method_key}
-        ).scalar()
+        pending_count = 0
+        if pending_payments_table_exists:
+            try:
+                columns = [col['name'] for col in inspector.get_columns('pending_payments')]
+                if 'shipping_mode_key' in columns:
+                    pending_count = db.session.execute(
+                        text("SELECT COUNT(*) FROM pending_payments WHERE shipping_mode_key = :key"),
+                        {"key": method_key}
+                    ).scalar() or 0
+            except Exception as e:
+                current_app.logger.warning(f"Could not count pending payments for shipping method {method_key}: {e}")
+                pending_count = 0
         
         # Soft delete: Set active=False instead of actually deleting
         # This preserves the method for historical orders while hiding it from new selections
@@ -6571,10 +6598,21 @@ def admin_api_delete_shipping_method(method_key):
 def admin_shipping_methods():
     """Admin page for managing shipping methods (list and delete)."""
     from app.shipping.models import ShippingMode, ShippingRule
-    from sqlalchemy import text
+    from sqlalchemy import text, inspect
     
     # Get all shipping methods (including inactive)
     methods = ShippingMode.query.order_by(ShippingMode.active.desc(), ShippingMode.id).all()
+    
+    # Check if tables exist and get their actual names
+    inspector = inspect(db.engine)
+    tables = inspector.get_table_names()
+    order_table_name = None
+    if 'order' in tables:
+        order_table_name = 'order'
+    elif 'orders' in tables:
+        order_table_name = 'orders'
+    
+    pending_payments_table_exists = 'pending_payments' in tables
     
     # Get usage statistics for each method
     methods_with_stats = []
@@ -6585,17 +6623,35 @@ def admin_shipping_methods():
             active=True
         ).count()
         
-        # Count orders using this method
-        order_count = db.session.execute(
-            text("SELECT COUNT(*) FROM orders WHERE shipping_mode_key = :key"),
-            {"key": method.key}
-        ).scalar()
+        # Count orders using this method (if table exists)
+        order_count = 0
+        if order_table_name:
+            try:
+                # Check if shipping_mode_key column exists
+                columns = [col['name'] for col in inspector.get_columns(order_table_name)]
+                if 'shipping_mode_key' in columns:
+                    order_count = db.session.execute(
+                        text(f'SELECT COUNT(*) FROM "{order_table_name}" WHERE shipping_mode_key = :key'),
+                        {"key": method.key}
+                    ).scalar() or 0
+            except Exception as e:
+                current_app.logger.warning(f"Could not count orders for shipping method {method.key}: {e}")
+                order_count = 0
         
-        # Count pending payments
-        pending_count = db.session.execute(
-            text("SELECT COUNT(*) FROM pending_payments WHERE shipping_mode_key = :key"),
-            {"key": method.key}
-        ).scalar()
+        # Count pending payments (if table exists)
+        pending_count = 0
+        if pending_payments_table_exists:
+            try:
+                # Check if shipping_mode_key column exists
+                columns = [col['name'] for col in inspector.get_columns('pending_payments')]
+                if 'shipping_mode_key' in columns:
+                    pending_count = db.session.execute(
+                        text("SELECT COUNT(*) FROM pending_payments WHERE shipping_mode_key = :key"),
+                        {"key": method.key}
+                    ).scalar() or 0
+            except Exception as e:
+                current_app.logger.warning(f"Could not count pending payments for shipping method {method.key}: {e}")
+                pending_count = 0
         
         methods_with_stats.append({
             'method': method,

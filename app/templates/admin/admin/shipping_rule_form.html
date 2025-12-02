@@ -3,110 +3,121 @@
 {% block header %}{{ 'Edit Shipping Rule' if rule else 'Add Shipping Rule' }}{% endblock %}
 
 {% block content %}
-<div class="py-4">
-    <div class="mb-4">
+<div class="py-6">
+    <!-- Back Button -->
+    <div class="mb-6">
         <a href="{{ url_for('admin_shipping_rules') }}" 
-           class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+           class="inline-flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
             <i class="fas fa-arrow-left mr-2"></i> Back to Shipping Rules
         </a>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 shadow rounded-md p-6">
-        <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-            {{ 'Edit Shipping Rule' if rule else 'Add New Shipping Rule' }}
-        </h2>
+    <!-- Page Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            {{ 'Edit Shipping Rule' if rule else 'Add Shipping Rule' }}
+        </h1>
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+            Add a new shipping rule that defines how shipping is priced for a specific country and method.
+        </p>
+    </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-4 space-y-2">
-                    {% for category, message in messages %}
-                        <div class="px-4 py-3 rounded-lg text-sm {% if category == 'success' %}bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40{% elif category == 'warning' %}bg-yellow-50 text-yellow-700 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-700/40{% else %}bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40{% endif %}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-6 space-y-3">
+                {% for category, message in messages %}
+                    <div class="px-4 py-3 rounded-lg text-sm {% if category == 'success' %}bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40{% elif category == 'warning' %}bg-yellow-50 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-700/40{% else %}bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
 
-        <form method="POST" class="space-y-6">
+    <!-- Form Card -->
+    <div class="bg-white dark:bg-gray-800 shadow-sm rounded-lg border border-gray-200 dark:border-gray-700">
+        <form method="POST" class="p-8">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <!-- Hidden fields for min/max weight -->
+            <input type="hidden" id="min_weight" name="min_weight" value="0.5">
+            <input type="hidden" id="max_weight" name="max_weight" value="999999">
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-8">
+                <!-- Section 1: Rule Type -->
                 <div>
-                    <label for="rule_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Rule Type <span class="text-red-500">*</span>
+                    <label for="rule_type" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        1. Rule Type <span class="text-red-500">*</span>
                     </label>
                     <select id="rule_type" 
                             name="rule_type" 
                             required
                             onchange="toggleCountryField()"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                            class="w-full max-w-md rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
                         <option value="country" {% if rule and rule.rule_type == 'country' %}selected{% endif %}>Country-Specific</option>
-                        <option value="global" {% if rule and rule.rule_type == 'global' %}selected{% endif %}>Global (All Countries)</option>
+                        <option value="global" {% if rule and rule.rule_type == 'global' %}selected{% endif %}>Global Rule</option>
                     </select>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Global rules apply to all countries when no country-specific rule matches</p>
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400 max-w-md">
+                        Country rules override global rules. Global rules apply only when no country-specific rule exists.
+                    </p>
                 </div>
 
+                <!-- Section 2: Country -->
                 <div id="country-field">
-                    <label for="country_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Country <span class="text-red-500" id="country-required">*</span>
+                    <label for="country_id" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        2. Country <span class="text-red-500" id="country-required">*</span>
                     </label>
                     <select id="country_id" 
                             name="country_id" 
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                            class="w-full max-w-md rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
                         <option value="">Select Country</option>
                         {% for country in countries %}
                         <option value="{{ country.id }}" 
                                 {% if rule and rule.country_iso == country.code %}selected{% endif %}
-                                data-flag="{{ country.get_flag_url() }}"
-                                data-name="{{ country.name }}"
                                 data-code="{{ country.code }}">
                             {{ country.name }} ({{ country.code }})
                         </option>
                         {% endfor %}
                     </select>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select the country this rule applies to</p>
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400 max-w-md">
+                        Choose the country this shipping rule applies to.
+                    </p>
                 </div>
 
+                <!-- Section 3: Shipping Method -->
                 <div>
-                    <label for="shipping_mode_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Shipping Method <span class="text-red-500">*</span>
+                    <label for="shipping_mode_key" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        3. Shipping Method <span class="text-red-500">*</span>
                     </label>
-                    <div class="flex gap-2">
+                    <div class="flex gap-3 max-w-md">
                         <select id="shipping_mode_key" 
                                 name="shipping_mode_key" 
                                 required
-                                class="flex-1 rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                                class="flex-1 rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
                             <option value="">Select Shipping Method</option>
                             {% for mode in shipping_modes %}
                             <option value="{{ mode.key }}" {% if rule and rule.shipping_mode_key == mode.key %}selected{% endif %}>
-                                {{ mode.label }} {% if mode.delivery_time_range %}({{ mode.delivery_time_range }}){% endif %}
+                                {{ mode.label }}{% if mode.delivery_time_range %} ({{ mode.delivery_time_range }}){% endif %}
                             </option>
                             {% endfor %}
                         </select>
                         <button type="button" 
                                 id="add-shipping-method-btn"
                                 onclick="showAddShippingMethodModal()"
-                                class="px-4 py-2 border border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-500 rounded-md shadow-sm text-sm font-medium bg-white dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                            <i class="fas fa-plus mr-1"></i> Add New
+                                class="px-4 py-2 border border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-500 rounded-lg shadow-sm text-sm font-medium bg-white dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors whitespace-nowrap">
+                            <i class="fas fa-plus mr-1.5"></i> Add New Method
                         </button>
                     </div>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Select the shipping method this rule applies to, or add a new one</p>
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400 max-w-md">
+                        Choose a shipping method (e.g., Express, DHL eCommerce, Economy). If the method does not exist, click <strong>Add New Method</strong> to create it instantly.
+                    </p>
                 </div>
 
-                <!-- Hidden fields for min/max weight - automatically set to 0.5 and 999999 -->
-                <input type="hidden" 
-                       id="min_weight" 
-                       name="min_weight" 
-                       value="0.5">
-                <input type="hidden" 
-                       id="max_weight" 
-                       name="max_weight" 
-                       value="999999">
-
+                <!-- Section 4: Base Price -->
                 <div>
-                    <label for="price_gmd" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Base Price for 0.5 kg (GMD) <span class="text-red-500">*</span>
+                    <label for="price_gmd" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        4. Base Price for 0.5 kg (GMD) <span class="text-red-500">*</span>
                     </label>
                     <input type="number" 
                            id="price_gmd" 
@@ -115,76 +126,95 @@
                            min="0"
                            value="{{ "%.2f"|format(rule.price_gmd) if rule else '0.00' }}" 
                            required
-                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        <strong>New Simplified System:</strong> Enter the base price for 0.5 kg. 
-                        The system will automatically calculate shipping for any weight using the formula: 
-                        <strong>(Product Weight / 0.5) × Base Price</strong>
-                    </p>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Example: If base price is D30 for 0.5kg, a 1.5kg product = (1.5 / 0.5) × 30 = D90
-                    </p>
+                           placeholder="0.00"
+                           class="w-full max-w-md rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
+                    <div class="mt-3 max-w-md">
+                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                            Enter the price for 0.5 kg of shipping. The system will automatically calculate prices for any weight using:
+                        </p>
+                        <div class="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                            <p class="text-xs font-mono text-gray-800 dark:text-gray-200 mb-2">
+                                <strong>Formula:</strong>
+                            </p>
+                            <p class="text-xs font-mono text-gray-800 dark:text-gray-200 mb-3">
+                                Total Shipping = (Product Weight ÷ 0.5) × Base Price
+                            </p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400">
+                                <strong>Example:</strong> If Base Price = D30, and product weight = 1.5kg,<br>
+                                Shipping = (1.5 ÷ 0.5) × 30 = <strong>D90</strong>
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
+                <!-- Section 5: Delivery Time -->
                 <div>
-                    <label for="delivery_time" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Delivery Time
+                    <label for="delivery_time" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        5. Delivery Time <span class="text-gray-500 dark:text-gray-400 text-xs font-normal">(optional)</span>
                     </label>
                     <input type="text" 
                            id="delivery_time" 
                            name="delivery_time" 
                            value="{{ rule.delivery_time if rule else '' }}" 
-                           placeholder="e.g., 7-30 days"
+                           placeholder="e.g., 7–30 days"
                            maxlength="100"
-                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Estimated delivery time (optional)</p>
+                           class="w-full max-w-md rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
                 </div>
 
+                <!-- Section 6: Priority -->
                 <div>
-                    <label for="priority" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Priority
+                    <label for="priority" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        6. Priority
                     </label>
                     <input type="number" 
                            id="priority" 
                            name="priority" 
                            value="{{ rule.priority if rule else '0' }}" 
                            min="0"
-                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Higher priority rules are checked first (default: 0)</p>
+                           class="w-full max-w-md rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400 max-w-md">
+                        Higher priority rules override lower ones. Default = 0.
+                    </p>
                 </div>
 
+                <!-- Section 7: Active -->
                 <div>
-                    <label for="active" class="flex items-center">
+                    <label for="active" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        7. Active
+                    </label>
+                    <div class="flex items-center">
                         <input type="checkbox" 
                                id="active" 
                                name="active" 
                                {% if not rule or rule.active %}checked{% endif %}
-                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
-                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
+                               class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                        <label for="active" class="ml-3 text-sm text-gray-700 dark:text-gray-300">
+                            Only active rules are used in shipping calculation.
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Section 8: Notes -->
+                <div>
+                    <label for="notes" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        8. Notes <span class="text-gray-500 dark:text-gray-400 text-xs font-normal">(optional)</span>
                     </label>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Only active rules are used for shipping calculations</p>
+                    <textarea id="notes" 
+                              name="notes" 
+                              rows="4"
+                              placeholder="Internal notes for your team..."
+                              class="w-full max-w-2xl rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">{{ rule.notes if rule else '' }}</textarea>
                 </div>
             </div>
 
-            <div>
-                <label for="notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Notes
-                </label>
-                <textarea id="notes" 
-                          name="notes" 
-                          rows="3"
-                          placeholder="Optional notes about this rule..."
-                          class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">{{ rule.notes if rule else '' }}</textarea>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional notes for internal reference</p>
-            </div>
-
-            <div class="flex justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <!-- Form Actions -->
+            <div class="flex justify-end gap-4 pt-8 mt-8 border-t border-gray-200 dark:border-gray-700">
                 <a href="{{ url_for('admin_shipping_rules') }}" 
-                   class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                   class="px-6 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                     Cancel
                 </a>
                 <button type="submit" 
-                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        class="px-6 py-2.5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
                     {{ 'Update Rule' if rule else 'Create Rule' }}
                 </button>
             </div>
@@ -192,7 +222,79 @@
     </div>
 </div>
 
+<!-- Add New Shipping Method Modal -->
+<div id="add-shipping-method-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+    <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-gray-700">
+        <div class="p-6">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add New Shipping Method</h3>
+                <button type="button" 
+                        onclick="hideAddShippingMethodModal()"
+                        class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="space-y-5">
+                <div>
+                    <label for="new-shipping-method-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Method Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" 
+                           id="new-shipping-method-name"
+                           placeholder="e.g., Premium Express"
+                           class="w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                           onkeydown="if(event.key === 'Enter') event.preventDefault(); saveNewShippingMethod();">
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">A unique key will be generated automatically</p>
+                </div>
+                
+                <div>
+                    <label for="new-shipping-method-delivery-time" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Delivery Time Range
+                    </label>
+                    <input type="text" 
+                           id="new-shipping-method-delivery-time"
+                           placeholder="e.g., 5-10 days"
+                           class="w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                           onkeydown="if(event.key === 'Enter') event.preventDefault(); saveNewShippingMethod();">
+                </div>
+                
+                <div>
+                    <label for="new-shipping-method-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Description
+                    </label>
+                    <textarea id="new-shipping-method-description"
+                              rows="3"
+                              placeholder="Optional description..."
+                              class="w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"></textarea>
+                </div>
+                
+                <!-- Error Message -->
+                <div id="add-method-error" class="hidden px-4 py-3 rounded-lg text-sm bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-700/40"></div>
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button type="button" 
+                        onclick="hideAddShippingMethodModal()"
+                        class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                    Cancel
+                </button>
+                <button type="button" 
+                        id="save-new-method-btn"
+                        onclick="saveNewShippingMethod()"
+                        class="px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                    <i class="fas fa-save mr-1.5"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+// Toggle country field based on rule type
 function toggleCountryField() {
     const ruleType = document.getElementById('rule_type').value;
     const countryField = document.getElementById('country-field');
@@ -216,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
     toggleCountryField();
 });
 
-// Add New Shipping Method Modal
+// Add New Shipping Method Modal Functions
 function showAddShippingMethodModal() {
     const modal = document.getElementById('add-shipping-method-modal');
     if (modal) {
@@ -232,8 +334,9 @@ function hideAddShippingMethodModal() {
         document.getElementById('new-shipping-method-name').value = '';
         document.getElementById('new-shipping-method-delivery-time').value = '';
         document.getElementById('new-shipping-method-description').value = '';
-        document.getElementById('add-method-error').textContent = '';
-        document.getElementById('add-method-error').classList.add('hidden');
+        const errorDiv = document.getElementById('add-method-error');
+        errorDiv.textContent = '';
+        errorDiv.classList.add('hidden');
     }
 }
 
@@ -248,10 +351,15 @@ async function saveNewShippingMethod() {
     const deliveryTime = deliveryTimeInput.value.trim();
     const description = descriptionInput.value.trim();
     
+    // Clear previous errors
+    errorDiv.classList.add('hidden');
+    errorDiv.textContent = '';
+    
     // Validation
     if (!name) {
-        errorDiv.textContent = 'Shipping method name is required';
+        errorDiv.textContent = 'Please enter a shipping method name.';
         errorDiv.classList.remove('hidden');
+        nameInput.focus();
         return;
     }
     
@@ -259,15 +367,16 @@ async function saveNewShippingMethod() {
     const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     
     if (!key) {
-        errorDiv.textContent = 'Invalid shipping method name';
+        errorDiv.textContent = 'Please enter a valid shipping method name.';
         errorDiv.classList.remove('hidden');
+        nameInput.focus();
         return;
     }
     
     // Disable button and show loading
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
-    errorDiv.classList.add('hidden');
+    const originalBtnText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i> Saving...';
     
     try {
         const response = await fetch('/admin/api/shipping-methods', {
@@ -287,7 +396,7 @@ async function saveNewShippingMethod() {
         const data = await response.json();
         
         if (!response.ok || !data.success) {
-            throw new Error(data.message || 'Failed to create shipping method');
+            throw new Error(data.message || 'Failed to create shipping method. Please try again.');
         }
         
         // Add new option to dropdown
@@ -301,11 +410,12 @@ async function saveNewShippingMethod() {
         // Close modal
         hideAddShippingMethodModal();
         
-        // Show success message
+        // Show success message at top of form
+        const formCard = document.querySelector('.bg-white.dark\\:bg-gray-800');
         const successMsg = document.createElement('div');
-        successMsg.className = 'mb-4 px-4 py-3 rounded-lg text-sm bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40';
-        successMsg.textContent = `Shipping method "${name}" added successfully!`;
-        document.querySelector('.bg-white.dark\\:bg-gray-800').insertBefore(successMsg, document.querySelector('.bg-white.dark\\:bg-gray-800').firstChild);
+        successMsg.className = 'mb-6 px-4 py-3 rounded-lg text-sm bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-700/40';
+        successMsg.innerHTML = `<i class="fas fa-check-circle mr-2"></i> Shipping method "${name}" added successfully!`;
+        formCard.insertBefore(successMsg, formCard.firstChild);
         
         // Remove success message after 5 seconds
         setTimeout(() => {
@@ -314,11 +424,11 @@ async function saveNewShippingMethod() {
         
     } catch (error) {
         console.error('Error saving shipping method:', error);
-        errorDiv.textContent = error.message || 'Failed to create shipping method. Please try again.';
+        errorDiv.textContent = error.message || 'Something went wrong. Please try again.';
         errorDiv.classList.remove('hidden');
     } finally {
         saveBtn.disabled = false;
-        saveBtn.innerHTML = '<i class="fas fa-save mr-1"></i> Save';
+        saveBtn.innerHTML = originalBtnText;
     }
 }
 
@@ -333,76 +443,11 @@ document.addEventListener('click', function(e) {
 // Close modal on Escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        hideAddShippingMethodModal();
+        const modal = document.getElementById('add-shipping-method-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+            hideAddShippingMethodModal();
+        }
     }
 });
 </script>
-
-<!-- Add New Shipping Method Modal -->
-<div id="add-shipping-method-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
-        <div class="mt-3">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Add New Shipping Method</h3>
-                <button type="button" 
-                        onclick="hideAddShippingMethodModal()"
-                        class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <div class="space-y-4">
-                <div>
-                    <label for="new-shipping-method-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Method Name <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" 
-                           id="new-shipping-method-name"
-                           placeholder="e.g., Premium Express"
-                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                           onkeydown="if(event.key === 'Enter') saveNewShippingMethod()">
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">A unique key will be generated automatically</p>
-                </div>
-                
-                <div>
-                    <label for="new-shipping-method-delivery-time" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Delivery Time Range
-                    </label>
-                    <input type="text" 
-                           id="new-shipping-method-delivery-time"
-                           placeholder="e.g., 5-10 days"
-                           class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                           onkeydown="if(event.key === 'Enter') saveNewShippingMethod()">
-                </div>
-                
-                <div>
-                    <label for="new-shipping-method-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Description
-                    </label>
-                    <textarea id="new-shipping-method-description"
-                              rows="2"
-                              placeholder="Optional description..."
-                              class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"></textarea>
-                </div>
-                
-                <div id="add-method-error" class="hidden text-sm text-red-600 dark:text-red-400"></div>
-            </div>
-            
-            <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <button type="button" 
-                        onclick="hideAddShippingMethodModal()"
-                        class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                    Cancel
-                </button>
-                <button type="button" 
-                        id="save-new-method-btn"
-                        onclick="saveNewShippingMethod()"
-                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    <i class="fas fa-save mr-1"></i> Save
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
-
