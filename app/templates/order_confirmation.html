@@ -30,10 +30,6 @@
                     <span class="text-slate-900 dark:text-white">{{ order.created_at.strftime('%B %d, %Y') }}</span>
                 </div>
                 <div class="flex justify-between text-sm text-slate-600 dark:text-slate-300">
-                    <span>Total</span>
-                    <span class="text-slate-900 dark:text-white font-semibold">D{{ "%.2f"|format(order.total) }}</span>
-                </div>
-                <div class="flex justify-between text-sm text-slate-600 dark:text-slate-300">
                     <span>Payment Method</span>
                     <span class="text-slate-900 dark:text-white font-medium">
                         {% if order.payment_method == 'wave' %}
@@ -44,30 +40,135 @@
                             AfriMoney
                         {% elif order.payment_method == 'ecobank' %}
                             ECOBANK Mobile
+                        {% elif order.payment_method == 'modempay' %}
+                            ModemPay
                         {% else %}
-                            Cash on Delivery
+                            {{ order.payment_method|title if order.payment_method else 'Not specified' }}
                         {% endif %}
                     </span>
                 </div>
             </div>
             
-            <div class="mt-6 space-y-4">
+            <!-- Order Items -->
+            {% if order.items %}
+            <div class="mt-6 border-t border-slate-200 dark:border-slate-800 pt-6">
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-4">Order Items</h3>
+                <div class="space-y-4">
+                    {% for item in order.items %}
+                    <div class="flex items-start gap-4">
+                        <div class="flex-shrink-0 w-16 h-16 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                            {% if item.product and item.product.image %}
+                                <img src="{{ item.product.image|product_image_url }}" alt="{{ item.product.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/placeholder-product.png') }}';">
+                            {% else %}
+                                <img src="{{ url_for('static', filename='images/placeholder-product.png') }}" alt="Product" class="w-full h-full object-cover">
+                            {% endif %}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h4 class="text-sm font-medium text-slate-900 dark:text-white">{{ item.product.name if item.product else 'Product #' ~ item.product_id }}</h4>
+                            <div class="mt-1 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
+                                <span>Qty: {{ item.quantity }}</span>
+                                <span class="font-medium text-slate-900 dark:text-white">D{{ "%.2f"|format(item.price * item.quantity) }}</span>
+                            </div>
+                            <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                D{{ "%.2f"|format(item.price) }} each
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Order Totals -->
+            {% set item_subtotal = 0 %}
+            {% for item in order.items %}
+                {% set item_subtotal = item_subtotal + (item.price * item.quantity) %}
+            {% endfor %}
+            {% set shipping_cost = order.shipping_price or order.shipping_price_gmd or 0 %}
+            <div class="mt-6 border-t border-slate-200 dark:border-slate-800 pt-6 space-y-3">
+                <div class="flex justify-between text-sm text-slate-600 dark:text-slate-300">
+                    <span>Subtotal</span>
+                    <span class="text-slate-900 dark:text-white">D{{ "%.2f"|format(item_subtotal) }}</span>
+                </div>
+                {% if shipping_cost > 0 %}
+                <div class="flex justify-between text-sm text-slate-600 dark:text-slate-300">
+                    <span>Shipping</span>
+                    <span class="text-slate-900 dark:text-white">D{{ "%.2f"|format(shipping_cost) }}</span>
+                </div>
+                {% endif %}
+                <div class="flex justify-between text-base font-semibold text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-800 pt-3">
+                    <span>Total</span>
+                    <span>D{{ "%.2f"|format(order.total) }}</span>
+                </div>
+            </div>
+            
+            <!-- Shipping Method -->
+            {% if order.shipping_mode_key %}
+            {% set shipping_method_map = {
+                'express': {'name': 'DHL Express (Fast)', 'timeframe': '3–7 days'},
+                'economy_plus': {'name': 'DHL eCommerce (Standard)', 'timeframe': '10–20 days'},
+                'economy': {'name': 'Economy Mail (PO Pickup)', 'timeframe': '20–60 days'},
+                'ecommerce': {'name': 'DHL eCommerce (Standard)', 'timeframe': '10–20 days'}
+            } %}
+            {% set shipping_info = shipping_method_map.get(order.shipping_mode_key, {'name': order.shipping_mode_key|title, 'timeframe': order.shipping_delivery_estimate or 'N/A'}) %}
+            <div class="mt-6 border-t border-slate-200 dark:border-slate-800 pt-6">
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">Shipping Method</h3>
+                <div class="text-sm text-slate-600 dark:text-slate-300">
+                    <div class="font-medium text-slate-900 dark:text-white">{{ shipping_info.name }}</div>
+                    <div class="mt-1 text-slate-500 dark:text-slate-400">Delivery: {{ shipping_info.timeframe }}</div>
+                    {% if shipping_cost > 0 %}
+                    <div class="mt-1 text-slate-500 dark:text-slate-400">Cost: D{{ "%.2f"|format(shipping_cost) }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Customer Information -->
+            <div class="mt-6 border-t border-slate-200 dark:border-slate-800 pt-6 space-y-4">
                 <div>
-                    <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Delivery Address</h3>
-                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ order.delivery_address }}</p>
+                    <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">Customer Information</h3>
+                    <div class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        <div>
+                            <span class="font-medium">Name:</span>
+                            <span class="ml-2 text-slate-900 dark:text-white">{{ order.customer_name or (order.customer.username if order.customer else 'N/A') }}</span>
+                        </div>
+                        {% if order.customer %}
+                        <div>
+                            <span class="font-medium">Email:</span>
+                            <span class="ml-2 text-slate-900 dark:text-white">{{ order.customer.email }}</span>
+                        </div>
+                        {% endif %}
+                        {% if order.customer_phone %}
+                        <div>
+                            <span class="font-medium">Phone:</span>
+                            <span class="ml-2 text-slate-900 dark:text-white">{{ order.customer_phone }}</span>
+                        </div>
+                        {% endif %}
+                        {% if order.location %}
+                        <div>
+                            <span class="font-medium">Country:</span>
+                            <span class="ml-2 text-slate-900 dark:text-white">{{ order.location }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
                 
                 <div>
-                    <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Order Status</h3>
+                    <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">Delivery Address</h3>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ order.delivery_address or order.customer_address or 'N/A' }}</p>
+                </div>
+                
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">Order Status</h3>
                     <div class="mt-2">
                         <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium 
-                            {% if order.status == 'pending' %}
+                            {% if order.status == 'pending' or order.status == 'Pending' %}
                                 bg-amber-500/15 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300
-                            {% elif order.status == 'processing' %}
+                            {% elif order.status == 'processing' or order.status == 'Processing' %}
                                 bg-blue-500/15 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300
-                            {% elif order.status == 'shipped' %}
+                            {% elif order.status == 'shipped' or order.status == 'Shipped' %}
                                 bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300
-                            {% elif order.status == 'delivered' %}
+                            {% elif order.status == 'delivered' or order.status == 'Delivered' %}
                                 bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300
                             {% else %}
                                 bg-rose-500/15 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300
@@ -83,6 +184,10 @@
         <div class="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-6">
             <a href="{{ url_for('home') }}" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
                 Continue Shopping
+            </a>
+            <a href="{{ url_for('payments.payment_receipt', order_id=order.id) }}" target="_blank" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900/60 hover:border-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
+                <i class="fas fa-download"></i>
+                Download Receipt (PDF)
             </a>
             <a href="{{ url_for('orders') }}" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900/60 hover:border-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
                 View Order History

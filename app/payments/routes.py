@@ -291,6 +291,10 @@ def payment_success():
     # ModemPay can send different param names; accept all common ones
     transaction_id = request.args.get('transaction_id') or request.args.get('intent') or request.args.get('id')
     order_id_param = request.args.get('order_id', type=int)
+    
+    # Variable to store order_id for redirect
+    order_id = None
+    
     # Eagerly mark payment completed on success redirect when we can identify it.
     # This ensures the app shows 'Completed' immediately, even if webhook is delayed.
     try:
@@ -311,11 +315,15 @@ def payment_success():
                 if payment.pending_payment_id and not payment.order_id:
                     try:
                         result = PaymentService.convert_pending_payment_to_order(payment.pending_payment_id)
+                        converted_order_id = result.get('order_id')
                         current_app.logger.info(
-                            f"✅ Payment Success Callback: Converted PendingPayment {payment.pending_payment_id} to Order {result.get('order_id')}"
+                            f"✅ Payment Success Callback: Converted PendingPayment {payment.pending_payment_id} to Order {converted_order_id}"
                         )
                         # Refresh payment to get updated order_id
                         db.session.refresh(payment)
+                        # Store order_id from conversion result
+                        if converted_order_id:
+                            order_id = converted_order_id
                     except Exception as e:
                         current_app.logger.error(
                             f"❌ Payment Success Callback: Failed to convert PendingPayment {payment.pending_payment_id} to Order: {str(e)}"
@@ -324,6 +332,13 @@ def payment_success():
                 # Update order status if order exists
                 if payment.order:
                     payment.order.status = 'paid'
+                    # Get order_id from order if not already set
+                    if not order_id:
+                        order_id = payment.order.id
+                
+                # Get order_id from payment if not already set
+                if not order_id and payment.order_id:
+                    order_id = payment.order_id
                 
                 db.session.commit()
                 # Send receipt email (best effort, via Resend email queue)
@@ -391,8 +406,18 @@ def payment_success():
     except Exception as _e:
         current_app.logger.error(f"Error eager-updating payment on success redirect: {_e}")
     
-    # Always redirect to receipt page with whatever identifiers we have
-    return redirect(url_for('payments.payment_receipt', reference=reference, transaction_id=transaction_id, order_id=order_id_param))
+    # Use order_id_param as fallback if order_id wasn't set from payment
+    if not order_id:
+        order_id = order_id_param
+    
+    # Redirect to order confirmation page if we have an order_id
+    if order_id:
+        # Redirect to order confirmation page (route is in main app, not blueprint)
+        return redirect(f'/order-confirmation/{order_id}')
+    else:
+        # Fallback: redirect to receipt page if we can't determine order_id
+        current_app.logger.warning("Could not determine order_id for redirect, falling back to receipt page")
+        return redirect(url_for('payments.payment_receipt', reference=reference, transaction_id=transaction_id, order_id=order_id_param))
 
 
 @payment_bp.route('/receipt', methods=['GET'])
@@ -402,19 +427,33 @@ def payment_receipt():
     Accepts ?reference=... or ?transaction_id=... (intent).
     """
     try:
+        from sqlalchemy.orm import joinedload
+        from app.payments.models import Payment
+        # Import Order and OrderItem from main app module
+        from app import Order, OrderItem
+        
         reference = request.args.get('reference')
         transaction_id = request.args.get('transaction_id')
         order_id_param = request.args.get('order_id', type=int)
 
-        from app.payments.models import Payment
         payment = None
 
+        # Eagerly load relationships to avoid N+1 queries
         if reference:
-            payment = Payment.query.filter_by(reference=reference).first()
+            payment = Payment.query.options(
+                joinedload(Payment.order).joinedload(Order.items).joinedload(OrderItem.product),
+                joinedload(Payment.order).joinedload(Order.customer)
+            ).filter_by(reference=reference).first()
         if not payment and transaction_id:
-            payment = Payment.query.filter_by(transaction_id=transaction_id).first()
+            payment = Payment.query.options(
+                joinedload(Payment.order).joinedload(Order.items).joinedload(OrderItem.product),
+                joinedload(Payment.order).joinedload(Order.customer)
+            ).filter_by(transaction_id=transaction_id).first()
         if not payment and order_id_param:
-            payment = Payment.query.filter_by(order_id=order_id_param).order_by(Payment.id.desc()).first()
+            payment = Payment.query.options(
+                joinedload(Payment.order).joinedload(Order.items).joinedload(OrderItem.product),
+                joinedload(Payment.order).joinedload(Order.customer)
+            ).filter_by(order_id=order_id_param).order_by(Payment.id.desc()).first()
 
         order = getattr(payment, 'order', None) if payment else None
         order_items = getattr(order, 'items', []) if order else []

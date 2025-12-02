@@ -176,6 +176,7 @@
                                 <th class="p-3 text-left font-semibold hidden lg:table-cell">🌍 Country / 国家</th>
                                 <th class="p-3 text-left font-semibold hidden lg:table-cell">📍 Address / 地址</th>
                                 <th class="p-3 text-left font-semibold hidden sm:table-cell">🌍 Location / 位置</th>
+                                <th class="p-3 text-left font-semibold hidden md:table-cell">🚚 Shipping Method / 运输方式</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -215,7 +216,7 @@
                                     <td class="p-3">
                                         <span class="text-gray-900 dark:text-white font-medium">{{ item.product.name }}</span>
                                         {% if loop.first %}
-                                            <!-- Mobile: Show quantity, country, and address on small screens -->
+                                            <!-- Mobile: Show quantity, country, address, and shipping method on small screens -->
                                             <div class="sm:hidden mt-2 space-y-1 text-xs text-gray-500 dark:text-gray-400">
                                                 <div><strong>Qty:</strong> {{ item.quantity }}</div>
                                                 {% set order_country = order.customer.profile.country if (order.customer and order.customer.profile and order.customer.profile.country) else None %}
@@ -238,6 +239,23 @@
                                                             {% if profile.postal_code %} {{ profile.postal_code }}{% endif %}
                                                         </div>
                                                     {% endif %}
+                                                {% endif %}
+                                                {% if order.shipping_mode_key %}
+                                                    {% set shipping_key = order.shipping_mode_key %}
+                                                    {% if shipping_key == 'ecommerce' %}
+                                                        {% set shipping_key = 'economy_plus' %}
+                                                    {% endif %}
+                                                    <div><strong>🚚 Shipping:</strong> 
+                                                        {% if shipping_key == 'express' %}
+                                                            Express (Fast)
+                                                        {% elif shipping_key == 'economy_plus' %}
+                                                            eCommerce (Standard)
+                                                        {% elif shipping_key == 'economy' %}
+                                                            Economy Mail (PO Pickup)
+                                                        {% else %}
+                                                            {{ order.shipping_mode_key|title }}
+                                                        {% endif %}
+                                                    </div>
                                                 {% endif %}
                                             </div>
                                         {% endif %}
@@ -296,6 +314,29 @@
                                                 <span class="text-gray-700 dark:text-gray-300">🇬🇲 Available in Gambia / 在冈比亚</span>
                                             {% else %}
                                                 <span class="text-gray-700 dark:text-gray-300">🇨🇳 Shipped from China / 中国发货</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-gray-400">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-3 hidden md:table-cell">
+                                        {% if loop.first %}
+                                            {% if order.shipping_mode_key %}
+                                                {% set shipping_key = order.shipping_mode_key %}
+                                                {% if shipping_key == 'ecommerce' %}
+                                                    {% set shipping_key = 'economy_plus' %}
+                                                {% endif %}
+                                                {% if shipping_key == 'express' %}
+                                                    <span class="text-gray-700 dark:text-gray-300 font-medium">🚀 Express (Fast)</span>
+                                                {% elif shipping_key == 'economy_plus' %}
+                                                    <span class="text-gray-700 dark:text-gray-300 font-medium">📦 eCommerce (Standard)</span>
+                                                {% elif shipping_key == 'economy' %}
+                                                    <span class="text-gray-700 dark:text-gray-300 font-medium">📮 Economy Mail (PO Pickup)</span>
+                                                {% else %}
+                                                    <span class="text-gray-500 dark:text-gray-400">{{ order.shipping_mode_key|title }}</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-gray-400 dark:text-gray-500">N/A</span>
                                             {% endif %}
                                         {% else %}
                                             <span class="text-gray-400">—</span>

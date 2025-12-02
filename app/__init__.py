@@ -14041,7 +14041,13 @@ def update_order_status(order_id):
 @login_required
 def order_confirmation(order_id):
     """Display order confirmation page"""
-    order = Order.query.get_or_404(order_id)
+    from sqlalchemy.orm import joinedload
+    # Eagerly load relationships to avoid N+1 queries
+    # customer is a backref from User model
+    order = Order.query.options(
+        joinedload(Order.items).joinedload(OrderItem.product),
+        joinedload(Order.customer)
+    ).get_or_404(order_id)
     
     # Verify the order belongs to the current user
     if order.user_id != current_user.id and not current_user.is_admin:

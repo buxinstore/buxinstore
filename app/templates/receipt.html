@@ -69,23 +69,45 @@
 						<h2>Customer</h2>
 						<div class="label">Name</div>
 						<div class="value">
-							{% if order and order.customer %}{{ order.customer.username }}{% else %}-{% endif %}
+							{% if order %}{{ order.customer_name or (order.customer.username if order.customer else '-') }}{% else %}-{% endif %}
 						</div>
 						<div class="label" style="margin-top:6px;">Email</div>
 						<div class="value">
 							{% if order and order.customer %}{{ order.customer.email }}{% else %}-{% endif %}
 						</div>
+						<div class="label" style="margin-top:6px;">Phone</div>
+						<div class="value">
+							{% if order %}{{ order.customer_phone or '-' }}{% else %}-{% endif %}
+						</div>
+						<div class="label" style="margin-top:6px;">Country</div>
+						<div class="value">
+							{% if order %}{{ order.location or '-' }}{% else %}-{% endif %}
+						</div>
 						<div class="label" style="margin-top:6px;">Delivery Address</div>
-						<div class="value">{{ order.delivery_address if order else '-' }}</div>
+						<div class="value">{{ order.delivery_address or order.customer_address if order else '-' }}</div>
 					</div>
 					<div style="min-width:260px; flex:1;">
 						<h2>Payment</h2>
 						<div class="label">Method</div>
-						<div class="value">{{ payment.method|capitalize }}</div>
+						<div class="value">
+							{% if payment.method == 'wave' %}
+								Wave Money
+							{% elif payment.method == 'qmoney' %}
+								QMoney
+							{% elif payment.method == 'afrimoney' %}
+								AfriMoney
+							{% elif payment.method == 'ecobank' %}
+								ECOBANK Mobile
+							{% elif payment.method == 'modempay' %}
+								ModemPay
+							{% else %}
+								{{ payment.method|capitalize if payment.method else '-' }}
+							{% endif %}
+						</div>
 						<div class="label" style="margin-top:6px;">Status</div>
 						<div class="value">{{ payment.status|capitalize }}</div>
 						<div class="label" style="margin-top:6px;">Paid At</div>
-						<div class="value">{{ payment.paid_at or '-' }}</div>
+						<div class="value">{{ payment.paid_at.strftime('%B %d, %Y %I:%M %p') if payment.paid_at else '-' }}</div>
 					</div>
 				</div>
 
@@ -120,9 +142,8 @@
 								{% for item in order_items %}
 									<tr>
 										<td>
-											{% set img_path = (item.product.image if (item.product and item.product.image) else None) %}
-											{% if img_path %}
-												<img class="item-img" src="{{ url_for('static', filename=img_path) }}" alt="{{ item.product.name if item.product else 'Product' }}">
+											{% if item.product and item.product.image %}
+												<img class="item-img" src="{{ item.product.image|product_image_url }}" alt="{{ item.product.name }}" onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/placeholder.png') }}';">
 											{% else %}
 												<img class="item-img" src="{{ url_for('static', filename='images/placeholder.png') }}" alt="No image">
 											{% endif %}
@@ -135,24 +156,63 @@
 								{% endfor %}
 							</tbody>
 							<tfoot>
+								{% set item_subtotal = 0 %}
+								{% for item in order_items %}
+									{% set item_subtotal = item_subtotal + (item.price * item.quantity) %}
+								{% endfor %}
+								{% set shipping_cost = order.shipping_price or order.shipping_price_gmd or 0 %}
 								<tr>
-									<th colspan="3" style="text-align:right;">Order Total</th>
-									<th>{{ '%.2f' % order.total }}</th>
+									<th colspan="4" style="text-align:right;">Subtotal</th>
+									<th>GMD {{ '%.2f' % item_subtotal }}</th>
+								</tr>
+								{% if shipping_cost > 0 %}
+								<tr>
+									<th colspan="4" style="text-align:right;">Shipping</th>
+									<th>GMD {{ '%.2f' % shipping_cost }}</th>
+								</tr>
+								{% endif %}
+								<tr>
+									<th colspan="4" style="text-align:right;">Order Total</th>
+									<th>GMD {{ '%.2f' % order.total }}</th>
 								</tr>
 								<tr>
-									<th colspan="3" style="text-align:right;">Paid</th>
-									<th>{{ '%.2f' % payment.amount }}</th>
+									<th colspan="4" style="text-align:right;">Paid</th>
+									<th>GMD {{ '%.2f' % payment.amount }}</th>
 								</tr>
 								<tr>
-									<th colspan="3" style="text-align:right;">Balance</th>
+									<th colspan="4" style="text-align:right;">Balance</th>
 									{% set balance = (order.total - payment.amount) if order and payment and order.total and payment.amount else 0 %}
-									<th>{{ '%.2f' % balance }}</th>
+									<th>GMD {{ '%.2f' % balance }}</th>
 								</tr>
 							</tfoot>
 						</table>
-						{% if order and order.customer %}
+						{% if order %}
+							{% if order.shipping_mode_key %}
+							{% set shipping_method_map = {
+								'express': {'name': 'DHL Express (Fast)', 'timeframe': '3–7 days'},
+								'economy_plus': {'name': 'DHL eCommerce (Standard)', 'timeframe': '10–20 days'},
+								'economy': {'name': 'Economy Mail (PO Pickup)', 'timeframe': '20–60 days'},
+								'ecommerce': {'name': 'DHL eCommerce (Standard)', 'timeframe': '10–20 days'}
+							} %}
+							{% set shipping_info = shipping_method_map.get(order.shipping_mode_key, {'name': order.shipping_mode_key|title, 'timeframe': order.shipping_delivery_estimate or 'N/A'}) %}
+							<div style="margin-top:16px; padding-top:16px; border-top:1px solid #e5e7eb;">
+								<h2 style="font-size:14px; margin-bottom:8px;">Shipping Method</h2>
+								<div class="label">Method</div>
+								<div class="value">{{ shipping_info.name }}</div>
+								<div class="label" style="margin-top:6px;">Delivery Timeframe</div>
+								<div class="value">{{ shipping_info.timeframe }}</div>
+								{% set shipping_cost = order.shipping_price or order.shipping_price_gmd or 0 %}
+								{% if shipping_cost > 0 %}
+								<div class="label" style="margin-top:6px;">Shipping Cost</div>
+								<div class="value">GMD {{ '%.2f' % shipping_cost }}</div>
+								{% endif %}
+							</div>
+							{% endif %}
 							<div style="margin-top:10px;" class="note">
-								Customer ID: {{ order.customer.id }} • Order Date: {{ order.created_at }}
+								Order Date: {{ order.created_at.strftime('%B %d, %Y at %I:%M %p') if order.created_at else '-' }}
+								{% if order and order.customer %}
+									• Customer ID: {{ order.customer.id }}
+								{% endif %}
 							</div>
 						{% endif %}
 					</div>

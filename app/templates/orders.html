@@ -56,9 +56,10 @@
                                         <div class="flex -space-x-1 overflow-hidden">
                                             {% for item in order.items[:5] %}
                                             <img class="inline-block h-8 w-8 rounded-full ring-2 ring-white dark:ring-slate-700" 
-                                                src="{{ url_for('static', filename=item.product.image) if item.product.image else url_for('static', filename='images/placeholder-product.png') }}" 
+                                                src="{{ item.product.image|product_image_url if item.product.image else url_for('static', filename='images/placeholder-product.png') }}" 
                                                 alt="{{ item.product.name }}"
-                                                title="{{ item.product.name }}">
+                                                title="{{ item.product.name }}"
+                                                onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/placeholder-product.png') }}';">
                                             {% endfor %}
                                             {% if order.items|length > 5 %}
                                             <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-[color:var(--app-card)] dark:bg-slate-600 text-xs font-medium text-[color:var(--app-muted)] dark:text-white ring-2 ring-white dark:ring-slate-700">
