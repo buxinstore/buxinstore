@@ -1874,11 +1874,11 @@ def calculate_shipping_price(total_weight_kg: float, country_id: Optional[int] =
         total_weight_kg=total_weight_kg
     )
     
-    if result.get('available'):
+    if result and isinstance(result, dict) and result.get('available'):
         # Get the rule object for compatibility
         rule_obj = None
         if result.get('rule_id'):
-            rule_obj = NewShippingRule.query.get(result['rule_id'])
+            rule_obj = NewShippingRule.query.get(result.get('rule_id'))
         
         return {
             'rule': rule_obj,
@@ -2729,17 +2729,24 @@ def api_shipping_estimate():
         if result:
             # Include comprehensive debug info in API response
             debug_info = result.get('debug_info', {})
+            # Ensure result is a dict before accessing
+            if not isinstance(result, dict):
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid shipping result format'
+                }), 500
+            
             return jsonify({
                 'success': True,
                 'available': True,
-                'price_gmd': result['price_gmd'],
-                'delivery_time': result['delivery_time'],
+                'price_gmd': result.get('price_gmd', 0.0),
+                'delivery_time': result.get('delivery_time'),
                 'shipping_mode_key': result.get('shipping_mode_key'),
                 'rule_name': result.get('rule_name', 'Unknown rule'),
                 'rule_type': result.get('rule_type', 'unknown'),
                 'country_id': result.get('country_id'),
                 'country_name': result.get('country_name'),
-                'rule': result['rule'].to_dict(),
+                'rule': result.get('rule').to_dict() if result.get('rule') else None,
                 'debug_info': debug_info
             })
         else:
@@ -2813,9 +2820,10 @@ def api_shipping_methods():
             method_id = method['id']
             # Map to shipping_mode_key (new system uses economy_plus instead of ecommerce)
             shipping_mode_key = method_mapping.get(method_id, method_id)
-            result = calculate_shipping_price(weight, country_id, shipping_mode_key)
+            result = calculate_shipping_price(weight, country_id, shipping_mode_key, default_weight=0.0)
             
-            if result:
+            # Ensure result is a dict and has the expected structure
+            if result and isinstance(result, dict) and result.get('available'):
                 methods_with_prices.append({
                     'id': method_id,
                     'label': method['label'],
@@ -2825,10 +2833,10 @@ def api_shipping_methods():
                     'notes': method['notes'],
                     'color': method['color'],
                     'icon': method['icon'],
-                    'price_gmd': result['price_gmd'],
-                    'delivery_time': result.get('delivery_time') or method['guarantee'],
+                    'price_gmd': result.get('price_gmd', 0.0),
+                    'delivery_time': result.get('delivery_time') or method.get('guarantee', ''),
                     'available': True,
-                    'rule_id': result['rule'].id if result.get('rule') else None
+                    'rule_id': result.get('rule_id') if result.get('rule_id') else (result.get('rule').id if result.get('rule') else None)
                 })
             else:
                 # Method not available for this weight/country
@@ -3074,8 +3082,13 @@ def calculate_cart_totals(cart_items):
     
     # Calculate subtotal and total weight
     for item in cart_items:
+        # Ensure item is a dictionary, not a string
+        if not isinstance(item, dict):
+            current_app.logger.error(f"Invalid cart item type: {type(item)}, value: {item}")
+            continue
+        
         # Parse and convert prices to current currency
-        numeric_price, _ = parse_price(item['price'])
+        numeric_price, _ = parse_price(item.get('price', 0))
         base_price = Decimal(str(numeric_price))
         converted_price = Decimal(str(convert_price(float(base_price), 'GMD', to_currency)))
         item['price'] = float(converted_price)  # Update item price to converted value
@@ -3109,9 +3122,9 @@ def calculate_cart_totals(cart_items):
     shipping_delivery_time = None
     shipping_rule_name = None
     
-    if shipping_result and shipping_result.get('available'):
-        total_shipping_gmd = Decimal(str(shipping_result['price_gmd']))
-        shipping_delivery_time = shipping_result['delivery_time']
+    if shipping_result and isinstance(shipping_result, dict) and shipping_result.get('available'):
+        total_shipping_gmd = Decimal(str(shipping_result.get('price_gmd', 0.0)))
+        shipping_delivery_time = shipping_result.get('delivery_time')
         shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
         shipping_debug_info = shipping_result.get('debug_info', {})
         
@@ -3637,7 +3650,8 @@ def api_select_shipping_method():
         current_app.logger.info(f'Shipping method selected: {shipping_mode_key} for user {current_user.id if current_user.is_authenticated else "guest"}')
         
         # Recalculate cart summary with new shipping method
-        cart_items = get_cart()
+        # Use update_cart() to get properly formatted cart items (list of dicts)
+        cart_items, _ = update_cart()
         summary = serialize_cart_summary(cart_items)
         
         return jsonify({
@@ -3876,11 +3890,11 @@ def checkout():
                         delivery_time = None
                         rule_name = None
                         
-                        if shipping_result and shipping_result.get('available'):
+                        if shipping_result and isinstance(shipping_result, dict) and shipping_result.get('available'):
                             from .utils.currency_rates import convert_price
-                            shipping_price_gmd = shipping_result['price_gmd']
+                            shipping_price_gmd = shipping_result.get('price_gmd', 0.0)
                             rule_name = shipping_result.get('rule_name', 'Unknown rule')
-                            delivery_time = shipping_result['delivery_time']
+                            delivery_time = shipping_result.get('delivery_time')
                             
                             if country.currency != 'GMD':
                                 shipping_price_display = convert_price(shipping_price_gmd, 'GMD', country.currency)
@@ -3892,7 +3906,7 @@ def checkout():
                             'price_display': shipping_price_display,
                             'delivery_time': delivery_time,
                             'rule_name': rule_name,
-                            'rule': shipping_result['rule'] if shipping_result and shipping_result.get('available') else None
+                            'rule': shipping_result.get('rule') if shipping_result and isinstance(shipping_result, dict) and shipping_result.get('available') else None
                         }
                 except Exception as e:
                     app.logger.warning(f'Error calculating shipping for display: {str(e)}')
@@ -3982,10 +3996,10 @@ def checkout():
             shipping_delivery_estimate = None
             shipping_display_currency = 'GMD'
             
-            if shipping_result and shipping_result.get('available'):
-                shipping_price_gmd = Decimal(str(shipping_result['price_gmd']))
-                shipping_rule_id = shipping_result['rule'].id
-                shipping_delivery_estimate = shipping_result['delivery_time']
+            if shipping_result and isinstance(shipping_result, dict) and shipping_result.get('available'):
+                shipping_price_gmd = Decimal(str(shipping_result.get('price_gmd', 0.0)))
+                shipping_rule_id = shipping_result.get('rule_id') or (shipping_result.get('rule').id if shipping_result.get('rule') else None)
+                shipping_delivery_estimate = shipping_result.get('delivery_time')
                 shipping_display_currency = country.currency if country else 'GMD'
                 shipping_rule_name = shipping_result.get('rule_name', 'Unknown rule')
                 shipping_debug_info = shipping_result.get('debug_info', {})
@@ -12067,10 +12081,10 @@ def api_update_pending_payment():
         shipping_rule_id = None
         shipping_delivery_estimate = None
         
-        if shipping_result and shipping_result.get('available'):
-            shipping_price_gmd = float(shipping_result['price_gmd'])
-            shipping_rule_id = shipping_result['rule'].id
-            shipping_delivery_estimate = shipping_result['delivery_time']
+        if shipping_result and isinstance(shipping_result, dict) and shipping_result.get('available'):
+            shipping_price_gmd = float(shipping_result.get('price_gmd', 0.0))
+            shipping_rule_id = shipping_result.get('rule_id') or (shipping_result.get('rule').id if shipping_result.get('rule') else None)
+            shipping_delivery_estimate = shipping_result.get('delivery_time')
         
         # Calculate subtotal
         subtotal = 0.0
@@ -12639,8 +12653,8 @@ def product(product_id):
         # Check if a rule exists for this method, country, and weight
         shipping_result = calculate_shipping_price(product_weight, country_id, shipping_mode_key, default_weight=0.0)
         
-        if shipping_result and shipping_result.get('available'):
-            price_gmd = shipping_result['price_gmd']
+        if shipping_result and isinstance(shipping_result, dict) and shipping_result.get('available'):
+            price_gmd = shipping_result.get('price_gmd', 0.0)
             # Convert to display currency if needed
             if country and country.currency != 'GMD':
                 from .utils.currency_rates import convert_price

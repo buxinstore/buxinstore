@@ -55,7 +55,7 @@ class ShippingRule(db.Model):
     __tablename__ = 'shipping_rules'
     
     id = db.Column(db.Integer, primary_key=True)
-    country_iso = db.Column(db.String(3), nullable=False, index=True)  # ISO code or '*' for global
+    country_iso = db.Column(db.String(10), nullable=False, index=True)  # ISO code (2 or 3 letters) or '*' for global
     shipping_mode_key = db.Column(db.String(50), db.ForeignKey('shipping_modes.key', ondelete='CASCADE'), nullable=False, index=True)
     min_weight = db.Column(db.Numeric(10, 3), nullable=False)  # Minimum weight in kg
     max_weight = db.Column(db.Numeric(10, 3), nullable=False)  # Maximum weight in kg
