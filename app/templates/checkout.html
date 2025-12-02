@@ -174,13 +174,14 @@
                                 <label for="country" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                                     Country <span class="text-red-500">*</span>
                                 </label>
-                                <div class="relative" style="z-index: 10;">
+                                <div class="relative" style="z-index: 50;">
                                     <button 
                                         type="button"
                                         id="checkout-country-toggle"
                                         class="w-full flex items-center justify-between rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all text-left cursor-pointer"
                                         aria-haspopup="true"
                                         aria-expanded="false"
+                                        style="pointer-events: auto;"
                                     >
                                         <span class="flex items-center gap-3 flex-1 min-w-0">
                                             <span id="checkout-country-flag" class="flex-shrink-0 w-6 h-6 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
@@ -781,7 +782,10 @@
         
         // Toggle dropdown
         function toggleCountryDropdown() {
-            if (!countryToggle || !countryDropdown) return;
+            if (!countryToggle || !countryDropdown) {
+                console.error('Country dropdown elements not found in toggleCountryDropdown');
+                return;
+            }
             
             const isHidden = countryDropdown.classList.contains('hidden');
             
@@ -799,6 +803,8 @@
                         if (countrySearch) {
                             setTimeout(() => countrySearch.focus(), 100);
                         }
+                    }).catch(err => {
+                        console.error('Error loading countries:', err);
                     });
                 } else {
                     countryDropdown.classList.remove('hidden');
@@ -822,13 +828,25 @@
             }
         }
         
+        // Track if dropdown is initialized to prevent duplicate listeners
+        let dropdownInitialized = false;
+        
         // Initialize country dropdown on page load
         function initCountryDropdown() {
             initCountryDropdownElements();
             
             if (!countryToggle || !countryDropdown || !countryList) {
-                console.error('Country dropdown elements not found, retrying...');
+                console.error('Country dropdown elements not found, retrying...', {
+                    toggle: !!countryToggle,
+                    dropdown: !!countryDropdown,
+                    list: !!countryList
+                });
                 setTimeout(initCountryDropdown, 100);
+                return;
+            }
+            
+            // Prevent duplicate initialization
+            if (dropdownInitialized) {
                 return;
             }
             
@@ -837,11 +855,16 @@
             
             // Set up event listeners
             if (countryToggle) {
-                countryToggle.addEventListener('click', (e) => {
+                // Click handler - use capture phase to catch early and prevent conflicts
+                const handleToggleClick = function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     toggleCountryDropdown();
-                });
+                    return false;
+                };
+                
+                // Add listener in capture phase to catch event early
+                countryToggle.addEventListener('click', handleToggleClick, true);
             }
             
             // Search functionality
@@ -851,31 +874,56 @@
                 });
             }
             
-            // Close dropdown when clicking outside
-            document.addEventListener('click', (e) => {
-                if (countryDropdown && countryToggle && 
-                    !countryDropdown.contains(e.target) && 
-                    !countryToggle.contains(e.target)) {
-                    countryDropdown.classList.add('hidden');
-                    if (countryToggle) {
-                        countryToggle.setAttribute('aria-expanded', 'false');
-                        const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
-                        if (chevron) {
-                            chevron.style.transform = '';
+            // Close dropdown when clicking outside (only add once)
+            if (!dropdownInitialized) {
+                document.addEventListener('click', function handleOutsideClick(e) {
+                    if (countryDropdown && countryToggle && 
+                        !countryDropdown.contains(e.target) && 
+                        !countryToggle.contains(e.target)) {
+                        countryDropdown.classList.add('hidden');
+                        if (countryToggle) {
+                            countryToggle.setAttribute('aria-expanded', 'false');
+                            const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
+                            if (chevron) {
+                                chevron.style.transform = '';
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
+            
+            dropdownInitialized = true;
         }
         
         // Load countries immediately on page load
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
+        function initializeCountryDropdownWhenReady() {
+            // Wait a bit to ensure DOM is fully ready
+            setTimeout(() => {
                 initCountryDropdown();
-            });
+                
+                // Verify button exists and is clickable
+                const btn = document.getElementById('checkout-country-toggle');
+                if (btn) {
+                    // Test that button is accessible
+                    if (btn.offsetParent === null) {
+                        console.warn('Country toggle button is not visible');
+                    }
+                } else {
+                    console.error('Country toggle button not found in DOM');
+                    // Retry after longer delay
+                    setTimeout(() => {
+                        initCountryDropdown();
+                    }, 500);
+                }
+            }, 50);
+        }
+        
+        // Start initialization when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeCountryDropdownWhenReady);
         } else {
             // DOM is already loaded
-            initCountryDropdown();
+            initializeCountryDropdownWhenReady();
         }
         
         // Auto-save address on blur (debounced)
