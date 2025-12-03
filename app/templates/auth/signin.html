@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <meta name="theme-color" content="#0a0a1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Sign In - Buxin Store</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary-cyan: #00f5ff;
+      --primary-blue: #0088ff;
+      --primary-purple: #8b5cf6;
+      --primary-pink: #ec4899;
+      --bg-dark: #0a0a1a;
+      --bg-card: rgba(15, 23, 42, 0.8);
+      --text-primary: #f8fafc;
+      --text-muted: #94a3b8;
+      --glow-cyan: 0 0 20px rgba(0, 245, 255, 0.4);
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      min-height: 100vh;
+    }
+    
+    body {
+      font-family: 'Exo 2', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+    }
+    
+    .font-orbitron {
+      font-family: 'Orbitron', sans-serif;
+    }
+    
+    /* Animated Background */
+    .bg-animated {
+      position: fixed;
+      inset: 0;
+      background: 
+        radial-gradient(ellipse at 20% 20%, rgba(0, 245, 255, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(0, 136, 255, 0.05) 0%, transparent 70%),
+        linear-gradient(180deg, #0a0a1a 0%, #0f172a 50%, #0a0a1a 100%);
+      z-index: -2;
+    }
+    
+    /* Grid Lines Background */
+    .grid-lines {
+      position: fixed;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0, 245, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 245, 255, 0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+      z-index: -1;
+    }
+    
+    /* Floating Particles */
+    .particles {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: -1;
+    }
+    
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: var(--primary-cyan);
+      border-radius: 50%;
+      opacity: 0.6;
+      animation: float 15s infinite ease-in-out;
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+      10% { opacity: 0.6; }
+      90% { opacity: 0.6; }
+      100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+    }
+    
+    /* Neon Text Effects */
+    .neon-text {
+      text-shadow: 
+        0 0 10px rgba(0, 245, 255, 0.5),
+        0 0 20px rgba(0, 245, 255, 0.3),
+        0 0 40px rgba(0, 245, 255, 0.2);
+    }
+    
+    /* Glass Card */
+    .glass-card {
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 1.5rem;
+    }
+    
+    /* Form Inputs */
+    .form-input {
+      width: 100%;
+      padding: 1rem 1.25rem;
+      padding-left: 3rem;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 0.75rem;
+      color: var(--text-primary);
+      font-family: 'Exo 2', sans-serif;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary-cyan);
+      box-shadow: 0 0 0 3px rgba(0, 245, 255, 0.1);
+    }
+    
+    .form-input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    .input-icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      transition: color 0.3s ease;
+    }
+    
+    .input-group:focus-within .input-icon {
+      color: var(--primary-cyan);
+    }
+    
+    /* Buttons */
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
+      color: var(--bg-dark);
+      font-weight: 600;
+      padding: 1rem 2rem;
+      border-radius: 0.75rem;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: 'Exo 2', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+    }
+    
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(0, 245, 255, 0.3);
+    }
+    
+    .btn-primary:hover::before {
+      opacity: 1;
+    }
+    
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-primary);
+      font-weight: 500;
+      padding: 1rem 2rem;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: 'Exo 2', sans-serif;
+      font-size: 1rem;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+    
+    .btn-secondary:hover {
+      border-color: var(--primary-cyan);
+      background: rgba(0, 245, 255, 0.05);
+    }
+    
+    /* Toggle Tabs */
+    .auth-tabs {
+      display: flex;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 0.75rem;
+      padding: 0.25rem;
+      margin-bottom: 2rem;
+    }
+    
+    .auth-tab {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      font-weight: 500;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      font-family: 'Exo 2', sans-serif;
+    }
+    
+    .auth-tab.active {
+      background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
+      color: var(--bg-dark);
+    }
+    
+    .auth-tab:not(.active):hover {
+      color: var(--text-primary);
+    }
+    
+    /* Checkbox */
+    .custom-checkbox {
+      width: 1.25rem;
+      height: 1.25rem;
+      accent-color: var(--primary-cyan);
+      cursor: pointer;
+    }
+    
+    /* Links */
+    .link-cyan {
+      color: var(--primary-cyan);
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+    
+    .link-cyan:hover {
+      text-shadow: 0 0 10px rgba(0, 245, 255, 0.5);
+    }
+    
+    /* Alert Messages */
+    .alert {
+      padding: 1rem;
+      border-radius: 0.75rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    
+    .alert-error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+    
+    .alert-success {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      color: #86efac;
+    }
+    
+    /* Logo Animation */
+    .logo-container {
+      animation: pulse-glow 3s ease-in-out infinite;
+    }
+    
+    @keyframes pulse-glow {
+      0%, 100% { filter: drop-shadow(0 0 10px rgba(0, 245, 255, 0.3)); }
+      50% { filter: drop-shadow(0 0 20px rgba(0, 245, 255, 0.5)); }
+    }
+    
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 1.5rem 0;
+    }
+    
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(148, 163, 184, 0.2);
+    }
+    
+    .divider span {
+      padding: 0 1rem;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+    
+    /* Animations */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .animate-fadeInUp {
+      animation: fadeInUp 0.6s ease-out forwards;
+    }
+    
+    .delay-100 { animation-delay: 0.1s; opacity: 0; }
+    .delay-200 { animation-delay: 0.2s; opacity: 0; }
+    .delay-300 { animation-delay: 0.3s; opacity: 0; }
+    .delay-400 { animation-delay: 0.4s; opacity: 0; }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+  <!-- Animated Background -->
+  <div class="bg-animated"></div>
+  <div class="grid-lines"></div>
+  
+  <!-- Floating Particles -->
+  <div class="particles">
+    <div class="particle" style="left: 10%; animation-delay: 0s;"></div>
+    <div class="particle" style="left: 30%; animation-delay: 2s;"></div>
+    <div class="particle" style="left: 50%; animation-delay: 4s;"></div>
+    <div class="particle" style="left: 70%; animation-delay: 1s;"></div>
+    <div class="particle" style="left: 90%; animation-delay: 3s;"></div>
+  </div>
+  
+  <!-- Main Container -->
+  <div class="relative z-10 w-full max-w-md">
+    
+    <!-- Logo -->
+    <div class="text-center mb-8 animate-fadeInUp">
+      <div class="logo-container inline-block mb-4">
+        <img src="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png" 
+             alt="Buxin Store" 
+             class="h-16 w-16 mx-auto rounded-2xl"
+             onerror="this.style.display='none'">
+      </div>
+      <h1 class="font-orbitron text-2xl font-bold neon-text">Buxin Store</h1>
+      <p class="text-text-muted text-sm mt-1">Welcome back to the future</p>
+    </div>
+    
+    <!-- Auth Card -->
+    <div class="glass-card p-8 animate-fadeInUp delay-100">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert {{ 'alert-error' if category == 'error' or category == 'danger' else 'alert-success' }}">
+              <i class="fas {{ 'fa-exclamation-circle' if category == 'error' or category == 'danger' else 'fa-check-circle' }}"></i>
+              <span>{{ message }}</span>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
+      <!-- Auth Tabs -->
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-tab="login">Sign In</button>
+        <a href="{{ url_for('register') }}" class="auth-tab">Create Account</a>
+      </div>
+      
+      <!-- Login Form -->
+      <form action="{{ url_for('login') }}" method="POST" class="space-y-5">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <!-- Username/Email Input -->
+        <div class="input-group relative animate-fadeInUp delay-200">
+          <i class="input-icon fas fa-user"></i>
+          <input type="text" 
+                 name="username" 
+                 class="form-input" 
+                 placeholder="Username or Email"
+                 required
+                 autocomplete="username">
+        </div>
+        
+        <!-- Password Input -->
+        <div class="input-group relative animate-fadeInUp delay-200">
+          <i class="input-icon fas fa-lock"></i>
+          <input type="password" 
+                 name="password" 
+                 class="form-input" 
+                 placeholder="Password"
+                 required
+                 autocomplete="current-password"
+                 id="passwordInput">
+          <button type="button" 
+                  class="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-primary-cyan transition-colors"
+                  onclick="togglePassword()">
+            <i class="fas fa-eye" id="toggleIcon"></i>
+          </button>
+        </div>
+        
+        <!-- Remember Me & Forgot Password -->
+        <div class="flex items-center justify-between text-sm animate-fadeInUp delay-300">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="remember" class="custom-checkbox">
+            <span class="text-text-muted">Remember me</span>
+          </label>
+          <a href="{{ url_for('forgot_password') }}" class="link-cyan">Forgot password?</a>
+        </div>
+        
+        <!-- Submit Button -->
+        <button type="submit" class="btn-primary animate-fadeInUp delay-300">
+          <span class="flex items-center justify-center gap-2">
+            <i class="fas fa-sign-in-alt"></i>
+            Sign In
+          </span>
+        </button>
+      </form>
+      
+      <!-- Divider -->
+      <div class="divider animate-fadeInUp delay-400">
+        <span>or continue with</span>
+      </div>
+      
+      <!-- Google Login -->
+      <a href="{{ url_for('google_login', next=request.args.get('next')) }}" 
+         class="btn-secondary animate-fadeInUp delay-400">
+        <i class="fab fa-google text-red-400"></i>
+        Sign in with Google
+      </a>
+      
+      <!-- Create Account Link -->
+      <p class="text-center text-text-muted text-sm mt-6 animate-fadeInUp delay-400">
+        Don't have an account? 
+        <a href="{{ url_for('register') }}" class="link-cyan font-semibold">Create one</a>
+      </p>
+    </div>
+    
+    <!-- Back to Onboarding Link (for users who want to redo setup) -->
+    <p class="text-center text-text-muted text-xs mt-6 animate-fadeInUp delay-400">
+      <a href="{{ url_for('onboarding') }}" class="hover:text-primary-cyan transition-colors">
+        <i class="fas fa-globe mr-1"></i>
+        Change country or language
+      </a>
+    </p>
+  </div>
+
+  <script>
+    // Initialize Lucide icons
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    });
+    
+    // Toggle password visibility
+    function togglePassword() {
+      const input = document.getElementById('passwordInput');
+      const icon = document.getElementById('toggleIcon');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+      } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+      }
+    }
+  </script>
+</body>
+</html>
+

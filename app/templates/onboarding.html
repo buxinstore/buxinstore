@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0a0a1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Welcome to Buxin Store</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <!-- Google Fonts - Unique futuristic fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary-cyan: #00f5ff;
+      --primary-blue: #0088ff;
+      --primary-purple: #8b5cf6;
+      --primary-pink: #ec4899;
+      --bg-dark: #0a0a1a;
+      --bg-card: rgba(15, 23, 42, 0.8);
+      --text-primary: #f8fafc;
+      --text-muted: #94a3b8;
+      --glow-cyan: 0 0 20px rgba(0, 245, 255, 0.4);
+      --glow-blue: 0 0 20px rgba(0, 136, 255, 0.4);
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    body {
+      font-family: 'Exo 2', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+    }
+    
+    .font-orbitron {
+      font-family: 'Orbitron', sans-serif;
+    }
+    
+    /* Animated Background */
+    .bg-animated {
+      position: fixed;
+      inset: 0;
+      background: 
+        radial-gradient(ellipse at 20% 20%, rgba(0, 245, 255, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(0, 136, 255, 0.05) 0%, transparent 70%),
+        linear-gradient(180deg, #0a0a1a 0%, #0f172a 50%, #0a0a1a 100%);
+      animation: bgPulse 8s ease-in-out infinite;
+    }
+    
+    @keyframes bgPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.85; }
+    }
+    
+    /* Grid Lines Background */
+    .grid-lines {
+      position: fixed;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0, 245, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 245, 255, 0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+      animation: gridMove 20s linear infinite;
+    }
+    
+    @keyframes gridMove {
+      0% { transform: perspective(500px) rotateX(60deg) translateY(0); }
+      100% { transform: perspective(500px) rotateX(60deg) translateY(50px); }
+    }
+    
+    /* Floating Particles */
+    .particles {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: var(--primary-cyan);
+      border-radius: 50%;
+      opacity: 0.6;
+      animation: float 15s infinite ease-in-out;
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+      10% { opacity: 0.6; }
+      90% { opacity: 0.6; }
+      100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+    }
+    
+    /* Slide Container */
+    .slides-container {
+      display: flex;
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      height: 100%;
+      width: 300%;
+    }
+    
+    .slide {
+      width: 33.333%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 2rem 1.5rem;
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+    
+    .slide::-webkit-scrollbar {
+      display: none;
+    }
+    
+    /* Neon Text Effects */
+    .neon-text {
+      text-shadow: 
+        0 0 10px rgba(0, 245, 255, 0.5),
+        0 0 20px rgba(0, 245, 255, 0.3),
+        0 0 40px rgba(0, 245, 255, 0.2);
+    }
+    
+    .neon-text-purple {
+      text-shadow: 
+        0 0 10px rgba(139, 92, 246, 0.5),
+        0 0 20px rgba(139, 92, 246, 0.3),
+        0 0 40px rgba(139, 92, 246, 0.2);
+    }
+    
+    /* Glowing Border Effect */
+    .glow-border {
+      position: relative;
+    }
+    
+    .glow-border::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      padding: 2px;
+      background: linear-gradient(135deg, var(--primary-cyan), var(--primary-purple), var(--primary-pink));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      animation: borderGlow 3s linear infinite;
+    }
+    
+    @keyframes borderGlow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    /* Founder Image */
+    .founder-image-container {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      padding: 4px;
+      background: linear-gradient(135deg, var(--primary-cyan), var(--primary-purple));
+      animation: profilePulse 3s ease-in-out infinite;
+    }
+    
+    @keyframes profilePulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(0, 245, 255, 0.4), 0 0 40px rgba(139, 92, 246, 0.2); }
+      50% { box-shadow: 0 0 30px rgba(0, 245, 255, 0.6), 0 0 60px rgba(139, 92, 246, 0.4); }
+    }
+    
+    .founder-image {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid var(--bg-dark);
+    }
+    
+    /* Icon Containers */
+    .icon-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.3s ease;
+    }
+    
+    .icon-item:hover {
+      transform: translateY(-4px);
+    }
+    
+    .icon-circle {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(0, 245, 255, 0.3);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .icon-circle::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(0, 245, 255, 0.1), rgba(139, 92, 246, 0.1));
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .icon-item:hover .icon-circle::before {
+      opacity: 1;
+    }
+    
+    .icon-item:hover .icon-circle {
+      border-color: var(--primary-cyan);
+      box-shadow: var(--glow-cyan);
+    }
+    
+    .icon-circle i, .icon-circle svg {
+      color: var(--primary-cyan);
+      font-size: 1.5rem;
+      z-index: 1;
+    }
+    
+    .icon-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-align: center;
+      max-width: 70px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+    
+    /* Buttons */
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
+      color: var(--bg-dark);
+      font-weight: 600;
+      padding: 0.875rem 2rem;
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: 'Exo 2', sans-serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.02em;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(0, 245, 255, 0.3);
+    }
+    
+    .btn-primary:hover::before {
+      opacity: 1;
+    }
+    
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-muted);
+      font-weight: 500;
+      padding: 0.875rem 2rem;
+      border-radius: 9999px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: 'Exo 2', sans-serif;
+      font-size: 0.95rem;
+    }
+    
+    .btn-secondary:hover {
+      border-color: var(--primary-cyan);
+      color: var(--primary-cyan);
+    }
+    
+    /* Form Inputs */
+    .form-input {
+      width: 100%;
+      padding: 1rem 1.25rem;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 0.75rem;
+      color: var(--text-primary);
+      font-family: 'Exo 2', sans-serif;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary-cyan);
+      box-shadow: 0 0 0 3px rgba(0, 245, 255, 0.1);
+    }
+    
+    .form-input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    /* Custom Select */
+    .custom-select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 1rem center;
+      background-size: 1.25rem;
+      padding-right: 3rem;
+    }
+    
+    /* Progress Dots */
+    .progress-dots {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+    }
+    
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(148, 163, 184, 0.3);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .dot.active {
+      background: var(--primary-cyan);
+      box-shadow: 0 0 10px rgba(0, 245, 255, 0.5);
+      transform: scale(1.2);
+    }
+    
+    /* Card Container */
+    .glass-card {
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 1.5rem;
+      padding: 2rem;
+    }
+    
+    /* Support Icons */
+    .support-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+    
+    .support-icon.whatsapp {
+      background: linear-gradient(135deg, #25d366, #128c7e);
+    }
+    
+    .support-icon.email {
+      background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+    }
+    
+    .support-icon:hover {
+      transform: scale(1.1);
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Animations */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .animate-fadeInUp {
+      animation: fadeInUp 0.6s ease-out forwards;
+    }
+    
+    .delay-100 { animation-delay: 0.1s; }
+    .delay-200 { animation-delay: 0.2s; }
+    .delay-300 { animation-delay: 0.3s; }
+    .delay-400 { animation-delay: 0.4s; }
+    .delay-500 { animation-delay: 0.5s; }
+    
+    /* Slide-specific animations */
+    .slide[data-active="true"] .animate-on-active {
+      animation: fadeInUp 0.6s ease-out forwards;
+    }
+    
+    /* Responsive */
+    @media (max-width: 480px) {
+      .icon-circle {
+        width: 52px;
+        height: 52px;
+      }
+      
+      .icon-circle i, .icon-circle svg {
+        font-size: 1.25rem;
+      }
+      
+      .icon-label {
+        font-size: 0.65rem;
+        max-width: 60px;
+      }
+      
+      .founder-image-container {
+        width: 120px;
+        height: 120px;
+      }
+    }
+    
+    /* Scrollbar for slide 3 */
+    .slide-content-scroll {
+      overflow-y: auto;
+      max-height: calc(100vh - 180px);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0, 245, 255, 0.3) transparent;
+    }
+    
+    .slide-content-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    
+    .slide-content-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    .slide-content-scroll::-webkit-scrollbar-thumb {
+      background: rgba(0, 245, 255, 0.3);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Animated Background -->
+  <div class="bg-animated"></div>
+  <div class="grid-lines"></div>
+  
+  <!-- Floating Particles -->
+  <div class="particles">
+    <div class="particle" style="left: 10%; animation-delay: 0s;"></div>
+    <div class="particle" style="left: 25%; animation-delay: 2s;"></div>
+    <div class="particle" style="left: 40%; animation-delay: 4s;"></div>
+    <div class="particle" style="left: 55%; animation-delay: 1s;"></div>
+    <div class="particle" style="left: 70%; animation-delay: 3s;"></div>
+    <div class="particle" style="left: 85%; animation-delay: 5s;"></div>
+  </div>
+  
+  <!-- Main Container -->
+  <div class="relative z-10 h-full flex flex-col">
+    <!-- Progress Dots -->
+    <div class="progress-dots pt-6 pb-2">
+      <div class="dot active" data-slide="0"></div>
+      <div class="dot" data-slide="1"></div>
+      <div class="dot" data-slide="2"></div>
+    </div>
+    
+    <!-- Slides Container -->
+    <div class="flex-1 overflow-hidden">
+      <div class="slides-container" id="slidesContainer">
+        
+        <!-- ========== SLIDE 1: Welcome ========== -->
+        <div class="slide" data-slide="0" data-active="true">
+          <div class="w-full max-w-md flex flex-col items-center text-center pt-4">
+            
+            <!-- Welcome Text -->
+            <h1 class="font-orbitron text-3xl sm:text-4xl font-bold neon-text mb-2 animate-fadeInUp opacity-0">
+              Welcome
+            </h1>
+            <p class="text-cyan-400 text-sm mb-8 animate-fadeInUp opacity-0 delay-100">to the future of technology</p>
+            
+            <!-- Founder Photo -->
+            <div class="founder-image-container mb-6 animate-fadeInUp opacity-0 delay-200">
+              <img src="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png" 
+                   alt="Abdoukadir - Founder"
+                   class="founder-image"
+                   onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"%3E%3Ccircle cx=\"50\" cy=\"50\" r=\"50\" fill=\"%230a0a1a\"/%3E%3Ccircle cx=\"50\" cy=\"40\" r=\"18\" fill=\"%2300f5ff\" opacity=\"0.3\"/%3E%3Cellipse cx=\"50\" cy=\"75\" rx=\"25\" ry=\"18\" fill=\"%2300f5ff\" opacity=\"0.3\"/%3E%3C/svg%3E'">
+            </div>
+            
+            <!-- Founder Introduction -->
+            <div class="mb-8 animate-fadeInUp opacity-0 delay-300">
+              <p class="text-lg text-white/90 mb-1">My name is <span class="font-semibold text-cyan-400">Abdoukadir</span></p>
+              <p class="text-text-muted text-sm">I am the founder of <span class="font-orbitron text-cyan-400">Buxin Store</span></p>
+            </div>
+            
+            <!-- What We Do Section -->
+            <div class="w-full glass-card animate-fadeInUp opacity-0 delay-400">
+              <h3 class="font-orbitron text-sm font-semibold text-cyan-400 mb-4 tracking-wider">WHAT WE DO</h3>
+              
+              <div class="grid grid-cols-3 gap-4 sm:gap-6">
+                <!-- Electric Car -->
+                <div class="icon-item">
+                  <div class="icon-circle">
+                    <i class="fas fa-car-side"></i>
+                  </div>
+                  <span class="icon-label">Electric Car</span>
+                </div>
+                
+                <!-- Electric Tractor -->
+                <div class="icon-item">
+                  <div class="icon-circle">
+                    <i class="fas fa-tractor"></i>
+                  </div>
+                  <span class="icon-label">Tractor</span>
+                </div>
+                
+                <!-- Electric Scooter -->
+                <div class="icon-item">
+                  <div class="icon-circle">
+                    <i class="fas fa-motorcycle"></i>
+                  </div>
+                  <span class="icon-label">Scooter</span>
+                </div>
+                
+                <!-- Electric Minibus -->
+                <div class="icon-item">
+                  <div class="icon-circle">
+                    <i class="fas fa-bus"></i>
+                  </div>
+                  <span class="icon-label">Minibus</span>
+                </div>
+                
+                <!-- Healthcare -->
+                <div class="icon-item">
+                  <div class="icon-circle">
+                    <i class="fas fa-hospital"></i>
+                  </div>
+                  <span class="icon-label">Healthcare</span>
+                </div>
+                
+                <!-- Education -->
+                <div class="icon-item">
+                  <div class="icon-circle">
+                    <i class="fas fa-graduation-cap"></i>
+                  </div>
+                  <span class="icon-label">Education</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Buttons -->
+            <div class="flex gap-4 mt-8 w-full max-w-xs animate-fadeInUp opacity-0 delay-500">
+              <button class="btn-secondary flex-1" onclick="skipToSlide(2)">Skip</button>
+              <button class="btn-primary flex-1" onclick="nextSlide()">Next</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- ========== SLIDE 2: What You Can Buy ========== -->
+        <div class="slide" data-slide="1" data-active="false">
+          <div class="w-full max-w-md flex flex-col items-center text-center pt-4">
+            
+            <!-- Header -->
+            <h2 class="font-orbitron text-2xl sm:text-3xl font-bold neon-text-purple mb-2 animate-fadeInUp opacity-0">
+              Buxin Store
+            </h2>
+            <p class="text-purple-400 text-sm mb-8 animate-fadeInUp opacity-0 delay-100">Your Tech Marketplace</p>
+            
+            <!-- Main Message -->
+            <div class="glass-card w-full mb-6 animate-fadeInUp opacity-0 delay-200">
+              <p class="text-lg text-white/90 leading-relaxed">
+                Find all <span class="text-cyan-400 font-semibold">Robotics</span>, 
+                <span class="text-purple-400 font-semibold">Electronics</span>, 
+                <span class="text-pink-400 font-semibold">Drones</span> and 
+                <span class="text-blue-400 font-semibold">Engineering Materials</span> in one app.
+              </p>
+            </div>
+            
+            <!-- Products Icons -->
+            <div class="w-full mb-8">
+              <div class="grid grid-cols-3 gap-4 sm:gap-6">
+                <!-- Robotics -->
+                <div class="icon-item animate-fadeInUp opacity-0 delay-200">
+                  <div class="icon-circle" style="border-color: rgba(139, 92, 246, 0.3);">
+                    <i class="fas fa-robot" style="color: #8b5cf6;"></i>
+                  </div>
+                  <span class="icon-label">Robotics</span>
+                </div>
+                
+                <!-- Electronics -->
+                <div class="icon-item animate-fadeInUp opacity-0 delay-300">
+                  <div class="icon-circle" style="border-color: rgba(0, 245, 255, 0.3);">
+                    <i class="fas fa-microchip" style="color: #00f5ff;"></i>
+                  </div>
+                  <span class="icon-label">Electronics</span>
+                </div>
+                
+                <!-- Drones -->
+                <div class="icon-item animate-fadeInUp opacity-0 delay-300">
+                  <div class="icon-circle" style="border-color: rgba(236, 72, 153, 0.3);">
+                    <i class="fas fa-plane" style="color: #ec4899;"></i>
+                  </div>
+                  <span class="icon-label">Drones</span>
+                </div>
+                
+                <!-- Tools -->
+                <div class="icon-item animate-fadeInUp opacity-0 delay-400">
+                  <div class="icon-circle" style="border-color: rgba(251, 146, 60, 0.3);">
+                    <i class="fas fa-tools" style="color: #fb923c;"></i>
+                  </div>
+                  <span class="icon-label">Tools</span>
+                </div>
+                
+                <!-- Sensors -->
+                <div class="icon-item animate-fadeInUp opacity-0 delay-400">
+                  <div class="icon-circle" style="border-color: rgba(34, 211, 238, 0.3);">
+                    <i class="fas fa-wave-square" style="color: #22d3ee;"></i>
+                  </div>
+                  <span class="icon-label">Sensors</span>
+                </div>
+                
+                <!-- Modules -->
+                <div class="icon-item animate-fadeInUp opacity-0 delay-500">
+                  <div class="icon-circle" style="border-color: rgba(74, 222, 128, 0.3);">
+                    <i class="fas fa-cubes" style="color: #4ade80;"></i>
+                  </div>
+                  <span class="icon-label">Modules</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Support Section -->
+            <div class="glass-card w-full animate-fadeInUp opacity-0 delay-500">
+              <div class="flex items-center justify-center gap-6">
+                <div class="support-icon whatsapp">
+                  <i class="fab fa-whatsapp text-white text-xl"></i>
+                </div>
+                <div class="support-icon email">
+                  <i class="fas fa-envelope text-white text-xl"></i>
+                </div>
+              </div>
+              <p class="text-text-muted text-sm mt-4">We are available <span class="text-cyan-400 font-semibold">24/7</span> for support</p>
+            </div>
+            
+            <!-- Buttons -->
+            <div class="flex gap-4 mt-8 w-full max-w-xs animate-fadeInUp opacity-0 delay-500">
+              <button class="btn-secondary flex-1" onclick="skipToSlide(2)">Skip</button>
+              <button class="btn-primary flex-1" onclick="nextSlide()">Next</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- ========== SLIDE 3: Country & Language Setup ========== -->
+        <div class="slide" data-slide="2" data-active="false">
+          <div class="w-full max-w-md flex flex-col items-center text-center pt-4 slide-content-scroll">
+            
+            <!-- Header -->
+            <div class="flex items-center gap-2 mb-2 animate-fadeInUp opacity-0">
+              <i data-lucide="globe" class="w-8 h-8 text-cyan-400"></i>
+              <h2 class="font-orbitron text-2xl sm:text-3xl font-bold neon-text">Setup</h2>
+            </div>
+            <p class="text-cyan-400 text-sm mb-6 animate-fadeInUp opacity-0 delay-100">Configure your preferences</p>
+            
+            <!-- Setup Form -->
+            <form id="setupForm" class="w-full space-y-5 animate-fadeInUp opacity-0 delay-200">
+              
+              <!-- Country Selector -->
+              <div class="text-left">
+                <label class="block text-sm font-medium text-text-muted mb-2">
+                  <i class="fas fa-flag mr-2 text-cyan-400"></i>Country <span class="text-pink-400">*</span>
+                </label>
+                <select id="countrySelect" name="country" class="form-input custom-select" required>
+                  <option value="">Select your country</option>
+                  {% for country in countries %}
+                  <option value="{{ country.code }}" data-currency="{{ country.currency }}" data-language="{{ country.language }}">
+                    {{ country.name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              
+              <!-- Language Selector -->
+              <div class="text-left">
+                <label class="block text-sm font-medium text-text-muted mb-2">
+                  <i class="fas fa-language mr-2 text-purple-400"></i>Language <span class="text-pink-400">*</span>
+                </label>
+                <select id="languageSelect" name="language" class="form-input custom-select" required>
+                  <option value="">Select language</option>
+                  <option value="en">English</option>
+                  <option value="fr">Français</option>
+                  <option value="ar">العربية</option>
+                  <option value="pt">Português</option>
+                  <option value="es">Español</option>
+                  <option value="zh">中文</option>
+                </select>
+              </div>
+              
+              <!-- Address Input (Optional) -->
+              <div class="text-left">
+                <label class="block text-sm font-medium text-text-muted mb-2">
+                  <i class="fas fa-map-marker-alt mr-2 text-pink-400"></i>Address <span class="text-text-muted/60">(Optional)</span>
+                </label>
+                <input type="text" 
+                       id="addressInput" 
+                       name="address" 
+                       class="form-input" 
+                       placeholder="Enter your address">
+              </div>
+              
+              <!-- Info Message -->
+              <div class="glass-card !p-4 text-left animate-fadeInUp opacity-0 delay-300">
+                <div class="flex items-start gap-3">
+                  <i class="fas fa-info-circle text-cyan-400 mt-0.5"></i>
+                  <p class="text-sm text-text-muted leading-relaxed">
+                    Your location helps us calculate <span class="text-cyan-400">shipping costs</span> and show <span class="text-purple-400">products available</span> in your region.
+                  </p>
+                </div>
+              </div>
+              
+              <!-- Continue Button -->
+              <button type="submit" 
+                      class="btn-primary w-full mt-6 animate-fadeInUp opacity-0 delay-400"
+                      id="continueBtn">
+                <span class="flex items-center justify-center gap-2">
+                  Continue
+                  <i class="fas fa-arrow-right"></i>
+                </span>
+              </button>
+            </form>
+            
+            <!-- Back Button -->
+            <button class="btn-secondary mt-4 animate-fadeInUp opacity-0 delay-500" onclick="prevSlide()">
+              <i class="fas fa-arrow-left mr-2"></i> Back
+            </button>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Lucide icons
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    });
+    
+    // Slide management
+    let currentSlide = 0;
+    const totalSlides = 3;
+    const slidesContainer = document.getElementById('slidesContainer');
+    const dots = document.querySelectorAll('.dot');
+    const slides = document.querySelectorAll('.slide');
+    
+    function updateSlide(index) {
+      // Update container position
+      slidesContainer.style.transform = `translateX(-${index * 33.333}%)`;
+      
+      // Update dots
+      dots.forEach((dot, i) => {
+        dot.classList.toggle('active', i === index);
+      });
+      
+      // Update slide active states for animations
+      slides.forEach((slide, i) => {
+        slide.setAttribute('data-active', i === index ? 'true' : 'false');
+      });
+      
+      currentSlide = index;
+    }
+    
+    function nextSlide() {
+      if (currentSlide < totalSlides - 1) {
+        updateSlide(currentSlide + 1);
+      }
+    }
+    
+    function prevSlide() {
+      if (currentSlide > 0) {
+        updateSlide(currentSlide - 1);
+      }
+    }
+    
+    function skipToSlide(index) {
+      updateSlide(index);
+    }
+    
+    // Dot click handlers
+    dots.forEach((dot, index) => {
+      dot.addEventListener('click', () => {
+        // Only allow going to previous slides or slide 3 from slide 2
+        if (index <= currentSlide || (currentSlide === 1 && index === 2)) {
+          updateSlide(index);
+        }
+      });
+    });
+    
+    // Touch swipe support
+    let touchStartX = 0;
+    let touchEndX = 0;
+    
+    slidesContainer.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+    
+    slidesContainer.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    }, { passive: true });
+    
+    function handleSwipe() {
+      const swipeThreshold = 50;
+      const diff = touchStartX - touchEndX;
+      
+      if (Math.abs(diff) > swipeThreshold) {
+        if (diff > 0 && currentSlide < totalSlides - 1) {
+          // Swipe left - next
+          nextSlide();
+        } else if (diff < 0 && currentSlide > 0) {
+          // Swipe right - prev
+          prevSlide();
+        }
+      }
+    }
+    
+    // Form submission
+    document.getElementById('setupForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const country = document.getElementById('countrySelect').value;
+      const language = document.getElementById('languageSelect').value;
+      const address = document.getElementById('addressInput').value;
+      
+      if (!country || !language) {
+        alert('Please select your country and language to continue.');
+        return;
+      }
+      
+      // Store preferences
+      const preferences = {
+        country: country,
+        language: language,
+        address: address,
+        onboarding_completed: true,
+        completed_at: new Date().toISOString()
+      };
+      
+      // Save to localStorage
+      localStorage.setItem('buxin_onboarding', JSON.stringify(preferences));
+      localStorage.setItem('buxin_onboarding_completed', 'true');
+      
+      // Submit to server
+      const formData = new FormData();
+      formData.append('country', country);
+      formData.append('language', language);
+      formData.append('address', address);
+      
+      // Show loading state
+      const btn = document.getElementById('continueBtn');
+      const originalContent = btn.innerHTML;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Setting up...';
+      btn.disabled = true;
+      
+      fetch('/onboarding/complete', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Set cookie via JavaScript as backup
+          document.cookie = 'buxin_onboarding_completed=true; max-age=31536000; path=/; SameSite=Lax';
+          // Redirect to login/register page
+          window.location.href = data.redirect || '/login?from_onboarding=1';
+        } else {
+          btn.innerHTML = originalContent;
+          btn.disabled = false;
+          alert(data.message || 'Something went wrong. Please try again.');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        btn.innerHTML = originalContent;
+        btn.disabled = false;
+        // Set localStorage and cookie even if server fails
+        localStorage.setItem('buxin_onboarding_completed', 'true');
+        document.cookie = 'buxin_onboarding_completed=true; max-age=31536000; path=/; SameSite=Lax';
+        // Redirect since we saved locally
+        window.location.href = '/login?from_onboarding=1';
+      });
+    });
+    
+    // Auto-select language based on country
+    document.getElementById('countrySelect').addEventListener('change', function() {
+      const selectedOption = this.options[this.selectedIndex];
+      const countryLanguage = selectedOption.getAttribute('data-language');
+      
+      if (countryLanguage) {
+        const langSelect = document.getElementById('languageSelect');
+        const langOption = langSelect.querySelector(`option[value="${countryLanguage}"]`);
+        if (langOption) {
+          langSelect.value = countryLanguage;
+        }
+      }
+    });
+    
+    // Check if onboarding already completed
+    if (localStorage.getItem('buxin_onboarding_completed') === 'true') {
+      // Redirect to login if already completed
+      // window.location.href = '/login';
+    }
+  </script>
+</body>
+</html>
+

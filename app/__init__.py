@@ -2083,6 +2083,81 @@ def merge_carts(user, guest_cart):
     session.pop('cart', None)
 
 # Routes
+# Onboarding routes
+@app.route('/onboarding')
+def onboarding():
+    """Show onboarding flow for first-time users"""
+    # Check if user has already completed onboarding
+    if session.get('onboarding_completed') or request.cookies.get('buxin_onboarding_completed'):
+        return redirect(url_for('login'))
+    
+    # Get active countries for the selector
+    countries = Country.query.filter_by(is_active=True).order_by(Country.name).all()
+    
+    # If no countries in DB, use default list
+    if not countries:
+        from .data.world_countries import WORLD_COUNTRIES
+        countries = [
+            type('Country', (), {
+                'code': c['code'],
+                'name': c['name'],
+                'currency': c['currency'],
+                'language': c['language']
+            })()
+            for c in WORLD_COUNTRIES if c.get('is_active', False)
+        ]
+    
+    return render_template('onboarding.html', countries=countries)
+
+@app.route('/onboarding/complete', methods=['POST'])
+def onboarding_complete():
+    """Handle onboarding completion"""
+    country_code = request.form.get('country')
+    language = request.form.get('language')
+    address = request.form.get('address', '')
+    
+    if not country_code or not language:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Please select your country and language'})
+        flash('Please select your country and language', 'error')
+        return redirect(url_for('onboarding'))
+    
+    # Save preferences to session
+    session['onboarding_completed'] = True
+    session['selected_country_code'] = country_code
+    session['selected_language'] = language
+    if address:
+        session['user_address'] = address
+    
+    # Try to find and set the country
+    country = Country.query.filter_by(code=country_code, is_active=True).first()
+    if country:
+        session['country_id'] = country.id
+        session['currency'] = country.currency
+        session['currency_symbol'] = country.currency_symbol or country.currency
+    
+    # Set language preference
+    session['lang'] = language
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'success': True,
+            'message': 'Setup complete!',
+            'redirect': url_for('login', from_onboarding='1')
+        })
+    
+    # Create response with cookie to persist onboarding completion
+    response = make_response(redirect(url_for('login', from_onboarding='1')))
+    # Set cookie that expires in 1 year
+    response.set_cookie('buxin_onboarding_completed', 'true', max_age=31536000, secure=True, httponly=True, samesite='Lax')
+    return response
+
+@app.route('/check-onboarding')
+def check_onboarding():
+    """API endpoint to check if user needs onboarding"""
+    completed = session.get('onboarding_completed') or request.cookies.get('buxin_onboarding_completed')
+    return jsonify({'completed': bool(completed)})
+
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -2095,31 +2170,47 @@ def login():
         elif current_user.role == 'gambia_team':
             return redirect(url_for('gambia_orders'))
         return redirect(url_for('home'))
+    
+    # Check if user should see onboarding first (new users who haven't completed onboarding)
+    # Skip onboarding check if user explicitly came from onboarding or has a next param
+    skip_onboarding_check = request.args.get('from_onboarding') or request.args.get('next')
+    if not skip_onboarding_check:
+        onboarding_completed = session.get('onboarding_completed') or request.cookies.get('buxin_onboarding_completed')
+        if not onboarding_completed:
+            return redirect(url_for('onboarding'))
         
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        user = User.query.filter_by(username=username).first()
+        # Support both username and email login
+        user = User.query.filter(
+            db.or_(User.username == username, User.email == username)
+        ).first()
         
         if user and user.check_password(password):
             # Don't allow China/Gambia team users to login through main login
             if user.role in ['china_partner', 'gambia_team']:
                 flash('Please use the appropriate login page for your role', 'error')
-                return render_template('auth/auth/login.html')
+                return render_template('auth/signin.html')
             
             login_user(user)
             user.last_login_at = datetime.utcnow()
             ensure_user_profile(user)
             db.session.commit()
             merge_carts(user, session.get('cart'))
+            
+            # Mark onboarding as completed after successful login
+            session['onboarding_completed'] = True
+            
             next_page = request.args.get('next')
             if user.is_admin or user.role == 'admin':
                 return redirect(next_page or url_for('admin_dashboard'))
             return redirect(next_page or url_for('home'))
         else:
             flash('Invalid username or password', 'error')
-            
-    return render_template('auth/auth/login.html')
+    
+    # Use the futuristic sign-in template
+    return render_template('auth/signin.html')
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -2421,6 +2512,11 @@ def google_callback():
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('home'))
+    
+    # Check if user should see onboarding first
+    onboarding_completed = session.get('onboarding_completed') or request.cookies.get('buxin_onboarding_completed')
+    if not onboarding_completed and not request.args.get('skip_onboarding'):
+        return redirect(url_for('onboarding'))
         
     if request.method == 'POST':
         username = request.form.get('username')
@@ -2479,8 +2575,9 @@ def register():
         
         flash('Registration successful! Please log in.', 'success')
         return redirect(url_for('login'))
-        
-    return render_template('auth/register.html')
+    
+    # Use the futuristic sign-up template
+    return render_template('auth/signup.html')
 
 @app.route('/wishlist')
 @login_required
