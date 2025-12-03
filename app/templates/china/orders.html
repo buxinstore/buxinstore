@@ -182,6 +182,9 @@
                         <tbody>
                             {% for order in orders.items %}
                                 {% for item in order.items %}
+                                {# Hide only products already stocked in Gambia (available_in_gambia == True) #}
+                                {# Show all other products requiring China shipping, regardless of location #}
+                                {% if item.product and not item.product.available_in_gambia %}
                                 <tr id="order-row-{{ order.id }}-item-{{ item.id }}" 
                                     data-order-id="{{ order.id }}"
                                     class="order-row border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 {% if loop.index % 2 == 0 %}bg-gray-50/50 dark:bg-gray-800/50{% endif %}">
@@ -343,6 +346,7 @@
                                         {% endif %}
                                     </td>
                                 </tr>
+                                {% endif %}
                                 {% endfor %}
                             {% endfor %}
                         </tbody>
