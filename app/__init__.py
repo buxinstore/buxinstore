@@ -2308,9 +2308,22 @@ def onboarding_complete():
 
 @app.route('/check-onboarding')
 def check_onboarding():
-    """API endpoint to check if user needs onboarding"""
-    completed = session.get('onboarding_completed') or request.cookies.get('buxin_onboarding_completed')
-    return jsonify({'completed': bool(completed)})
+    """API endpoint to check if user needs onboarding - DEBUG VERSION"""
+    cookie_value = request.cookies.get('buxin_onboarding_completed')
+    session_value = session.get('onboarding_completed')
+    
+    return jsonify({
+        'completed': bool(cookie_value == 'true' or session_value == True),
+        'debug': {
+            'cookie_raw': cookie_value,
+            'cookie_is_true': cookie_value == 'true',
+            'session_raw': session_value,
+            'session_is_true': session_value == True,
+            'all_cookies': dict(request.cookies),
+            'before_request_active': True,  # Confirms code is deployed
+            'version': '2024-12-03-v2'  # Version tag to confirm deployment
+        }
+    })
 
 @app.route('/clear-onboarding')
 def clear_onboarding():
