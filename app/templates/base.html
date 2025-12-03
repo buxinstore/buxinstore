@@ -1484,7 +1484,8 @@
     });
 
     // WhatsApp Popup Modal
-    // PRIORITY: Onboarding → Sign In → WhatsApp prompt (only after login)
+    // PRIORITY ORDER: Onboarding FIRST → Sign In → WhatsApp prompt (only after login)
+    // The WhatsApp popup should NEVER appear before onboarding is completed
     (function() {
       const modal = document.getElementById('whatsapp-popup-modal');
       const form = document.getElementById('whatsapp-popup-form');
@@ -1502,24 +1503,42 @@
 
       // Check if user already dismissed or has WhatsApp number
       const dismissedKey = 'whatsapp_popup_dismissed';
-      const checkInterval = 3000; // 3 seconds
+      const checkInterval = 3000; // 3 seconds delay
 
-      // Helper: Check if onboarding is completed
-      function isOnboardingCompleted() {
-        // Check localStorage
-        if (localStorage.getItem('buxin_onboarding_completed') === 'true') return true;
-        // Check cookie
+      // Helper: Get cookie value by name
+      function getCookie(name) {
         const cookies = document.cookie.split(';');
         for (let cookie of cookies) {
-          const [name, value] = cookie.trim().split('=');
-          if (name === 'buxin_onboarding_completed' && value === 'true') return true;
+          const [cookieName, cookieValue] = cookie.trim().split('=');
+          if (cookieName === name) {
+            return cookieValue;
+          }
         }
-        return false;
+        return null;
       }
 
-      // Helper: Check if user is authenticated (from body data attribute)
+      // Helper: Check if onboarding is completed (check BOTH localStorage AND cookie)
+      function isOnboardingCompleted() {
+        const localStorageValue = localStorage.getItem('buxin_onboarding_completed');
+        const cookieValue = getCookie('buxin_onboarding_completed');
+        
+        const isComplete = localStorageValue === 'true' || cookieValue === 'true';
+        
+        console.log('[WhatsApp Popup] Onboarding check:', {
+          localStorage: localStorageValue,
+          cookie: cookieValue,
+          isComplete: isComplete
+        });
+        
+        return isComplete;
+      }
+
+      // Helper: Check if user is authenticated (from body data attribute set by server)
       function isUserAuthenticated() {
-        return document.body.getAttribute('data-authenticated') === 'true';
+        const authAttr = document.body.getAttribute('data-authenticated');
+        const isAuth = authAttr === 'true';
+        console.log('[WhatsApp Popup] Auth check:', { attribute: authAttr, isAuthenticated: isAuth });
+        return isAuth;
       }
 
       function showAlert(message, type = 'error') {
@@ -1539,7 +1558,7 @@
       function showModal() {
         modal.style.display = 'flex';
         modal.classList.remove('hidden');
-        // Hide email field since user must be logged in
+        // Hide email field since user must be logged in to see this
         emailField.classList.add('hidden');
         emailInput.required = false;
       }
@@ -1554,49 +1573,56 @@
         hideModal();
       }
 
-      // IMPORTANT: Only show WhatsApp popup if:
-      // 1. Onboarding is completed
-      // 2. User is authenticated (logged in)
-      // 3. User hasn't dismissed the popup
-      // 4. User doesn't already have a WhatsApp number
+      // CRITICAL: Only show WhatsApp popup if ALL conditions are met:
+      // 1. Onboarding is COMPLETED (cookie OR localStorage)
+      // 2. User is AUTHENTICATED (logged in)
+      // 3. User hasn't DISMISSED the popup
+      // 4. User doesn't already HAVE a WhatsApp number (checked via API)
       function shouldShowWhatsAppPopup() {
-        // Rule 1: Onboarding must be completed first
+        // Rule 1: ONBOARDING MUST BE COMPLETED FIRST - This is the most important check
         if (!isOnboardingCompleted()) {
-          console.log('[WhatsApp Popup] Skipping - Onboarding not completed');
+          console.log('[WhatsApp Popup] ❌ BLOCKED - Onboarding not completed');
           return false;
         }
         
-        // Rule 2: User must be authenticated
+        // Rule 2: User must be authenticated (logged in)
         if (!isUserAuthenticated()) {
-          console.log('[WhatsApp Popup] Skipping - User not authenticated');
+          console.log('[WhatsApp Popup] ❌ BLOCKED - User not authenticated');
           return false;
         }
         
-        // Rule 3: User hasn't dismissed the popup
-        if (localStorage.getItem(dismissedKey)) {
-          console.log('[WhatsApp Popup] Skipping - User dismissed popup');
+        // Rule 3: User hasn't dismissed the popup before
+        if (localStorage.getItem(dismissedKey) === 'true') {
+          console.log('[WhatsApp Popup] ❌ BLOCKED - User previously dismissed popup');
           return false;
         }
         
+        console.log('[WhatsApp Popup] ✓ All pre-checks passed, will verify WhatsApp status via API');
         return true;
       }
 
-      // Show popup after 3 seconds only if all conditions are met
+      // Show popup after delay, only if all conditions are met
       setTimeout(() => {
+        console.log('[WhatsApp Popup] Running eligibility check...');
+        
         if (shouldShowWhatsAppPopup()) {
-          // Final check: verify user doesn't have WhatsApp number via API
+          // Final check: verify user doesn't have WhatsApp number via server API
           fetch('{{ url_for("api_whatsapp_check") }}')
             .then(response => response.json())
             .then(data => {
+              console.log('[WhatsApp Popup] API response:', data);
+              
               if (data.authenticated && !data.has_whatsapp) {
-                console.log('[WhatsApp Popup] Showing popup - User needs WhatsApp');
+                console.log('[WhatsApp Popup] ✓ Showing popup - User needs WhatsApp number');
                 showModal();
               } else if (data.has_whatsapp) {
-                console.log('[WhatsApp Popup] Skipping - User already has WhatsApp');
+                console.log('[WhatsApp Popup] ❌ BLOCKED - User already has WhatsApp number');
+              } else if (!data.authenticated) {
+                console.log('[WhatsApp Popup] ❌ BLOCKED - API says user not authenticated');
               }
             })
             .catch(err => {
-              console.error('[WhatsApp Popup] Error checking status:', err);
+              console.error('[WhatsApp Popup] API error:', err);
             });
         }
       }, checkInterval);

@@ -514,7 +514,7 @@
               <img src="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png" 
                    alt="Abdoukadir - Founder"
                    class="founder-image"
-                   onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"%3E%3Ccircle cx=\"50\" cy=\"50\" r=\"50\" fill=\"%230a0a1a\"/%3E%3Ccircle cx=\"50\" cy=\"40\" r=\"18\" fill=\"%2300f5ff\" opacity=\"0.3\"/%3E%3Cellipse cx=\"50\" cy=\"75\" rx=\"25\" ry=\"18\" fill=\"%2300f5ff\" opacity=\"0.3\"/%3E%3C/svg%3E'">
+                   id="founderImage">
             </div>
             
             <!-- Founder Introduction -->
@@ -770,11 +770,42 @@
   </div>
 
   <script>
-    // Initialize Lucide icons
+    // Initialize Lucide icons and setup
     document.addEventListener('DOMContentLoaded', function() {
       if (window.lucide) {
         window.lucide.createIcons();
       }
+      
+      // Fallback for founder image if it fails to load
+      const founderImg = document.getElementById('founderImage');
+      if (founderImg) {
+        founderImg.onerror = function() {
+          this.onerror = null;
+          this.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#0a0a1a"/><circle cx="50" cy="40" r="18" fill="#00f5ff" opacity="0.3"/><ellipse cx="50" cy="75" rx="25" ry="18" fill="#00f5ff" opacity="0.3"/></svg>');
+        };
+      }
+      
+      // If user is explicitly on the onboarding page, they want to redo onboarding
+      // Check if they came via a "reset" parameter to clear old values
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('reset') === '1') {
+        console.log('[Onboarding] Resetting onboarding status for testing...');
+        // Clear localStorage values
+        localStorage.removeItem('buxin_onboarding_completed');
+        localStorage.removeItem('buxin_onboarding');
+        localStorage.removeItem('buxin_country_selected');
+        localStorage.removeItem('buxin_language_selected');
+        localStorage.removeItem('buxin_address_saved');
+        localStorage.removeItem('whatsapp_popup_dismissed');
+        // Clear cookie by setting expired date
+        document.cookie = 'buxin_onboarding_completed=; path=/; max-age=0; SameSite=Lax';
+        console.log('[Onboarding] Reset complete - all onboarding data cleared');
+      }
+      
+      console.log('[Onboarding] Page loaded. Current status:', {
+        localStorage: localStorage.getItem('buxin_onboarding_completed'),
+        cookie: document.cookie.includes('buxin_onboarding_completed=true')
+      });
     });
     
     // Slide management
@@ -868,6 +899,22 @@
         return;
       }
       
+      // Helper function to set onboarding completion status
+      function markOnboardingComplete() {
+        // Set localStorage
+        localStorage.setItem('buxin_onboarding_completed', 'true');
+        localStorage.setItem('buxin_country_selected', 'true');
+        localStorage.setItem('buxin_language_selected', 'true');
+        if (address) {
+          localStorage.setItem('buxin_address_saved', 'true');
+        }
+        
+        // Set cookie (1 year expiry)
+        document.cookie = 'buxin_onboarding_completed=true; path=/; max-age=31536000; SameSite=Lax';
+        
+        console.log('[Onboarding] Marked as complete - localStorage and cookie set');
+      }
+      
       // Store preferences
       const preferences = {
         country: country,
@@ -877,9 +924,11 @@
         completed_at: new Date().toISOString()
       };
       
-      // Save to localStorage
+      // Save preferences to localStorage
       localStorage.setItem('buxin_onboarding', JSON.stringify(preferences));
-      localStorage.setItem('buxin_onboarding_completed', 'true');
+      
+      // Mark onboarding as complete BEFORE submitting to server
+      markOnboardingComplete();
       
       // Submit to server
       const formData = new FormData();
@@ -903,9 +952,9 @@
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          // Set cookie via JavaScript as backup
-          document.cookie = 'buxin_onboarding_completed=true; max-age=31536000; path=/; SameSite=Lax';
-          // Redirect to login/register page
+          // Ensure cookie is set again as backup
+          document.cookie = 'buxin_onboarding_completed=true; path=/; max-age=31536000; SameSite=Lax';
+          // Redirect to sign-in page
           window.location.href = data.redirect || '/login?from_onboarding=1';
         } else {
           btn.innerHTML = originalContent;
@@ -914,13 +963,10 @@
         }
       })
       .catch(error => {
-        console.error('Error:', error);
+        console.error('[Onboarding] Server error:', error);
         btn.innerHTML = originalContent;
         btn.disabled = false;
-        // Set localStorage and cookie even if server fails
-        localStorage.setItem('buxin_onboarding_completed', 'true');
-        document.cookie = 'buxin_onboarding_completed=true; max-age=31536000; path=/; SameSite=Lax';
-        // Redirect since we saved locally
+        // Already set localStorage and cookie above, so redirect anyway
         window.location.href = '/login?from_onboarding=1';
       });
     });
@@ -939,11 +985,11 @@
       }
     });
     
-    // Check if onboarding already completed
-    if (localStorage.getItem('buxin_onboarding_completed') === 'true') {
-      // Redirect to login if already completed
-      // window.location.href = '/login';
-    }
+    // Debug: Log current onboarding status
+    console.log('[Onboarding] Status:', {
+      localStorage: localStorage.getItem('buxin_onboarding_completed'),
+      cookie: document.cookie.includes('buxin_onboarding_completed=true')
+    });
   </script>
 </body>
 </html>

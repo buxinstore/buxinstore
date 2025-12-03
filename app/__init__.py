@@ -2140,6 +2140,7 @@ def onboarding_complete():
     session['lang'] = language
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        # For AJAX requests, return JSON (cookie will be set by JavaScript)
         return jsonify({
             'success': True,
             'message': 'Setup complete!',
@@ -2148,8 +2149,8 @@ def onboarding_complete():
     
     # Create response with cookie to persist onboarding completion
     response = make_response(redirect(url_for('login', from_onboarding='1')))
-    # Set cookie that expires in 1 year
-    response.set_cookie('buxin_onboarding_completed', 'true', max_age=31536000, secure=True, httponly=True, samesite='Lax')
+    # Set cookie that expires in 1 year (httponly=False so JS can read it)
+    response.set_cookie('buxin_onboarding_completed', 'true', max_age=31536000, secure=False, httponly=False, samesite='Lax')
     return response
 
 @app.route('/check-onboarding')
