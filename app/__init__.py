@@ -781,38 +781,99 @@ def currency_filter(value):
     except (ValueError, TypeError):
         return str(value)
 
+# ======================
+# CSRF Configuration (Production-Ready)
+# ======================
 app.config['WTF_CSRF_ENABLED'] = True
-app.config['WTF_CSRF_SECRET_KEY'] = 'a-secret-key-for-csrf'  # Change this in production
+app.config['WTF_CSRF_SECRET_KEY'] = os.environ.get('CSRF_SECRET_KEY', 'change-this-in-production-csrf-key-2024')
 app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # Extend CSRF token validity to 1 hour
+app.config['WTF_CSRF_SSL_STRICT'] = False  # Allow CSRF on non-HTTPS for development
+app.config['WTF_CSRF_CHECK_DEFAULT'] = True
+
+# ======================
+# Session Cookie Configuration (Production-Ready)
+# ======================
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('IS_RENDER', 'false').lower() == 'true'  # True in production
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# Set domain for cross-subdomain if needed (uncomment if using subdomains)
+# app.config['SESSION_COOKIE_DOMAIN'] = '.techbuxin.com'
+
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 
 # Email configuration removed as per user request
 
-# CSRF error handler for JSON responses
+# ======================
+# Cache Control - Prevent stale pages with expired CSRF tokens
+# ======================
+@app.after_request
+def add_cache_control_headers(response):
+    """Add cache control headers to prevent Cloudflare/browser from serving stale pages"""
+    # Apply no-cache headers to admin pages, form pages, and auth pages
+    if (request.path.startswith('/admin/') or 
+        request.path.startswith('/login') or 
+        request.path.startswith('/register') or
+        request.path.startswith('/checkout') or
+        request.path.startswith('/profile') or
+        request.path.startswith('/china/') or
+        request.path.startswith('/gambia/') or
+        request.path.startswith('/forum/') or
+        request.method == 'POST'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
+# ======================
+# CSRF Error Handler with Logging
+# ======================
 @app.errorhandler(CSRFError)
 def csrf_error(e):
-    """Handle CSRF errors and return JSON for API requests"""
+    """Handle CSRF errors with detailed logging and user-friendly responses"""
+    # Log the CSRF error for debugging
+    error_details = {
+        'error_type': 'CSRF_ERROR',
+        'description': str(e.description) if hasattr(e, 'description') else str(e),
+        'path': request.path,
+        'method': request.method,
+        'referrer': request.referrer,
+        'user_agent': request.headers.get('User-Agent', 'Unknown'),
+        'remote_addr': request.remote_addr,
+        'has_csrf_token': bool(request.form.get('csrf_token') or request.headers.get('X-CSRFToken')),
+        'content_type': request.content_type,
+        'is_xhr': request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    }
+    app.logger.warning(f"[CSRF ERROR] {error_details}")
+    
     # Check if this is an AJAX/API request
     is_ajax = (request.is_json or 
                request.headers.get('Content-Type') == 'application/json' or 
                request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
-               request.path.startswith('/admin/'))
+               request.path.startswith('/admin/') or
+               request.path.startswith('/api/'))
+    
+    # Determine error message based on error type
+    error_str = str(e.description) if hasattr(e, 'description') else str(e)
+    if 'expired' in error_str.lower() or 'time' in error_str.lower():
+        error_msg = 'Your session has expired. Please refresh the page and try again.'
+    elif 'missing' in error_str.lower():
+        error_msg = 'Security token is missing. Please refresh the page and try again.'
+    else:
+        error_msg = 'Security validation failed. Please refresh the page and try again.'
     
     if is_ajax:
-        error_msg = 'CSRF token has expired. Please refresh the page and try again.'
-        if 'expired' in str(e).lower():
-            error_msg = 'CSRF token has expired. Please refresh the page and try again.'
         return jsonify({
             'success': False, 
             'message': error_msg,
             'csrf_expired': True,
-            'redirect': request.referrer or url_for('admin_shipping')
+            'error_code': 'CSRF_ERROR',
+            'redirect': request.referrer or url_for('home')
         }), 400
     
     # For regular form submissions, flash a message and redirect
-    flash('Your session has expired. Please refresh the page and try again.', 'error')
-    return redirect(request.referrer or url_for('home')), 400
+    flash(error_msg, 'error')
+    return redirect(request.referrer or url_for('home'))
 
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
