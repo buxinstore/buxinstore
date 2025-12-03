@@ -5713,10 +5713,10 @@ def admin_new_shipping_rule():
                     # Always assign to shipping_mode_key, never to shipping_method
                     shipping_mode_key = method_mapping.get(old_field_value, old_field_value)
             
-            # NEW SIMPLIFIED SYSTEM: Always use 0.5kg as base weight
-            # Min and max weight are automatically set to 0.5 and 999999
-            min_weight_str = '0.5'  # Always 0.5kg base
-            max_weight_str = '999999'  # Very high max to cover all weights
+            # BRACKET-BASED SYSTEM: Read min and max weight from form
+            # These define the weight bracket for this shipping price
+            min_weight_str = request.form.get('min_weight', '0.0').strip()
+            max_weight_str = request.form.get('max_weight', '0.5').strip()
             price_gmd_str = request.form.get('price_gmd', '').strip()
             delivery_time = request.form.get('delivery_time', '').strip() or None
             priority_str = request.form.get('priority', '0').strip()
@@ -5911,10 +5911,10 @@ def admin_edit_shipping_rule(rule_id):
                     }
                     shipping_mode_key = method_mapping.get(old_field_value, old_field_value)
             
-            # NEW SIMPLIFIED SYSTEM: Always use 0.5kg as base weight
-            # Min and max weight are automatically set to 0.5 and 999999
-            min_weight = '0.5'  # Always 0.5kg base
-            max_weight = '999999'  # Very high max to cover all weights
+            # BRACKET-BASED SYSTEM: Read min and max weight from form
+            # These define the weight bracket for this shipping price
+            min_weight = request.form.get('min_weight', str(rule.min_weight)).strip()
+            max_weight = request.form.get('max_weight', str(rule.max_weight)).strip()
             price_gmd = request.form.get('price_gmd')
             delivery_time = request.form.get('delivery_time', '').strip()
             priority = request.form.get('priority', 0)

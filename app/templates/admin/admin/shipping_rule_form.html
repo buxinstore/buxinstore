@@ -40,9 +40,9 @@
         <form method="POST" class="p-8">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             
-            <!-- Hidden fields for min/max weight -->
-            <input type="hidden" id="min_weight" name="min_weight" value="0.5">
-            <input type="hidden" id="max_weight" name="max_weight" value="999999">
+            <!-- Weight bracket fields (will be set based on bracket selection) -->
+            <input type="hidden" id="min_weight" name="min_weight" value="{{ rule.min_weight if rule else '0.0' }}">
+            <input type="hidden" id="max_weight" name="max_weight" value="{{ rule.max_weight if rule else '0.5' }}">
 
             <div class="space-y-8">
                 <!-- Section 1: Rule Type -->
@@ -114,10 +114,86 @@
                     </p>
                 </div>
 
-                <!-- Section 4: Base Price -->
+                <!-- Section 4: Weight Bracket -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        4. Weight Bracket <span class="text-red-500">*</span>
+                    </label>
+                    <div class="max-w-md space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="weight_bracket_min" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Min Weight (kg)
+                                </label>
+                                <input type="number" 
+                                       id="weight_bracket_min" 
+                                       step="0.5"
+                                       min="0"
+                                       value="{{ "%.1f"|format(rule.min_weight) if rule else '0.0' }}" 
+                                       required
+                                       placeholder="0.0"
+                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                                       onchange="updateWeightBracket()">
+                            </div>
+                            <div>
+                                <label for="weight_bracket_max" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Max Weight (kg)
+                                </label>
+                                <input type="number" 
+                                       id="weight_bracket_max" 
+                                       step="0.5"
+                                       min="0.5"
+                                       value="{{ "%.1f"|format(rule.max_weight) if rule else '0.5' }}" 
+                                       required
+                                       placeholder="0.5"
+                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                                       onchange="updateWeightBracket()">
+                            </div>
+                        </div>
+                        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                            <p class="text-xs text-blue-800 dark:text-blue-200 mb-2">
+                                <strong>💡 Quick Select:</strong>
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" onclick="setBracket(0.0, 0.5)" class="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 rounded hover:bg-blue-50 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300">0-0.5 kg</button>
+                                <button type="button" onclick="setBracket(0.5, 1.0)" class="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 rounded hover:bg-blue-50 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300">0.5-1.0 kg</button>
+                                <button type="button" onclick="setBracket(1.0, 1.5)" class="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 rounded hover:bg-blue-50 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300">1.0-1.5 kg</button>
+                                <button type="button" onclick="setBracket(1.5, 2.0)" class="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 rounded hover:bg-blue-50 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300">1.5-2.0 kg</button>
+                                <button type="button" onclick="setBracket(2.0, 2.5)" class="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 rounded hover:bg-blue-50 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300">2.0-2.5 kg</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 max-w-md">
+                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                            Define the weight range for this shipping price. Products are rounded UP to the nearest 0.5kg bracket.
+                        </p>
+                        <div class="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                            <p class="text-xs font-mono text-gray-800 dark:text-gray-200 mb-2">
+                                <strong>Bracket Calculation:</strong>
+                            </p>
+                            <p class="text-xs font-mono text-gray-800 dark:text-gray-200 mb-3">
+                                Bracket = ceil(Weight ÷ 0.5) × 0.5 kg
+                            </p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                                <strong>Examples:</strong>
+                            </p>
+                            <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+                                <li>0.23 kg → bracket = 0.5 kg</li>
+                                <li>0.78 kg → bracket = 1.0 kg</li>
+                                <li>1.11 kg → bracket = 1.5 kg</li>
+                                <li>2.01 kg → bracket = 2.5 kg</li>
+                            </ul>
+                            <p class="text-xs text-gray-600 dark:text-gray-400 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                <strong>Note:</strong> Create separate rules for each weight bracket (0.5kg, 1.0kg, 1.5kg, etc.)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 5: Price for this Bracket -->
                 <div>
                     <label for="price_gmd" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                        4. Base Price for 0.5 kg (GMD) <span class="text-red-500">*</span>
+                        5. Price for this Bracket (GMD) <span class="text-red-500">*</span>
                     </label>
                     <input type="number" 
                            id="price_gmd" 
@@ -128,29 +204,15 @@
                            required
                            placeholder="0.00"
                            class="w-full max-w-md rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
-                    <div class="mt-3 max-w-md">
-                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                            Enter the price for 0.5 kg of shipping. The system will automatically calculate prices for any weight using:
-                        </p>
-                        <div class="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                            <p class="text-xs font-mono text-gray-800 dark:text-gray-200 mb-2">
-                                <strong>Formula:</strong>
-                            </p>
-                            <p class="text-xs font-mono text-gray-800 dark:text-gray-200 mb-3">
-                                Total Shipping = (Product Weight ÷ 0.5) × Base Price
-                            </p>
-                            <p class="text-xs text-gray-600 dark:text-gray-400">
-                                <strong>Example:</strong> If Base Price = D30, and product weight = 1.5kg,<br>
-                                Shipping = (1.5 ÷ 0.5) × 30 = <strong>D90</strong>
-                            </p>
-                        </div>
-                    </div>
+                    <p class="mt-2 text-xs text-gray-600 dark:text-gray-400 max-w-md">
+                        Enter the shipping price for products within the weight bracket defined above.
+                    </p>
                 </div>
 
-                <!-- Section 5: Delivery Time -->
+                <!-- Section 6: Delivery Time -->
                 <div>
                     <label for="delivery_time" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                        5. Delivery Time <span class="text-gray-500 dark:text-gray-400 text-xs font-normal">(optional)</span>
+                        6. Delivery Time <span class="text-gray-500 dark:text-gray-400 text-xs font-normal">(optional)</span>
                     </label>
                     <input type="text" 
                            id="delivery_time" 
@@ -161,10 +223,10 @@
                            class="w-full max-w-md rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
                 </div>
 
-                <!-- Section 6: Priority -->
+                <!-- Section 7: Priority -->
                 <div>
                     <label for="priority" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                        6. Priority
+                        7. Priority
                     </label>
                     <input type="number" 
                            id="priority" 
@@ -194,10 +256,10 @@
                     </div>
                 </div>
 
-                <!-- Section 8: Notes -->
+                <!-- Section 9: Notes -->
                 <div>
                     <label for="notes" class="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                        8. Notes <span class="text-gray-500 dark:text-gray-400 text-xs font-normal">(optional)</span>
+                        9. Notes <span class="text-gray-500 dark:text-gray-400 text-xs font-normal">(optional)</span>
                     </label>
                     <textarea id="notes" 
                               name="notes" 
@@ -313,9 +375,26 @@ function toggleCountryField() {
     }
 }
 
+// Weight bracket functions
+function setBracket(min, max) {
+    document.getElementById('weight_bracket_min').value = min;
+    document.getElementById('weight_bracket_max').value = max;
+    updateWeightBracket();
+}
+
+function updateWeightBracket() {
+    const minWeight = parseFloat(document.getElementById('weight_bracket_min').value) || 0;
+    const maxWeight = parseFloat(document.getElementById('weight_bracket_max').value) || 0.5;
+    
+    // Update hidden fields
+    document.getElementById('min_weight').value = minWeight;
+    document.getElementById('max_weight').value = maxWeight;
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     toggleCountryField();
+    updateWeightBracket();
 });
 
 // Add New Shipping Method Modal Functions

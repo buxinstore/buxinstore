@@ -3,6 +3,7 @@ Shipping Service
 Business logic for shipping calculations and rule management.
 """
 
+import math
 from decimal import Decimal
 from typing import Dict, Optional, List, Tuple
 from flask import current_app
@@ -76,76 +77,80 @@ class ShippingService:
             total_weight_kg = 0.0
         
         weight = Decimal(str(total_weight_kg))
-        base_weight = Decimal('0.5')  # Base weight for pricing (0.5 kg)
         
-        # NEW SIMPLIFIED CALCULATION:
-        # Find the base price for 0.5kg, then calculate: (total_weight_kg / 0.5) × base_price
+        # BRACKET-BASED CALCULATION:
+        # Round weight UP to nearest 0.5kg bracket: ceil(weight / 0.5) × 0.5
+        # Then lookup the price for that exact bracket
         
-        # Step 1: Try to find base price (0.5kg rule) for country-specific rules
-        base_rule = None
+        # Calculate bracket: ceil(weight / 0.5) × 0.5
+        bracket_multiplier = math.ceil(float(weight) / 0.5)
+        weight_bracket = Decimal(str(bracket_multiplier * 0.5))
+        
+        # Ensure minimum bracket is 0.5kg (for weights 0 to 0.5kg)
+        if weight_bracket < Decimal('0.5'):
+            weight_bracket = Decimal('0.5')
+        
+        # Step 1: Try to find a rule that matches the weight bracket for country-specific rules
+        matching_rule = None
         for iso_variant in country_iso_variants:
-            # Look for a rule with min_weight = 0.5 (or close to it, like 0.0-0.5 or 0.5-0.5)
-            # We'll accept any rule where min_weight <= 0.5 and the rule is for this method
+            # Find rules where the bracket falls within the weight range: min_weight <= bracket <= max_weight
             rules = ShippingRule.query.filter(
                 ShippingRule.country_iso == iso_variant,
                 ShippingRule.shipping_mode_key == shipping_mode_key,
                 ShippingRule.active == True,
-                ShippingRule.min_weight <= base_weight
+                ShippingRule.min_weight <= weight_bracket,
+                ShippingRule.max_weight >= weight_bracket
             ).order_by(
-                ShippingRule.min_weight.asc(),  # Prefer rules starting at 0.5 or lower
-                ShippingRule.priority.desc(),
-                ShippingRule.created_at.asc()
+                ShippingRule.priority.desc(),  # Higher priority first
+                ShippingRule.created_at.asc()  # Older rules first if same priority
             ).all()
             
             if rules:
-                # Use the first rule (should be the one with min_weight closest to 0.5)
-                base_rule = rules[0]
+                # Use the first matching rule (highest priority)
+                matching_rule = rules[0]
                 break
         
         # Step 2: If no country-specific rule found, try global rules
-        if not base_rule and country_iso != '*':
+        if not matching_rule and country_iso != '*':
             global_rules = ShippingRule.query.filter(
                 ShippingRule.country_iso == '*',
                 ShippingRule.shipping_mode_key == shipping_mode_key,
                 ShippingRule.active == True,
-                ShippingRule.min_weight <= base_weight
+                ShippingRule.min_weight <= weight_bracket,
+                ShippingRule.max_weight >= weight_bracket
             ).order_by(
-                ShippingRule.min_weight.asc(),
                 ShippingRule.priority.desc(),
                 ShippingRule.created_at.asc()
             ).all()
             
             if global_rules:
-                base_rule = global_rules[0]
+                matching_rule = global_rules[0]
         
-        # Step 3: Calculate shipping price using the formula: (weight / 0.5) × base_price
-        if base_rule:
-            mode = base_rule.shipping_mode
-            base_price = float(base_rule.price_gmd)
-            
-            # Calculate: (total_weight_kg / 0.5) × base_price
-            calculated_price = (float(total_weight_kg) / 0.5) * base_price
+        # Step 3: Return the price for the matching bracket
+        if matching_rule:
+            mode = matching_rule.shipping_mode
+            bracket_price = float(matching_rule.price_gmd)
             
             # Debug logging
             from flask import current_app
             if current_app:
                 current_app.logger.debug(
                     f"ShippingService.calculate_shipping: country_iso={country_iso}, mode={shipping_mode_key}, "
-                    f"weight={total_weight_kg}kg, base_price={base_price} (from rule {base_rule.id}), "
-                    f"calculated_price={calculated_price} (formula: ({total_weight_kg} / 0.5) × {base_price})"
+                    f"weight={total_weight_kg}kg → bracket={weight_bracket}kg, "
+                    f"bracket_price={bracket_price} (from rule {matching_rule.id}, range: {matching_rule.min_weight}-{matching_rule.max_weight}kg)"
                 )
             
             return {
-                'shipping_fee_gmd': calculated_price,
-                'shipping_fee_display': f"D{calculated_price:,.2f}",
+                'shipping_fee_gmd': bracket_price,
+                'shipping_fee_display': f"D{bracket_price:,.2f}",
                 'currency': 'GMD',
-                'delivery_time': base_rule.delivery_time or (mode.delivery_time_range if mode else 'N/A'),
+                'delivery_time': matching_rule.delivery_time or (mode.delivery_time_range if mode else 'N/A'),
                 'mode': mode.label if mode else shipping_mode_key,
-                'rule_id': base_rule.id,
+                'rule_id': matching_rule.id,
                 'available': True
             }
         
-        # Step 4: No base rule found
+        # Step 4: No matching bracket rule found
         from flask import current_app
         if current_app:
             # Check if any rules exist at all for this country/mode
@@ -159,13 +164,13 @@ class ShippingService:
                 all_rules.extend(rules)
             
             current_app.logger.warning(
-                f"No shipping base price rule found: country_iso={country_iso}, mode={shipping_mode_key}. "
-                f"Found {len(all_rules)} active rules for this country/mode. "
-                f"Need a rule with min_weight <= 0.5kg to use as base price."
+                f"No shipping bracket rule found: country_iso={country_iso}, mode={shipping_mode_key}, "
+                f"weight={total_weight_kg}kg → bracket={weight_bracket}kg. "
+                f"Found {len(all_rules)} active rules for this country/mode, but none match the bracket."
             )
         
         return {
-            'error': f"No shipping base price rule found for {country_iso}, {shipping_mode_key}. Need a rule with base price for 0.5kg.",
+            'error': f"Shipping price not configured for this weight. Weight: {total_weight_kg}kg → Bracket: {weight_bracket}kg. Country: {country_iso}, Method: {shipping_mode_key}",
             'available': False
         }
     
