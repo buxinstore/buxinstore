@@ -120,11 +120,35 @@
                         <div class="flex-shrink-0">
                             <span class="text-2xl">🚚</span>
                         </div>
-                        <div>
+                        <div class="flex-1">
                             <h3 class="text-sm font-semibold text-green-800 dark:text-green-200 mb-1">Available in The Gambia</h3>
-                            <p class="text-sm text-green-700 dark:text-green-300">
+                            <p class="text-sm text-green-700 dark:text-green-300 mb-3">
                                 This product is available in The Gambia. No shipping fee. Same-day pickup or delivery.
                             </p>
+                            <!-- Contact Buttons -->
+                            <div class="flex flex-wrap gap-2">
+                                {% if gambia_whatsapp %}
+                                <a href="https://wa.me/{{ gambia_whatsapp|replace('+', '') }}?text=Hi,%20I%20just%20placed%20order%20%23{{ order.id }}%20and%20would%20like%20to%20arrange%20pickup/delivery." 
+                                   target="_blank"
+                                   class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                    <i class="fab fa-whatsapp"></i>
+                                    WhatsApp Us
+                                </a>
+                                {% endif %}
+                                {% if gambia_phone %}
+                                <a href="tel:{{ gambia_phone }}" 
+                                   class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                    <i class="fas fa-phone"></i>
+                                    Call Us
+                                </a>
+                                {% endif %}
+                                {% if not gambia_whatsapp and not gambia_phone %}
+                                <span class="text-sm text-green-600 dark:text-green-400 italic">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Contact admin for pickup/delivery arrangements.
+                                </span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>

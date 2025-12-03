@@ -1575,6 +1575,9 @@ class AppSettings(db.Model):
     floating_support_email = db.Column(db.String(255), nullable=True)  # Support email for floating widget
     floating_email_subject = db.Column(db.String(255), nullable=True, default='Support Request')  # Default email subject
     floating_email_body = db.Column(db.Text, nullable=True, default='Hello, I need help with ...')  # Default email body
+    # Gambia Contact Settings (for order confirmation page)
+    gambia_whatsapp_number = db.Column(db.String(50), nullable=True)  # WhatsApp number for Gambia orders
+    gambia_phone_number = db.Column(db.String(50), nullable=True)  # Phone number for Gambia orders
     # PWA Settings
     pwa_app_name = db.Column(db.String(255), nullable=True)  # PWA app name
     pwa_short_name = db.Column(db.String(100), nullable=True)  # PWA short name
@@ -5107,6 +5110,32 @@ def admin_settings():
                 
                 db.session.commit()
                 flash('PWA settings updated successfully.', 'success')
+            
+            elif section == 'gambia':
+                # Gambia Contact Settings
+                gambia_whatsapp = request.form.get('gambia_whatsapp_number', '').strip()
+                gambia_phone = request.form.get('gambia_phone_number', '').strip()
+                
+                # Validate phone numbers (must start with + if not empty)
+                import re
+                phone_pattern = re.compile(r'^\+[0-9]+$')
+                
+                if gambia_whatsapp and not phone_pattern.match(gambia_whatsapp):
+                    flash('WhatsApp number must start with + followed by numbers only (e.g., +220XXXXXXXX).', 'error')
+                    return redirect(url_for('admin_settings'))
+                
+                if gambia_phone and not phone_pattern.match(gambia_phone):
+                    flash('Phone number must start with + followed by numbers only (e.g., +220XXXXXXXX).', 'error')
+                    return redirect(url_for('admin_settings'))
+                
+                # Save settings
+                if hasattr(settings, 'gambia_whatsapp_number'):
+                    settings.gambia_whatsapp_number = gambia_whatsapp
+                if hasattr(settings, 'gambia_phone_number'):
+                    settings.gambia_phone_number = gambia_phone
+                
+                db.session.commit()
+                flash('Gambia contact numbers updated successfully.', 'success')
             
             return redirect(url_for('admin_settings'))
             
@@ -13063,6 +13092,29 @@ def home():
                          featured_products=featured_products, 
                          search_query=search_query)
 
+@app.route('/categories')
+def all_categories():
+    """Show all categories page"""
+    # Get all categories with product counts
+    categories_query = db.session.query(
+        Category,
+        db.func.count(Product.id).label('product_count')
+    ).outerjoin(Product, Category.id == Product.category_id)
+    categories = categories_query.group_by(Category.id).order_by(Category.name).all()
+    
+    # Format categories with counts
+    categories_with_counts = [{
+        'id': category.id,
+        'name': category.name,
+        'count': int(product_count) if product_count is not None else 0,
+        'icon': getattr(category, 'icon', 'box'),
+        'gradient': getattr(category, 'gradient', 'from-gray-500 to-gray-600'),
+        'image': category.image
+    } for category, product_count in categories]
+    
+    return render_template('categories.html', 
+                         categories_with_counts=categories_with_counts)
+
 @app.route('/category/<int:category_id>')
 def category(category_id):
     category = Category.query.get_or_404(category_id)
@@ -14510,7 +14562,21 @@ def order_confirmation(order_id):
     # Log that the confirmation page was viewed
     app.logger.info(f'Order {order_id} confirmation page viewed by user {current_user.id}')
     
-    return render_template('order_confirmation.html', order=order)
+    # Get Gambia contact settings for local products
+    gambia_whatsapp = None
+    gambia_phone = None
+    try:
+        app_settings = AppSettings.query.first()
+        if app_settings:
+            gambia_whatsapp = getattr(app_settings, 'gambia_whatsapp_number', None)
+            gambia_phone = getattr(app_settings, 'gambia_phone_number', None)
+    except Exception as e:
+        app.logger.warning(f'Error fetching Gambia contact settings: {e}')
+    
+    return render_template('order_confirmation.html', 
+                         order=order,
+                         gambia_whatsapp=gambia_whatsapp,
+                         gambia_phone=gambia_phone)
 
 @app.route('/api/payment/process', methods=['POST'])
 @login_required

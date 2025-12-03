@@ -177,6 +177,58 @@
     </form>
   </div>
 
+  <!-- Gambia Contact Settings -->
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+      <span class="mr-2">🇬🇲</span>
+      Gambia Contact Settings
+    </h2>
+    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4">
+      <p class="text-sm text-green-800 dark:text-green-200">
+        <i class="fas fa-info-circle mr-2"></i>
+        These contact numbers will be displayed on the order confirmation page for products available in The Gambia. Customers can use these to reach you directly for pickup or delivery coordination.
+      </p>
+    </div>
+    <form method="POST" id="gambia-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="section" value="gambia">
+      
+      <div class="grid md:grid-cols-2 gap-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <i class="fab fa-whatsapp text-green-500 mr-1"></i>
+            WhatsApp Number
+          </label>
+          <input type="text" name="gambia_whatsapp_number" 
+                 value="{{ settings.gambia_whatsapp_number or '' }}" 
+                 placeholder="+220XXXXXXXX"
+                 pattern="^\+[0-9]+$"
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-green-500">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">WhatsApp number for Gambia order inquiries. Must start with + (e.g., +2207741187)</p>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <i class="fas fa-phone text-blue-500 mr-1"></i>
+            Phone Number
+          </label>
+          <input type="text" name="gambia_phone_number" 
+                 value="{{ settings.gambia_phone_number or '' }}" 
+                 placeholder="+220XXXXXXXX"
+                 pattern="^\+[0-9]+$"
+                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-blue-500">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Phone number for Gambia order calls. Must start with + (e.g., +2207741187)</p>
+        </div>
+      </div>
+      
+      <div class="mt-6">
+        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500">
+          <i class="fas fa-save mr-2"></i>Save Contact Numbers
+        </button>
+      </div>
+    </form>
+  </div>
+
   <!-- 2. Payment Settings -->
   <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
     <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">

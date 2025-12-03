@@ -70,13 +70,21 @@
                         <strong>New System:</strong> You only need to enter <strong>one base price for 0.5 kg</strong> per shipping method and country.
                     </p>
                     <p class="mb-2">
-                        The system automatically calculates shipping for any weight using the formula:
+                        The system uses <strong>weight bracket-based pricing</strong>. Products are rounded up to the nearest 0.5kg bracket, then the price for that bracket is used.
                     </p>
                     <p class="font-mono bg-blue-100 dark:bg-blue-900/40 p-2 rounded mb-2">
-                        <strong>Total Shipping Price = (Product Weight / 0.5) × Base Price for 0.5 kg</strong>
+                        <strong>Bracket = ceil(Total Weight ÷ 0.5) × 0.5 kg</strong><br>
+                        <strong>Shipping Price = Price for that bracket</strong>
                     </p>
                     <p class="text-xs">
-                        <strong>Example:</strong> If Express base price is D30 for 0.5kg, a 1.5kg product = (1.5 / 0.5) × 30 = D90
+                        <strong>Examples:</strong><br>
+                        • 0.23 kg → bracket = 0.5 kg → use 0.5 kg price<br>
+                        • 0.78 kg → bracket = 1.0 kg → use 1.0 kg price<br>
+                        • 1.11 kg → bracket = 1.5 kg → use 1.5 kg price<br>
+                        • 2.01 kg → bracket = 2.5 kg → use 2.5 kg price
+                    </p>
+                    <p class="text-xs mt-2">
+                        <strong>Note:</strong> Total weight = unit weight × quantity. Create separate rules for each weight bracket (0.5kg, 1.0kg, 1.5kg, etc.)
                     </p>
                 </div>
             </div>
