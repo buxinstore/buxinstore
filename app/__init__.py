@@ -2087,8 +2087,13 @@ def merge_carts(user, guest_cart):
 # Onboarding routes
 @app.route('/onboarding')
 def onboarding():
-    """Show onboarding flow for first-time users"""
-    # Support reset parameter to force show onboarding (for testing or re-onboarding)
+    """Show onboarding flow for first-time users
+    
+    IMPORTANT: This route should ALWAYS show the onboarding page when accessed directly.
+    The redirect logic to FORCE users to see onboarding is in other routes (home, login, etc.),
+    NOT here. If a user navigates to /onboarding, they want to see it regardless of completion status.
+    """
+    # Support reset parameter to force clear onboarding data (for testing or re-onboarding)
     reset_requested = request.args.get('reset') == '1'
     
     if reset_requested:
@@ -2097,26 +2102,10 @@ def onboarding():
         session.pop('selected_country_code', None)
         session.pop('selected_language', None)
         session.pop('user_address', None)
-        # Create response that clears the cookie
-        countries = Country.query.filter_by(is_active=True).order_by(Country.name).all()
-        if not countries:
-            from .data.world_countries import WORLD_COUNTRIES
-            countries = [
-                type('Country', (), {
-                    'code': c['code'],
-                    'name': c['name'],
-                    'currency': c['currency'],
-                    'language': c['language']
-                })()
-                for c in WORLD_COUNTRIES if c.get('is_active', False)
-            ]
-        resp = make_response(render_template('onboarding.html', countries=countries))
-        resp.set_cookie('buxin_onboarding_completed', '', expires=0)  # Clear the cookie
-        return resp
-    
-    # Check if user has already completed onboarding (only if not reset)
-    if session.get('onboarding_completed') or request.cookies.get('buxin_onboarding_completed'):
-        return redirect(url_for('login', from_onboarding='1'))
+        session.pop('country_id', None)
+        session.pop('currency', None)
+        session.pop('currency_symbol', None)
+        session.pop('lang', None)
     
     # Get active countries for the selector
     countries = Country.query.filter_by(is_active=True).order_by(Country.name).all()
@@ -2134,9 +2123,18 @@ def onboarding():
             for c in WORLD_COUNTRIES if c.get('is_active', False)
         ]
     
-    return render_template('onboarding.html', countries=countries)
+    # Always show onboarding page - NO REDIRECT HERE
+    # The onboarding page itself should always be accessible
+    resp = make_response(render_template('onboarding.html', countries=countries))
+    
+    # If reset was requested, clear the cookie too
+    if reset_requested:
+        resp.set_cookie('buxin_onboarding_completed', '', expires=0)  # Clear the cookie
+    
+    return resp
 
 @app.route('/onboarding/complete', methods=['POST'])
+@csrf.exempt  # Exempt from CSRF - onboarding uses JavaScript fetch without CSRF token
 def onboarding_complete():
     """Handle onboarding completion"""
     country_code = request.form.get('country')
