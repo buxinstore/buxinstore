@@ -13489,33 +13489,25 @@ def manifest_json():
         pwa_background_color = getattr(app_settings, 'pwa_background_color', None) or '#ffffff'
         pwa_logo_path = getattr(app_settings, 'pwa_logo_path', None)
         
-        # Build icons array
+        # Build icons array with multiple sizes for best home screen support
         icons = []
         
-        # Add PWA logo if available
+        # Determine the logo URL
         if pwa_logo_path:
-            # Check if it's a Cloudinary URL or local file
             if pwa_logo_path.startswith('http://') or pwa_logo_path.startswith('https://'):
                 logo_url = pwa_logo_path
             else:
-                # Local file - use url_for to generate URL
-                logo_url = url_for('static', filename=pwa_logo_path)
-            
-            # Check if file exists
-            if not pwa_logo_path.startswith('http'):
-                logo_full_path = os.path.join(app.static_folder, pwa_logo_path.lstrip('/static/'))
-                if os.path.exists(logo_full_path):
-                    icons.append({
-                        "src": logo_url,
-                        "sizes": "512x512",
-                        "type": "image/png",
-                        "purpose": "any maskable"
-                    })
+                logo_url = url_for('static', filename=pwa_logo_path, _external=True)
         else:
             # Fallback to Cloudinary logo
+            logo_url = "https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png"
+        
+        # Add multiple icon sizes for best compatibility with home screen
+        icon_sizes = ["72x72", "96x96", "128x128", "144x144", "152x152", "192x192", "256x256", "384x384", "512x512"]
+        for size in icon_sizes:
             icons.append({
-                "src": "https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png",
-                "sizes": "512x512",
+                "src": logo_url,
+                "sizes": size,
                 "type": "image/png",
                 "purpose": "any maskable"
             })
@@ -13554,15 +13546,15 @@ def manifest_json():
         
         return jsonify(manifest), 200, {
             'Content-Type': 'application/manifest+json',
-            'Cache-Control': 'public, max-age=3600'
+            'Cache-Control': 'no-cache, max-age=0'  # Don't cache to pick up admin changes immediately
         }
     except Exception as e:
         current_app.logger.error(f"Error generating manifest.json: {str(e)}")
         # Return fallback manifest on error
         fallback_manifest = {
-            "name": "buxin store",
-            "short_name": "buxin store",
-            "description": "buxin store - Your gateway to the future of technology.",
+            "name": "Buxin Store",
+            "short_name": "Buxin Store",
+            "description": "Buxin Store - Your gateway to the future of technology.",
             "start_url": "/",
             "display": "standalone",
             "background_color": "#ffffff",
