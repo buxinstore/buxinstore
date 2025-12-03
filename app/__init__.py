@@ -2144,6 +2144,58 @@ def merge_carts(user, guest_cart):
 
     session.pop('cart', None)
 
+# ======================
+# FORCE ONBOARDING - TOP PRIORITY
+# This runs BEFORE every single request
+# ======================
+@app.before_request
+def force_onboarding_for_new_users():
+    """
+    ABSOLUTE PRIORITY: Force onboarding for ALL new users
+    
+    If a user has NOT completed onboarding, they MUST see the onboarding page first.
+    This applies to EVERY page - home, login, products, cart, everything.
+    
+    Onboarding flow:
+    1. Slide 1: Welcome slide
+    2. Slide 2: What You Can Buy slide  
+    3. Slide 3: Country and Language Setup
+    4. After completion: Redirect to Sign In
+    """
+    # Skip for static files, API endpoints, and onboarding-related routes
+    skip_paths = [
+        '/static/',
+        '/favicon',
+        '/manifest.json',
+        '/service-worker.js',
+        '/onboarding',
+        '/clear-onboarding',
+        '/check-onboarding',
+        '/api/',
+        '/admin/',  # Admin has its own auth
+        '/china/',  # China partner has its own auth
+        '/gambia/', # Gambia team has its own auth
+    ]
+    
+    # Check if current path should be skipped
+    for skip_path in skip_paths:
+        if request.path.startswith(skip_path):
+            return None  # Don't redirect, proceed normally
+    
+    # Check if onboarding is completed (cookie OR session)
+    onboarding_completed = (
+        request.cookies.get('buxin_onboarding_completed') == 'true' or
+        session.get('onboarding_completed') == True
+    )
+    
+    # If onboarding NOT completed, FORCE redirect to onboarding
+    if not onboarding_completed:
+        app.logger.info(f"[ONBOARDING] New user detected on {request.path} - redirecting to onboarding")
+        return redirect(url_for('onboarding'))
+    
+    # Onboarding completed, proceed normally
+    return None
+
 # Routes
 # Onboarding routes
 @app.route('/onboarding')
@@ -2292,13 +2344,8 @@ def login():
             return redirect(url_for('gambia_orders'))
         return redirect(url_for('home'))
     
-    # Check if user should see onboarding first (new users who haven't completed onboarding)
-    # Skip onboarding check if user explicitly came from onboarding or has a next param
-    skip_onboarding_check = request.args.get('from_onboarding') or request.args.get('next')
-    if not skip_onboarding_check:
-        onboarding_completed = session.get('onboarding_completed') or request.cookies.get('buxin_onboarding_completed')
-        if not onboarding_completed:
-            return redirect(url_for('onboarding'))
+    # Onboarding check is now handled globally by @app.before_request (force_onboarding_for_new_users)
+    # No need to check here - the global handler ensures users complete onboarding first
         
     if request.method == 'POST':
         username = request.form.get('username')
@@ -13531,9 +13578,8 @@ def service_worker():
 
 @app.route('/')
 def home():
-    # FORCE Onboarding to show if the cookie is missing
-    if not request.cookies.get('buxin_onboarding_completed') and not session.get('onboarding_completed'):
-        return redirect(url_for('onboarding'))
+    # Onboarding check is now handled by @app.before_request (force_onboarding_for_new_users)
+    # This ensures ALL routes force onboarding, not just home
     
     search_query = request.args.get('q', '')
     
