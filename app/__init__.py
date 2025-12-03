@@ -3776,6 +3776,88 @@ def get_current_country():
         current_app.logger.error(f"Error getting current country: {e}")
         return None
 
+def is_user_in_gambia():
+    """Check if the user's selected country is Gambia (code 'GM').
+    Returns True if user is in Gambia, False otherwise.
+    """
+    try:
+        country = get_current_country()
+        if country and country.code:
+            return country.code.upper() == 'GM'
+        return False
+    except Exception as e:
+        current_app.logger.error(f"Error checking if user is in Gambia: {e}")
+        return False
+
+def get_product_base_query(include_gambia_products=None):
+    """Get base product query with optional Gambia product filtering.
+    
+    Args:
+        include_gambia_products: If None, auto-detect based on user's country.
+                                If True, include Gambia products.
+                                If False, exclude Gambia products.
+    """
+    query = Product.query
+    
+    # Auto-detect if not explicitly specified
+    if include_gambia_products is None:
+        include_gambia_products = is_user_in_gambia()
+    
+    # If user is NOT in Gambia, exclude Gambia-only products
+    if not include_gambia_products:
+        query = query.filter(Product.available_in_gambia == False)
+    
+    return query
+
+def get_categories_with_counts(include_gambia_products=None):
+    """Get categories with product counts, optionally excluding Gambia-only categories.
+    
+    Args:
+        include_gambia_products: If None, auto-detect based on user's country.
+    """
+    # Auto-detect if not explicitly specified
+    if include_gambia_products is None:
+        include_gambia_products = is_user_in_gambia()
+    
+    if include_gambia_products:
+        # User is in Gambia - show all products and categories
+        categories_query = db.session.query(
+            Category,
+            db.func.count(Product.id).label('product_count')
+        ).outerjoin(Product, Category.id == Product.category_id)
+        categories = categories_query.group_by(Category.id).all()
+    else:
+        # User is NOT in Gambia - only count non-Gambia products
+        categories_query = db.session.query(
+            Category,
+            db.func.count(Product.id).label('product_count')
+        ).outerjoin(
+            Product, 
+            db.and_(
+                Category.id == Product.category_id,
+                Product.available_in_gambia == False
+            )
+        )
+        categories = categories_query.group_by(Category.id).all()
+    
+    # Format categories and filter out those with 0 products (if not in Gambia)
+    categories_with_counts = []
+    for category, product_count in categories:
+        count = int(product_count) if product_count is not None else 0
+        # If user is not in Gambia and category has 0 non-Gambia products, skip it
+        if not include_gambia_products and count == 0:
+            continue
+        categories_with_counts.append({
+            'id': category.id,
+            'name': category.name,
+            'count': count,
+            'icon': getattr(category, 'icon', 'box'),
+            'gradient': getattr(category, 'gradient', 'from-gray-500 to-gray-600'),
+            'image': category.image
+        })
+    
+    return categories_with_counts
+
 @app.route('/api/countries', methods=['GET'])
 def api_get_countries():
     """Get all active countries."""
@@ -13039,7 +13121,11 @@ def all_products():
     search_query = request.args.get('q', '')
     category_id = request.args.get('category', type=int)
     
-    query = Product.query
+    # Check if user is in Gambia to determine product visibility
+    user_in_gambia = is_user_in_gambia()
+    
+    # Get base query with country filtering
+    query = get_product_base_query(include_gambia_products=user_in_gambia)
     
     # Apply search filter if query exists
     if search_query:
@@ -13053,8 +13139,11 @@ def all_products():
     if category_id:
         query = query.filter_by(category_id=category_id)
     
-    # Get all categories for the sidebar
-    categories = Category.query.order_by('name').all()
+    # Get categories for the sidebar (filtered by country)
+    categories_with_counts = get_categories_with_counts(include_gambia_products=user_in_gambia)
+    # Convert to simple category objects for compatibility
+    category_ids = [c['id'] for c in categories_with_counts]
+    categories = Category.query.filter(Category.id.in_(category_ids)).order_by('name').all() if category_ids else []
     
     # Get filtered products
     products = query.order_by(Product.created_at.desc()).all()
@@ -13212,33 +13301,25 @@ def service_worker():
 def home():
     search_query = request.args.get('q', '')
     
-    # Get all categories with product counts
-    categories_query = db.session.query(
-        Category,
-        db.func.count(Product.id).label('product_count')
-    ).outerjoin(Product, Category.id == Product.category_id)
-    categories = categories_query.group_by(Category.id).all()
+    # Check if user is in Gambia to determine product visibility
+    user_in_gambia = is_user_in_gambia()
     
-    # Format categories with counts
-    categories_with_counts = [{
-        'id': category.id,
-        'name': category.name,
-        'count': int(product_count) if product_count is not None else 0,
-        'icon': getattr(category, 'icon', 'box'),
-        'gradient': getattr(category, 'gradient', 'from-gray-500 to-gray-600'),
-        'image': category.image
-    } for category, product_count in categories]
+    # Get categories with product counts (filtered by country)
+    categories_with_counts = get_categories_with_counts(include_gambia_products=user_in_gambia)
+    
+    # Get base product query (filtered by country)
+    base_query = get_product_base_query(include_gambia_products=user_in_gambia)
     
     # If there's a search query, filter products by name or description
     if search_query:
         search = f"%{search_query}%"
-        featured_products = Product.query.filter(
+        featured_products = base_query.filter(
             Product.stock > 0,
             (Product.name.ilike(search)) | (Product.description.ilike(search))
         ).order_by(Product.created_at.desc()).limit(20).all()
     else:
         # Only show products that are in stock and limit to 8
-        featured_products = Product.query.filter(Product.stock > 0).order_by(Product.created_at.desc()).limit(8).all()
+        featured_products = base_query.filter(Product.stock > 0).order_by(Product.created_at.desc()).limit(8).all()
     
     return render_template('index.html', 
                          categories_with_counts=categories_with_counts, 
@@ -13248,22 +13329,14 @@ def home():
 @app.route('/categories')
 def all_categories():
     """Show all categories page"""
-    # Get all categories with product counts
-    categories_query = db.session.query(
-        Category,
-        db.func.count(Product.id).label('product_count')
-    ).outerjoin(Product, Category.id == Product.category_id)
-    categories = categories_query.group_by(Category.id).order_by(Category.name).all()
+    # Check if user is in Gambia to determine category visibility
+    user_in_gambia = is_user_in_gambia()
     
-    # Format categories with counts
-    categories_with_counts = [{
-        'id': category.id,
-        'name': category.name,
-        'count': int(product_count) if product_count is not None else 0,
-        'icon': getattr(category, 'icon', 'box'),
-        'gradient': getattr(category, 'gradient', 'from-gray-500 to-gray-600'),
-        'image': category.image
-    } for category, product_count in categories]
+    # Get categories with product counts (filtered by country)
+    categories_with_counts = get_categories_with_counts(include_gambia_products=user_in_gambia)
+    
+    # Sort by name
+    categories_with_counts.sort(key=lambda x: x['name'])
     
     return render_template('categories.html', 
                          categories_with_counts=categories_with_counts)
@@ -13271,11 +13344,38 @@ def all_categories():
 @app.route('/category/<int:category_id>')
 def category(category_id):
     category = Category.query.get_or_404(category_id)
-    # Only show products that are in stock
-    products = Product.query.filter(
-        Product.category_id == category_id,
-        Product.stock > 0
-    ).all()
+    
+    # Check if user is in Gambia
+    user_in_gambia = is_user_in_gambia()
+    
+    # Get products with country filtering
+    if user_in_gambia:
+        # User is in Gambia - show all products in this category
+        products = Product.query.filter(
+            Product.category_id == category_id,
+            Product.stock > 0
+        ).all()
+    else:
+        # User is NOT in Gambia - exclude Gambia-only products
+        products = Product.query.filter(
+            Product.category_id == category_id,
+            Product.stock > 0,
+            Product.available_in_gambia == False
+        ).all()
+        
+        # If no products after filtering, check if category only has Gambia products
+        if not products:
+            # Check if there are any Gambia products in this category
+            gambia_products_count = Product.query.filter(
+                Product.category_id == category_id,
+                Product.available_in_gambia == True
+            ).count()
+            
+            if gambia_products_count > 0:
+                # Category only has Gambia products - redirect to categories page
+                flash('This category is only available in The Gambia.', 'info')
+                return redirect(url_for('all_categories'))
+    
     return render_template('category.html', 
                          category=category, 
                          products=products)
@@ -13283,6 +13383,14 @@ def category(category_id):
 @app.route('/product/<int:product_id>')
 def product(product_id):
     product = Product.query.get_or_404(product_id)
+    
+    # Check if user is in Gambia
+    user_in_gambia = is_user_in_gambia()
+    
+    # If product is only available in Gambia and user is not in Gambia, block access
+    if product.available_in_gambia and not user_in_gambia:
+        flash('This product is only available in The Gambia. Please select Gambia as your country to view it.', 'info')
+        return redirect(url_for('home'))
     
     # If product is available in Gambia, skip all shipping calculations
     if product.available_in_gambia:
@@ -13365,10 +13473,17 @@ def product(product_id):
     # Note: Shipping fees come ONLY from Shipping Rules table - no product.delivery_price used
     
     category = Category.query.get(product.category_id)
-    related_products = Product.query.filter(
+    
+    # Get related products (filtered by country)
+    related_query = Product.query.filter(
         Product.category_id == product.category_id,
         Product.id != product.id
-    ).limit(4).all()
+    )
+    # If user is not in Gambia, exclude Gambia-only products from related products
+    if not user_in_gambia:
+        related_query = related_query.filter(Product.available_in_gambia == False)
+    related_products = related_query.limit(4).all()
+    
     return render_template('product.html', 
                          product=product, 
                          category=category,
