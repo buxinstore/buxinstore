@@ -1579,14 +1579,30 @@
       // 3. User hasn't DISMISSED the popup
       // 4. User doesn't already HAVE a WhatsApp number (checked via API)
       function shouldShowWhatsAppPopup() {
+        // Check onboarding completion via cookie (most reliable server-side check)
+        const onboardingDone = document.cookie.includes("buxin_onboarding_completed=true");
+        
+        // Check authentication via server-rendered template variable
+        const userLoggedIn = "{{ current_user.is_authenticated }}".toLowerCase() === "true";
+        
+        // Check if user already has WhatsApp number (server-rendered)
+        const hasWhatsApp = "{{ current_user.whatsapp_number or '' }}" !== "";
+        
+        console.log('[WhatsApp Popup] Pre-check status:', {
+          onboardingDone: onboardingDone,
+          userLoggedIn: userLoggedIn,
+          hasWhatsApp: hasWhatsApp,
+          dismissed: localStorage.getItem(dismissedKey) === 'true'
+        });
+        
         // Rule 1: ONBOARDING MUST BE COMPLETED FIRST - This is the most important check
-        if (!isOnboardingCompleted()) {
+        if (!onboardingDone && !isOnboardingCompleted()) {
           console.log('[WhatsApp Popup] ❌ BLOCKED - Onboarding not completed');
           return false;
         }
         
         // Rule 2: User must be authenticated (logged in)
-        if (!isUserAuthenticated()) {
+        if (!userLoggedIn && !isUserAuthenticated()) {
           console.log('[WhatsApp Popup] ❌ BLOCKED - User not authenticated');
           return false;
         }
@@ -1594,6 +1610,12 @@
         // Rule 3: User hasn't dismissed the popup before
         if (localStorage.getItem(dismissedKey) === 'true') {
           console.log('[WhatsApp Popup] ❌ BLOCKED - User previously dismissed popup');
+          return false;
+        }
+        
+        // Rule 4: User doesn't already have a WhatsApp number
+        if (hasWhatsApp) {
+          console.log('[WhatsApp Popup] ❌ BLOCKED - User already has WhatsApp number');
           return false;
         }
         

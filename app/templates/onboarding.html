@@ -990,6 +990,13 @@
       localStorage: localStorage.getItem('buxin_onboarding_completed'),
       cookie: document.cookie.includes('buxin_onboarding_completed=true')
     });
+    
+    // Global function to mark onboarding as complete (sets both cookie AND localStorage)
+    function markOnboardingComplete() {
+      localStorage.setItem("buxin_onboarding_completed", "true");
+      document.cookie = "buxin_onboarding_completed=true; path=/; max-age=31536000; SameSite=Lax";
+      console.log('[Onboarding] markOnboardingComplete() called - cookie and localStorage set');
+    }
   </script>
 </body>
 </html>

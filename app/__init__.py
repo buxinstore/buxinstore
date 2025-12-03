@@ -2140,18 +2140,33 @@ def onboarding_complete():
     session['lang'] = language
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        # For AJAX requests, return JSON (cookie will be set by JavaScript)
-        return jsonify({
+        # For AJAX requests, return JSON AND set the cookie server-side for reliability
+        resp = make_response(jsonify({
             'success': True,
             'message': 'Setup complete!',
             'redirect': url_for('login', from_onboarding='1')
-        })
+        }))
+        resp.set_cookie(
+            'buxin_onboarding_completed',
+            'true',
+            max_age=31536000,
+            secure=False,
+            httponly=False,
+            samesite='Lax'
+        )
+        return resp
     
     # Create response with cookie to persist onboarding completion
-    response = make_response(redirect(url_for('login', from_onboarding='1')))
-    # Set cookie that expires in 1 year (httponly=False so JS can read it)
-    response.set_cookie('buxin_onboarding_completed', 'true', max_age=31536000, secure=False, httponly=False, samesite='Lax')
-    return response
+    resp = make_response(redirect(url_for('login')))
+    resp.set_cookie(
+        'buxin_onboarding_completed',
+        'true',
+        max_age=31536000,
+        secure=False,
+        httponly=False,
+        samesite='Lax'
+    )
+    return resp
 
 @app.route('/check-onboarding')
 def check_onboarding():
@@ -13411,6 +13426,10 @@ def service_worker():
 
 @app.route('/')
 def home():
+    # FORCE Onboarding to show if the cookie is missing
+    if not request.cookies.get('buxin_onboarding_completed') and not session.get('onboarding_completed'):
+        return redirect(url_for('onboarding'))
+    
     search_query = request.args.get('q', '')
     
     # Check if user is in Gambia to determine product visibility
