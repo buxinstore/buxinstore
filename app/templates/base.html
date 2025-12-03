@@ -1484,6 +1484,7 @@
     });
 
     // WhatsApp Popup Modal
+    // PRIORITY: Onboarding → Sign In → WhatsApp prompt (only after login)
     (function() {
       const modal = document.getElementById('whatsapp-popup-modal');
       const form = document.getElementById('whatsapp-popup-form');
@@ -1503,6 +1504,24 @@
       const dismissedKey = 'whatsapp_popup_dismissed';
       const checkInterval = 3000; // 3 seconds
 
+      // Helper: Check if onboarding is completed
+      function isOnboardingCompleted() {
+        // Check localStorage
+        if (localStorage.getItem('buxin_onboarding_completed') === 'true') return true;
+        // Check cookie
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'buxin_onboarding_completed' && value === 'true') return true;
+        }
+        return false;
+      }
+
+      // Helper: Check if user is authenticated (from body data attribute)
+      function isUserAuthenticated() {
+        return document.body.getAttribute('data-authenticated') === 'true';
+      }
+
       function showAlert(message, type = 'error') {
         alertDiv.className = `mb-4 p-3 rounded-lg text-sm ${
           type === 'success' 
@@ -1520,25 +1539,9 @@
       function showModal() {
         modal.style.display = 'flex';
         modal.classList.remove('hidden');
-        // Check if user is logged in
-        fetch('{{ url_for("api_whatsapp_check") }}')
-          .then(response => response.json())
-          .then(data => {
-            if (data.authenticated && data.has_whatsapp) {
-              // User already has WhatsApp number, don't show popup
-              hideModal();
-              return;
-            }
-            // Show email field for non-logged-in users
-            if (!data.authenticated) {
-              emailField.classList.remove('hidden');
-              emailInput.required = true;
-            } else {
-              emailField.classList.add('hidden');
-              emailInput.required = false;
-            }
-          })
-          .catch(err => console.error('Error checking WhatsApp status:', err));
+        // Hide email field since user must be logged in
+        emailField.classList.add('hidden');
+        emailInput.required = false;
       }
 
       function hideModal() {
@@ -1551,10 +1554,50 @@
         hideModal();
       }
 
-      // Show popup after 3 seconds if not dismissed
+      // IMPORTANT: Only show WhatsApp popup if:
+      // 1. Onboarding is completed
+      // 2. User is authenticated (logged in)
+      // 3. User hasn't dismissed the popup
+      // 4. User doesn't already have a WhatsApp number
+      function shouldShowWhatsAppPopup() {
+        // Rule 1: Onboarding must be completed first
+        if (!isOnboardingCompleted()) {
+          console.log('[WhatsApp Popup] Skipping - Onboarding not completed');
+          return false;
+        }
+        
+        // Rule 2: User must be authenticated
+        if (!isUserAuthenticated()) {
+          console.log('[WhatsApp Popup] Skipping - User not authenticated');
+          return false;
+        }
+        
+        // Rule 3: User hasn't dismissed the popup
+        if (localStorage.getItem(dismissedKey)) {
+          console.log('[WhatsApp Popup] Skipping - User dismissed popup');
+          return false;
+        }
+        
+        return true;
+      }
+
+      // Show popup after 3 seconds only if all conditions are met
       setTimeout(() => {
-        if (!localStorage.getItem(dismissedKey)) {
-          showModal();
+        if (shouldShowWhatsAppPopup()) {
+          // Final check: verify user doesn't have WhatsApp number via API
+          fetch('{{ url_for("api_whatsapp_check") }}')
+            .then(response => response.json())
+            .then(data => {
+              if (data.authenticated && !data.has_whatsapp) {
+                console.log('[WhatsApp Popup] Showing popup - User needs WhatsApp');
+                showModal();
+              } else if (data.has_whatsapp) {
+                console.log('[WhatsApp Popup] Skipping - User already has WhatsApp');
+              }
+            })
+            .catch(err => {
+              console.error('[WhatsApp Popup] Error checking status:', err);
+            });
         }
       }, checkInterval);
 

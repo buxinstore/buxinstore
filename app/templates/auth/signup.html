@@ -540,6 +540,14 @@
       if (window.lucide) {
         window.lucide.createIcons();
       }
+      
+      // Mark onboarding as completed if user reached sign-up page
+      // (they must have completed onboarding to get here)
+      if (window.location.search.includes('from_onboarding=1') || 
+          localStorage.getItem('buxin_onboarding_completed') === 'true') {
+        localStorage.setItem('buxin_onboarding_completed', 'true');
+        document.cookie = 'buxin_onboarding_completed=true; max-age=31536000; path=/; SameSite=Lax';
+      }
     });
     
     // Toggle password visibility

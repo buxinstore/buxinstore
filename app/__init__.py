@@ -2204,8 +2204,14 @@ def login():
             
             next_page = request.args.get('next')
             if user.is_admin or user.role == 'admin':
-                return redirect(next_page or url_for('admin_dashboard'))
-            return redirect(next_page or url_for('home'))
+                redirect_url = next_page or url_for('admin_dashboard')
+            else:
+                redirect_url = next_page or url_for('home')
+            
+            # Create response with onboarding completed cookie
+            response = make_response(redirect(redirect_url))
+            response.set_cookie('buxin_onboarding_completed', 'true', max_age=31536000, secure=False, httponly=False, samesite='Lax')
+            return response
         else:
             flash('Invalid username or password', 'error')
     
@@ -2504,9 +2510,14 @@ def google_callback():
     session['email'] = email
     session['name'] = userinfo.get('name')
     session['picture'] = userinfo.get('picture')
+    session['onboarding_completed'] = True
     session.permanent = True
     next_url = session.pop('next_url', None)
-    return redirect(next_url or url_for('checkout'))
+    
+    # Create response with onboarding completed cookie
+    response = make_response(redirect(next_url or url_for('home')))
+    response.set_cookie('buxin_onboarding_completed', 'true', max_age=31536000, secure=False, httponly=False, samesite='Lax')
+    return response
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -2574,7 +2585,10 @@ def register():
                 current_app.logger.error(f"Error sending welcome message during registration: {str(e)}")
         
         flash('Registration successful! Please log in.', 'success')
-        return redirect(url_for('login'))
+        # Redirect to login with onboarding flag to preserve onboarding completion
+        response = make_response(redirect(url_for('login', from_onboarding='1')))
+        response.set_cookie('buxin_onboarding_completed', 'true', max_age=31536000, secure=False, httponly=False, samesite='Lax')
+        return response
     
     # Use the futuristic sign-up template
     return render_template('auth/signup.html')
