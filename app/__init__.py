@@ -13635,37 +13635,64 @@ def category(category_id):
     # Check if user is in Gambia
     user_in_gambia = is_user_in_gambia()
     
-    # Get products with country filtering
+    # Get pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = 24  # Number of products per page
+    
+    # Get sorting parameter
+    sort = request.args.get('sort', 'newest')
+    
+    # Build base query with country filtering
     if user_in_gambia:
         # User is in Gambia - show all products in this category
-        products = Product.query.filter(
+        base_query = Product.query.filter(
             Product.category_id == category_id,
             Product.stock > 0
-        ).all()
+        )
     else:
         # User is NOT in Gambia - exclude Gambia-only products
-        products = Product.query.filter(
+        base_query = Product.query.filter(
             Product.category_id == category_id,
             Product.stock > 0,
             Product.available_in_gambia == False
-        ).all()
+        )
+    
+    # Apply sorting
+    if sort == 'price_low':
+        base_query = base_query.order_by(Product.price.asc())
+    elif sort == 'price_high':
+        base_query = base_query.order_by(Product.price.desc())
+    elif sort == 'popular':
+        # Sort by number of times added to cart/orders (using stock as proxy for now)
+        base_query = base_query.order_by(Product.stock.desc())
+    elif sort == 'rating':
+        # Sort by rating if available, otherwise by newest
+        base_query = base_query.order_by(Product.created_at.desc())
+    else:  # 'newest' is default
+        base_query = base_query.order_by(Product.created_at.desc())
+    
+    # Get paginated products
+    pagination = base_query.paginate(page=page, per_page=per_page, error_out=False)
+    products = pagination.items
+    
+    # Check if no products found for non-Gambia users
+    if not user_in_gambia and not products and page == 1:
+        # Check if there are any Gambia products in this category
+        gambia_products_count = Product.query.filter(
+            Product.category_id == category_id,
+            Product.available_in_gambia == True
+        ).count()
         
-        # If no products after filtering, check if category only has Gambia products
-        if not products:
-            # Check if there are any Gambia products in this category
-            gambia_products_count = Product.query.filter(
-                Product.category_id == category_id,
-                Product.available_in_gambia == True
-            ).count()
-            
-            if gambia_products_count > 0:
-                # Category only has Gambia products - redirect to categories page
-                flash('This category is only available in The Gambia.', 'info')
-                return redirect(url_for('all_categories'))
+        if gambia_products_count > 0:
+            # Category only has Gambia products - redirect to categories page
+            flash('This category is only available in The Gambia.', 'info')
+            return redirect(url_for('all_categories'))
     
     return render_template('category.html', 
                          category=category, 
-                         products=products)
+                         products=products,
+                         pagination=pagination,
+                         current_sort=sort)
 
 @app.route('/product/<int:product_id>')
 def product(product_id):
