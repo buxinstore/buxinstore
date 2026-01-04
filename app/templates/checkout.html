@@ -626,7 +626,9 @@
                     selectedCountry = null;
                     if (countryIdInput) countryIdInput.value = '';
                 }
-                clearError('country');
+                // Validate and update button state
+                validateField('country', query);
+                updateButtonState();
             });
             
             // Handle focus
