@@ -1042,25 +1042,14 @@
             }, 10000);
         }
         
-        // Initial validation
-        updateButtonState();
-        
-        // Auto-select shipping method on page load if country is already selected
-        document.addEventListener('DOMContentLoaded', async function() {
-            const countryInput = document.getElementById('country');
-            if (countryInput && countryInput.value) {
-                // Country is stored as name, need to find the country ID
-                const countryName = countryInput.value.trim();
-                if (countryName && checkoutCountries.length > 0) {
-                    const country = checkoutCountries.find(c => c.name === countryName);
-                    // CRITICAL FIX: Do NOT recalculate shipping method
-                    // The shipping method is already set from cart session
-                    // if (country && country.id) {
-                    //     await autoSelectShippingMethod(country.id); // DISABLED
-                    // }
-                }
-            }
-        });
+        // Initialize payment method selection on DOM ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                initPaymentMethodSelection();
+            });
+        } else {
+            initPaymentMethodSelection();
+        }
     })();
     
     // Rest of existing checkout summary sync code...
