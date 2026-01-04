@@ -242,10 +242,10 @@
             <a href="{{ url_for('home') }}" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
                 Continue Shopping
             </a>
-            <a href="{{ url_for('payments.payment_receipt', order_id=order.id) }}" target="_blank" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900/60 hover:border-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
-                <i class="fas fa-download"></i>
-                Download Receipt (PDF)
-            </a>
+            <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900/60 hover:border-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
+                <i class="fas fa-print"></i>
+                Print Receipt
+            </button>
             <a href="{{ url_for('orders') }}" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900/60 hover:border-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
                 View Order History
             </a>
@@ -253,4 +253,70 @@
     </div>
     </div>
 </div>
+
+<style>
+@media print {
+    /* Hide navigation, buttons, and other non-receipt elements when printing */
+    nav,
+    header,
+    footer,
+    .print-hide,
+    button,
+    a[href]:not(.print-show) {
+        display: none !important;
+    }
+    
+    /* Ensure the receipt content is visible and well-formatted for printing */
+    body {
+        background: white !important;
+        color: black !important;
+    }
+    
+    .max-w-7xl {
+        max-width: 100% !important;
+    }
+    
+    .max-w-2xl {
+        max-width: 100% !important;
+    }
+    
+    /* Remove shadows and borders for cleaner print */
+    .shadow-lg,
+    .shadow-sm,
+    .rounded-3xl,
+    .rounded-xl,
+    .rounded-lg {
+        box-shadow: none !important;
+    }
+    
+    /* Ensure good print layout */
+    @page {
+        margin: 1cm;
+    }
+    
+    /* Make sure text is readable */
+    * {
+        color: black !important;
+        background: white !important;
+    }
+    
+    /* Keep order confirmation content visible */
+    .max-w-2xl.mx-auto {
+        max-width: 100% !important;
+    }
+}
+</style>
+
+<script>
+// Optional: Enhance print experience
+window.addEventListener('beforeprint', function() {
+    // You can add any pre-print logic here if needed
+    console.log('Printing receipt...');
+});
+
+window.addEventListener('afterprint', function() {
+    // You can add any post-print logic here if needed
+    console.log('Print dialog closed');
+});
+</script>
 {% endblock %}
