@@ -458,6 +458,11 @@
     // Checkout form validation and submission
     (function() {
         const form = document.getElementById('checkout-form');
+        if (!form) {
+            console.error('Checkout form not found');
+            return;
+        }
+        
         const proceedButton = document.getElementById('proceed-button');
         const buttonText = document.getElementById('button-text');
         const buttonLoading = document.getElementById('button-loading');
@@ -848,7 +853,7 @@
                     });
                     
                     const photoData = await photoResponse.json();
-                    if (photoData.success) {
+                    if (photoData.success && photoData.photo_url) {
                         customerPhotoUrl = photoData.photo_url;
                     }
                 }
@@ -897,12 +902,12 @@
                     body: JSON.stringify(updateData)
                 });
                 
-                const updateData = await updateResponse.json();
-                if (updateData.success) {
+                const updateResult = await updateResponse.json();
+                if (updateResult.success) {
                     // Update amount field with new total
                     const amountInput = document.getElementById('amount');
-                    if (amountInput) {
-                        amountInput.value = updateData.amount.toFixed(2);
+                    if (amountInput && updateResult.amount) {
+                        amountInput.value = updateResult.amount.toFixed(2);
                     }
                 }
             } catch (error) {
