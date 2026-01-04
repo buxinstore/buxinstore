@@ -201,8 +201,8 @@
                                 <label for="country" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                                     Country <span class="text-red-500">*</span>
                                 </label>
-                                <input 
-                                    type="text" 
+                                            <input 
+                                                type="text" 
                                     id="country" 
                                     name="country" 
                                     value="{{ form.country.data or '' }}"
@@ -564,7 +564,7 @@
         function updateButtonState() {
             const isValid = validateForm();
             if (proceedButton) {
-                proceedButton.disabled = !isValid;
+            proceedButton.disabled = !isValid;
                 console.log('Button state updated:', { isValid, disabled: proceedButton.disabled });
             }
         }
@@ -585,7 +585,7 @@
             
             field.addEventListener('input', () => {
                 // Always validate on input to ensure button state updates
-                validateField(fieldName, field.value);
+                    validateField(fieldName, field.value);
                 updateButtonState();
             });
         });
@@ -613,14 +613,14 @@
                             })
                         });
                         
-                        const data = await response.json();
+                const data = await response.json();
                         if (data.success) {
                             addressSavedMessage.classList.remove('hidden');
                             setTimeout(() => {
                                 addressSavedMessage.classList.add('hidden');
                             }, 3000);
-                        }
-                    } catch (error) {
+                }
+            } catch (error) {
                         console.error('Error saving address:', error);
                     }
                 }
@@ -657,7 +657,7 @@
                         <div><strong>Branch Name:</strong> Surajpur Greater Noida</div>
                         <div><strong>Account Number:</strong> 60541424234</div>
                         <div><strong>IFSC Code:</strong> <span class="font-bold text-red-600 dark:text-red-400">SBIN0014022</span> <span class="text-xs">(VERY IMPORTANT)</span></div>
-                    </div>
+                        </div>
                 `,
                 instructions: 'After payment, upload your bank transfer receipt/screenshot here.'
             },
@@ -668,7 +668,7 @@
                         <div><strong>Receiver Name:</strong> Abdoukadir Jabbi</div>
                         <div><strong>Country:</strong> India</div>
                         <div><strong>Phone:</strong> +91 93190 38312</div>
-                    </div>
+                        </div>
                 `,
                 instructions: 'Send payment via Western Union and upload your receipt here.'
             },
@@ -768,12 +768,12 @@
                                 }
                             };
                             reader.readAsDataURL(file);
-                        } else {
+                } else {
                             if (receiptPreview) {
                                 receiptPreview.classList.add('hidden');
-                            }
-                        }
-                    } else {
+                    }
+                }
+            } else {
                         if (receiptPreview) {
                             receiptPreview.classList.add('hidden');
                         }
@@ -889,10 +889,14 @@
             
             // For manual payments, validate receipt upload
             if (isManualPayment) {
+                const receiptInput = document.getElementById('payment_receipt');
                 const receiptFile = receiptInput?.files[0];
                 if (!receiptFile) {
                     showMessage('Please upload your payment receipt before proceeding.', 'error');
-                    receiptUploadContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    const receiptUploadContainer = document.getElementById('receipt-upload-container');
+                    if (receiptUploadContainer) {
+                        receiptUploadContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
                     proceedButton.disabled = false;
                     buttonText.classList.remove('hidden');
                     buttonLoading.classList.add('hidden');
@@ -915,7 +919,16 @@
             try {
                 if (isManualPayment) {
                     // Handle manual payment submission
-                    const receiptFile = receiptInput.files[0];
+                    const receiptInput = document.getElementById('payment_receipt');
+                    const receiptFile = receiptInput?.files[0];
+                    if (!receiptFile) {
+                        showMessage('Please upload your payment receipt before proceeding.', 'error');
+                        proceedButton.disabled = false;
+                        buttonText.classList.remove('hidden');
+                        buttonLoading.classList.add('hidden');
+                        return;
+                    }
+                    
                     const formData = new FormData();
                     formData.append('pending_payment_id', pendingPaymentId);
                     formData.append('payment_method', selectedPaymentMethod);
@@ -946,24 +959,24 @@
                     }
                 } else {
                     // Handle ModemPay payment
-                    const paymentData = {
-                        pending_payment_id: parseInt(pendingPaymentId),
+                const paymentData = {
+                    pending_payment_id: parseInt(pendingPaymentId),
                         amount: amount,  // Use the amount from checkout page (what user sees)
                         provider: 'modempay'
-                    };
-                    
+                };
+                
                     console.log('Initiating ModemPay payment with checkout total:', paymentData);
-                    
-                    // Make API call to ModemPay payment endpoint
-                    const response = await fetch('/payments/modempay/pay', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                        },
-                        credentials: 'same-origin',
-                        body: JSON.stringify(paymentData)
-                    });
+                
+                // Make API call to ModemPay payment endpoint
+                const response = await fetch('/payments/modempay/pay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(paymentData)
+                });
                 
                 // Parse response
                 const data = await response.json();
