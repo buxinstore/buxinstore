@@ -499,17 +499,7 @@
         function showError(fieldName, message) {
             const field = fields[fieldName];
             const errorEl = document.getElementById(`${fieldName}-error`);
-            if (fieldName === 'country') {
-                // For country dropdown, update toggle button border
-                const toggle = document.getElementById('checkout-country-toggle');
-                if (toggle && errorEl) {
-                    toggle.classList.add('border-red-500', 'dark:border-red-500');
-                    toggle.classList.remove('border-slate-300', 'dark:border-slate-600');
-                    errorEl.textContent = message;
-                    errorEl.classList.remove('hidden');
-                    validationState[fieldName] = false;
-                }
-            } else if (field && errorEl) {
+            if (field && errorEl) {
                 field.classList.add('border-red-500', 'dark:border-red-500');
                 field.classList.remove('border-slate-300', 'dark:border-slate-600');
                 errorEl.textContent = message;
@@ -522,16 +512,7 @@
         function clearError(fieldName) {
             const field = fields[fieldName];
             const errorEl = document.getElementById(`${fieldName}-error`);
-            if (fieldName === 'country') {
-                // For country dropdown, update toggle button border
-                const toggle = document.getElementById('checkout-country-toggle');
-                if (toggle && errorEl) {
-                    toggle.classList.remove('border-red-500', 'dark:border-red-500');
-                    toggle.classList.add('border-slate-300', 'dark:border-slate-600');
-                    errorEl.classList.add('hidden');
-                    validationState[fieldName] = true;
-                }
-            } else if (field && errorEl) {
+            if (field && errorEl) {
                 field.classList.remove('border-red-500', 'dark:border-red-500');
                 field.classList.add('border-slate-300', 'dark:border-slate-600');
                 errorEl.classList.add('hidden');
