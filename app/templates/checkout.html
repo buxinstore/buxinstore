@@ -564,8 +564,16 @@
         // Update button state
         function updateButtonState() {
             const isValid = validateForm();
-            proceedButton.disabled = !isValid;
+            if (proceedButton) {
+                proceedButton.disabled = !isValid;
+                console.log('Button state updated:', { isValid, disabled: proceedButton.disabled });
+            }
         }
+        
+        // Initial button state check on page load
+        setTimeout(() => {
+            updateButtonState();
+        }, 100);
         
         // Real-time validation for all fields
         Object.entries(fields).forEach(([fieldName, field]) => {
@@ -584,176 +592,6 @@
                 updateButtonState();
             });
         });
-        
-        // Country autocomplete functionality
-        let checkoutCountries = [];
-        let selectedCountry = null;
-        let countryInput, countryAutocompleteList, countryIdInput;
-        const savedCountryName = '{{ form.country.data or '' }}';
-        
-        // Initialize country autocomplete elements
-        function initCountryAutocomplete() {
-            countryInput = document.getElementById('country');
-            countryAutocompleteList = document.getElementById('country-autocomplete-list');
-            countryIdInput = document.getElementById('country-id');
-            
-            if (!countryInput || !countryAutocompleteList) {
-                console.error('Country input elements not found');
-                return;
-            }
-            
-            // Load countries
-            loadCheckoutCountries();
-            
-            // Handle input typing
-            countryInput.addEventListener('input', function(e) {
-                const query = e.target.value.trim();
-                if (query.length > 0) {
-                    filterCountries(query);
-                    countryAutocompleteList.classList.remove('hidden');
-                } else {
-                    countryAutocompleteList.classList.add('hidden');
-                    selectedCountry = null;
-                    if (countryIdInput) countryIdInput.value = '';
-                }
-                // Validate and update button state
-                validateField('country', query);
-                updateButtonState();
-            });
-            
-            // Handle focus
-            countryInput.addEventListener('focus', function(e) {
-                const query = e.target.value.trim();
-                if (query.length > 0 && checkoutCountries.length > 0) {
-                    filterCountries(query);
-                    countryAutocompleteList.classList.remove('hidden');
-                }
-            });
-            
-            // Close autocomplete when clicking outside
-            document.addEventListener('click', function(e) {
-                if (countryAutocompleteList && countryInput && 
-                    !countryAutocompleteList.contains(e.target) && 
-                    !countryInput.contains(e.target)) {
-                    countryAutocompleteList.classList.add('hidden');
-                }
-            });
-            
-            // Handle keyboard navigation
-            countryInput.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    countryAutocompleteList.classList.add('hidden');
-                }
-            });
-        }
-        
-        // Load countries from API
-        async function loadCheckoutCountries() {
-            try {
-                const response = await fetch('/api/countries');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                if (data.success && data.countries && Array.isArray(data.countries)) {
-                    checkoutCountries = data.countries;
-                    // Set initial value if saved
-                    if (savedCountryName && savedCountryName.trim() && countryInput) {
-                        countryInput.value = savedCountryName.trim();
-                        const savedCountry = checkoutCountries.find(c => c.name === savedCountryName.trim());
-                        if (savedCountry && countryIdInput) {
-                            countryIdInput.value = savedCountry.id;
-                            selectedCountry = savedCountry;
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading countries:', error);
-            }
-        }
-        
-        // Filter and render countries
-        function filterCountries(query) {
-            if (!countryAutocompleteList || checkoutCountries.length === 0) return;
-            
-            const filtered = checkoutCountries.filter(c => 
-                c.name.toLowerCase().includes(query.toLowerCase()) ||
-                c.code.toLowerCase().includes(query.toLowerCase())
-            ).slice(0, 10); // Limit to 10 results
-            
-            if (filtered.length === 0) {
-                countryAutocompleteList.innerHTML = '<div class="p-3 text-sm text-slate-500">No countries found</div>';
-                return;
-            }
-            
-            countryAutocompleteList.innerHTML = filtered.map(country => {
-                const flagUrl = country.flag_url || 
-                    (country.flag_image_path ? 
-                        (country.flag_image_path.startsWith('http') ? country.flag_image_path : `/static/${country.flag_image_path}`) :
-                        (country.code ? `https://flagcdn.com/w40/${country.code.toLowerCase()}.png` : ''));
-                
-                return `
-                    <button 
-                        type="button"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors"
-                        data-country-id="${country.id}"
-                        data-country-name="${country.name}"
-                    >
-                        <div class="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
-                            ${flagUrl ? `<img src="${flagUrl}" alt="${country.name}" class="w-full h-full object-cover" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<i data-lucide=\\'globe\\' class=\\'w-4 h-4 text-slate-400\\'></i>'; if(window.lucide) window.lucide.createIcons();">` : '<i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>'}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-sm font-medium text-slate-900 dark:text-white truncate">${country.name}</div>
-                            <div class="text-xs text-slate-500 dark:text-slate-400">${country.code}</div>
-                        </div>
-                    </button>
-                `;
-            }).join('');
-            
-            // Re-render Lucide icons
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
-            
-            // Add click handlers
-            countryAutocompleteList.querySelectorAll('button[data-country-id]').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const countryId = parseInt(btn.dataset.countryId);
-                    const countryName = btn.dataset.countryName;
-                    selectCheckoutCountry(countryId, countryName);
-                });
-            });
-        }
-        
-        // Select country
-        function selectCheckoutCountry(countryId, countryName) {
-            const country = checkoutCountries.find(c => c.id === countryId);
-            if (!country) return;
-            
-            selectedCountry = country;
-            if (countryInput) countryInput.value = countryName;
-            if (countryIdInput) countryIdInput.value = countryId;
-            if (countryAutocompleteList) countryAutocompleteList.classList.add('hidden');
-            
-            // Validate and update button state
-            clearError('country');
-            validationState.country = true;
-            updateButtonState();
-            
-            // Trigger auto-save
-            autoSaveAddress();
-        }
-        
-        // Initialize on DOM ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                initCountryAutocomplete();
-                initPaymentMethodSelection();
-            });
-        } else {
-            initCountryAutocomplete();
-            initPaymentMethodSelection();
-        }
         
         // Auto-save address on blur (debounced)
         let saveTimeout;
