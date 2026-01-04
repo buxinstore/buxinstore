@@ -152,3 +152,61 @@ class PendingPayment(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'cart_items': json.loads(self.cart_items_json) if self.cart_items_json else []
         }
+
+
+class ManualPayment(db.Model):
+    """
+    Manual payment model for payment methods requiring receipt upload and admin approval.
+    Supports: Bank Transfer, Western Union, Ria, Wave, MoneyGram
+    """
+    __tablename__ = 'manual_payments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    pending_payment_id = db.Column(db.Integer, db.ForeignKey('pending_payments.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=True)  # Set after approval and order creation
+    
+    # Payment method and amount
+    payment_method = db.Column(db.String(50), nullable=False)  # bank_transfer, western_union, ria, wave, moneygram
+    amount = db.Column(db.Float, nullable=False)
+    
+    # Receipt upload
+    receipt_url = db.Column(db.Text, nullable=True)  # Cloudinary URL for receipt image
+    receipt_public_id = db.Column(db.String(255), nullable=True)  # Cloudinary public_id
+    
+    # Approval status
+    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
+    approved_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Admin who approved
+    approved_at = db.Column(db.DateTime, nullable=True)
+    rejection_reason = db.Column(db.Text, nullable=True)  # If rejected, store reason
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    pending_payment = db.relationship('PendingPayment', backref='manual_payments', lazy=True)
+    user = db.relationship('User', foreign_keys=[user_id], backref='manual_payments', lazy=True)
+    order = db.relationship('Order', backref='manual_payments', lazy=True)
+    approver = db.relationship('User', foreign_keys=[approved_by], backref='approved_manual_payments', lazy=True)
+    
+    def __repr__(self):
+        return f'<ManualPayment {self.id} - {self.payment_method} - {self.status}>'
+    
+    def to_dict(self):
+        """Convert manual payment to dictionary for JSON responses."""
+        return {
+            'id': self.id,
+            'pending_payment_id': self.pending_payment_id,
+            'user_id': self.user_id,
+            'order_id': self.order_id,
+            'payment_method': self.payment_method,
+            'amount': self.amount,
+            'receipt_url': self.receipt_url,
+            'status': self.status,
+            'approved_by': self.approved_by,
+            'approved_at': self.approved_at.isoformat() if self.approved_at else None,
+            'rejection_reason': self.rejection_reason,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
