@@ -33,6 +33,7 @@
             {% if manual_payment.status == 'pending' %}
             <div class="flex gap-3">
                 <form method="POST" action="{{ url_for('admin_approve_manual_payment', manual_payment_id=manual_payment.id) }}" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" 
                             onclick="return confirm('Are you sure you want to approve this payment? This will create an order.')"
                             class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
@@ -54,6 +55,7 @@
     <div id="reject-form" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hidden">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Reject Payment</h3>
         <form method="POST" action="{{ url_for('admin_reject_manual_payment', manual_payment_id=manual_payment.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-4">
                 <label for="rejection_reason" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Rejection Reason <span class="text-red-500">*</span>

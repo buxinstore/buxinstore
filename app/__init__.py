@@ -13389,22 +13389,10 @@ def api_update_pending_payment():
         # Update pending payment
         pending_payment.shipping_mode_key = shipping_mode_key
         pending_payment.shipping_price = shipping_price_gmd
-        # Only set shipping_rule_id if it's valid (avoid foreign key constraint errors)
-        if shipping_rule_id:
-            # Verify the rule exists before setting it
-            try:
-                from app.shipping.models import ShippingRule
-                rule_exists = ShippingRule.query.get(shipping_rule_id) is not None
-                if rule_exists:
-                    pending_payment.shipping_rule_id = shipping_rule_id
-                else:
-                    current_app.logger.warning(f'Shipping rule {shipping_rule_id} does not exist, setting to None')
-                    pending_payment.shipping_rule_id = None
-            except Exception as e:
-                current_app.logger.warning(f'Error checking shipping rule {shipping_rule_id}: {e}, setting to None')
-                pending_payment.shipping_rule_id = None
-        else:
-            pending_payment.shipping_rule_id = None
+        # CRITICAL FIX: Always set shipping_rule_id to None to avoid foreign key constraint errors
+        # The database foreign key constraint points to 'shipping_rule' (old table) but we're using
+        # 'shipping_rules' (new table), so we cannot reliably set this field
+        pending_payment.shipping_rule_id = None
         pending_payment.shipping_delivery_estimate = shipping_delivery_estimate
         pending_payment.shipping_display_currency = country.currency if country else 'GMD'
         pending_payment.amount = total_cost
