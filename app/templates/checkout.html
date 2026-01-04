@@ -577,9 +577,9 @@
             proceedButton.disabled = !isValid;
         }
         
-        // Real-time validation (excluding country which is handled by dropdown)
+        // Real-time validation for all fields
         Object.entries(fields).forEach(([fieldName, field]) => {
-            if (fieldName === 'country') return; // Skip country, handled by dropdown
+            if (!field) return;
             
             field.addEventListener('blur', () => {
                 validateField(fieldName, field.value);
