@@ -585,10 +585,8 @@
             });
             
             field.addEventListener('input', () => {
-                if (validationState[fieldName] === false) {
-                    // Only validate if there was an error
-                    validateField(fieldName, field.value);
-                }
+                // Always validate on input to ensure button state updates
+                validateField(fieldName, field.value);
                 updateButtonState();
             });
         });
