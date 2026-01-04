@@ -11049,38 +11049,43 @@ def admin_reset_all_orders():
     WARNING: This permanently deletes all orders, order items, payments, and related records.
     """
     try:
-        from app.payments.models import Payment, ManualPayment, PendingPayment
+        from app.payments.models import Payment, PaymentTransaction, ManualPayment, PendingPayment
         
         # Count orders before deletion
         total_orders = Order.query.count()
         
-        # Delete order items first (foreign key constraint)
+        # Delete in correct order to respect foreign key constraints:
+        # 1. PaymentTransaction (references Payment)
+        payment_transactions_deleted = db.session.query(PaymentTransaction).delete()
+        
+        # 2. OrderItem (references Order)
         order_items_deleted = db.session.query(OrderItem).delete()
         
-        # Delete manual payments
+        # 3. ManualPayment (references PendingPayment and Order)
         manual_payments_deleted = db.session.query(ManualPayment).delete()
         
-        # Delete payments
+        # 4. Payment (references Order and PendingPayment)
         payments_deleted = db.session.query(Payment).delete()
         
-        # Delete pending payments
+        # 5. PendingPayment (references User and ShippingRule)
         pending_payments_deleted = db.session.query(PendingPayment).delete()
         
-        # Delete orders
+        # 6. Order (last, as other tables reference it)
         orders_deleted = db.session.query(Order).delete()
         
         # Commit all deletions
         db.session.commit()
         
-        current_app.logger.warning(f"Admin {current_user.id} ({current_user.username}) deleted ALL orders: {orders_deleted} orders, {order_items_deleted} order items, {payments_deleted} payments, {manual_payments_deleted} manual payments, {pending_payments_deleted} pending payments")
+        current_app.logger.warning(f"Admin {current_user.id} ({current_user.username}) deleted ALL orders: {orders_deleted} orders, {order_items_deleted} order items, {payments_deleted} payments, {payment_transactions_deleted} payment transactions, {manual_payments_deleted} manual payments, {pending_payments_deleted} pending payments")
         
         return jsonify({
             'success': True,
-            'message': f'Successfully deleted all orders and related data ({orders_deleted} orders, {order_items_deleted} order items, {payments_deleted} payments, {manual_payments_deleted} manual payments, {pending_payments_deleted} pending payments)',
+            'message': f'Successfully deleted all orders and related data ({orders_deleted} orders, {order_items_deleted} order items, {payments_deleted} payments, {payment_transactions_deleted} payment transactions, {manual_payments_deleted} manual payments, {pending_payments_deleted} pending payments)',
             'deleted': {
                 'orders': orders_deleted,
                 'order_items': order_items_deleted,
                 'payments': payments_deleted,
+                'payment_transactions': payment_transactions_deleted,
                 'manual_payments': manual_payments_deleted,
                 'pending_payments': pending_payments_deleted
             }
