@@ -1875,6 +1875,8 @@ class Order(db.Model):
     customer_name = db.Column(db.String(255), nullable=True)
     customer_address = db.Column(db.Text, nullable=True)
     customer_phone = db.Column(db.String(50), nullable=True)
+    customer_email = db.Column(db.String(255), nullable=True)
+    customer_photo_url = db.Column(db.String(500), nullable=True)  # Optional customer photo URL
     location = db.Column(db.String(50), nullable=True)  # China / Gambia
     shipped_at = db.Column(db.DateTime, nullable=True)
     delivered_at = db.Column(db.DateTime, nullable=True)
@@ -13407,6 +13409,8 @@ def api_update_pending_payment():
             pending_payment.customer_email = data['email'].strip()
         if 'delivery_address' in data:
             pending_payment.delivery_address = data['delivery_address'].strip()
+        if 'customer_photo_url' in data:
+            pending_payment.customer_photo_url = data['customer_photo_url'].strip()
         
         db.session.commit()
         
@@ -13474,6 +13478,34 @@ def api_save_checkout_address():
         current_app.logger.error(f"Error saving checkout address: {e}")
         return jsonify({'success': False, 'message': 'Failed to save address'}), 500
 
+@app.route('/api/checkout/upload-photo', methods=['POST'])
+@login_required
+def api_upload_customer_photo():
+    """Upload customer photo during checkout."""
+    try:
+        from app.utils.cloudinary_utils import upload_to_cloudinary
+        
+        if 'photo' not in request.files:
+            return jsonify({'success': False, 'message': 'No photo provided'}), 400
+        
+        photo_file = request.files['photo']
+        if photo_file.filename == '':
+            return jsonify({'success': False, 'message': 'No photo selected'}), 400
+        
+        # Upload to Cloudinary
+        upload_result = upload_to_cloudinary(photo_file, folder='customer_photos')
+        
+        if upload_result and upload_result.get('url'):
+            return jsonify({
+                'success': True,
+                'photo_url': upload_result['url']
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Failed to upload photo'}), 500
+            
+    except Exception as e:
+        current_app.logger.error(f"Error uploading customer photo: {e}")
+        return jsonify({'success': False, 'message': 'Failed to upload photo'}), 500
 
 @app.route('/api/profile/avatar', methods=['POST', 'DELETE'])
 @login_required

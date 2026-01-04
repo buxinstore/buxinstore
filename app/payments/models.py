@@ -119,6 +119,7 @@ class PendingPayment(db.Model):
     customer_name = db.Column(db.String(255), nullable=True)
     customer_phone = db.Column(db.String(50), nullable=True)
     customer_email = db.Column(db.String(255), nullable=True)
+    customer_photo_url = db.Column(db.String(500), nullable=True)  # Optional customer photo URL
     shipping_price = db.Column(db.Float, nullable=True)
     total_cost = db.Column(db.Float, nullable=True)
     location = db.Column(db.String(50), nullable=True)

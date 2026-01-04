@@ -173,10 +173,21 @@
             </dl>
         </div>
 
-        <!-- User Information -->
+        <!-- Customer Information -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Customer Information</h3>
-            <dl class="space-y-3">
+            <dl class="space-y-4">
+                {% if pending_payment and pending_payment.customer_photo_url %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Photo</dt>
+                    <dd class="mt-1">
+                        <img src="{{ pending_payment.customer_photo_url }}" 
+                             alt="Customer Photo" 
+                             class="w-32 h-32 rounded-lg object-cover border border-gray-200 dark:border-gray-700 cursor-pointer"
+                             onclick="window.open(this.src, '_blank')">
+                    </dd>
+                </div>
+                {% endif %}
                 <div>
                     <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Username</dt>
                     <dd class="mt-1 text-sm text-gray-900 dark:text-white">
@@ -184,9 +195,15 @@
                     </dd>
                 </div>
                 <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Full Name</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {{ pending_payment.customer_name if pending_payment and pending_payment.customer_name else (user.username if user else 'N/A') }}
+                    </dd>
+                </div>
+                <div>
                     <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Email</dt>
                     <dd class="mt-1 text-sm text-gray-900 dark:text-white">
-                        {{ user.email if user else 'N/A' }}
+                        {{ pending_payment.customer_email if pending_payment and pending_payment.customer_email else (user.email if user else 'N/A') }}
                     </dd>
                 </div>
                 {% if pending_payment %}
@@ -197,8 +214,29 @@
                     </dd>
                 </div>
                 <div>
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Delivery Address</dt>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Country</dt>
                     <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {{ pending_payment.location or 'N/A' }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">City / Region</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {% if pending_payment.delivery_address %}
+                            {% set address_parts = pending_payment.delivery_address.split('\n') %}
+                            {% if address_parts|length > 1 %}
+                                {{ address_parts[0] }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Full Delivery Address</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white whitespace-pre-line">
                         {{ pending_payment.delivery_address or 'N/A' }}
                     </dd>
                 </div>

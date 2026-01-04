@@ -536,6 +536,8 @@ class PaymentService:
                 customer_name=pending_payment.customer_name,
                 customer_address=pending_payment.delivery_address,
                 customer_phone=pending_payment.customer_phone,
+                customer_email=getattr(pending_payment, 'customer_email', None),
+                customer_photo_url=getattr(pending_payment, 'customer_photo_url', None),
                 location=pending_payment.location or 'China',
                 shipping_rule_id=pending_payment.shipping_rule_id,
                 shipping_mode_key=getattr(pending_payment, 'shipping_mode_key', None),  # Get shipping method if field exists
