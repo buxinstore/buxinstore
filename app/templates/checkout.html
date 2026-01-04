@@ -1005,7 +1005,7 @@
                     const errorMsg = data.message || data.error || 'Payment initiation failed';
                     showMessage(errorMsg, 'error');
                 }
-                
+                }
             } catch (error) {
                 console.error('Payment error:', error);
                 showMessage('An error occurred while processing your payment. Please try again.', 'error');
