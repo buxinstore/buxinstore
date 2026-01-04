@@ -139,6 +139,118 @@ def get_base_url() -> str:
     return base
 
 
+# Database-free routes - these must NEVER access the database
+# Used to enforce strict isolation between application availability and database availability
+DATABASE_FREE_ROUTES = {
+    '/_health',
+    '/health',
+    '/status',
+    '/ping',
+    '/favicon.ico',
+    '/service-worker.js',
+    '/manifest.json',
+    '/robots.txt',
+    '/.well-known/',
+}
+
+
+def is_non_human_request(request_obj=None) -> bool:
+    """
+    Detect if a request is from a bot, crawler, monitoring tool, or non-interactive source.
+    
+    Returns True if the request appears to be automated/non-human, which means
+    it should be database-free to prevent unnecessary Neon compute usage.
+    
+    This detects:
+    - HEAD requests (often used by monitoring/probes)
+    - Bot/crawler user agents
+    - Monitoring tool user agents (UptimeRobot, Pingdom, etc.)
+    - Requests with no cookies (monitoring tools typically don't send cookies)
+    """
+    from flask import request as flask_request, has_request_context
+    
+    if request_obj is None:
+        if not has_request_context():
+            return False
+        request_obj = flask_request
+    
+    # HEAD requests are typically probes/monitoring
+    if request_obj.method == 'HEAD':
+        return True
+    
+    user_agent = request_obj.headers.get('User-Agent', '').lower()
+    if not user_agent:
+        # No user agent often indicates automated tools
+        return True
+    
+    # Common bot/crawler/monitoring user agent patterns
+    non_human_patterns = [
+        'bot', 'crawler', 'spider', 'scraper',
+        'uptimerobot', 'pingdom', 'monitoring', 'healthcheck',
+        'uptime', 'status', 'ping', 'probe',
+        'curl', 'wget', 'python-requests', 'go-http-client',
+        'googlebot', 'bingbot', 'slurp', 'duckduckbot',
+        'baiduspider', 'yandexbot', 'sogou', 'exabot',
+        'facebot', 'ia_archiver', 'archive.org',
+        'newrelic', 'datadog', 'splunk',
+        'headless', 'phantom', 'selenium', 'webdriver',
+    ]
+    
+    for pattern in non_human_patterns:
+        if pattern in user_agent:
+            return True
+    
+    # Requests with no cookies AND no session data are likely monitoring tools
+    # (real browsers usually send at least some cookies or session data)
+    has_cookies = bool(request_obj.cookies)
+    try:
+        from flask import session
+        has_session = bool(session) and bool(dict(session))
+    except (RuntimeError, AttributeError):
+        has_session = False
+    
+    # If no cookies AND no session data, likely a monitoring probe
+    if not has_cookies and not has_session:
+        # Additional check: if it's a simple GET with no query params, more likely a probe
+        if request_obj.method == 'GET' and not request_obj.query_string:
+            return True
+    
+    return False
+
+
+def is_database_free_route(path: str, request_obj=None) -> bool:
+    """
+    Check if a route path should be database-free.
+    Returns True if the route should never access the database.
+    
+    This ensures strict isolation: health checks, monitoring, and public assets
+    can work even when the database is unavailable, paused, or out of compute.
+    
+    For the homepage (/), also checks if the request is non-human/interactive.
+    """
+    if not path:
+        return False
+    
+    # Exact matches (always database-free)
+    if path in DATABASE_FREE_ROUTES:
+        return True
+    
+    # Prefix matches (always database-free)
+    for free_route in DATABASE_FREE_ROUTES:
+        if path.startswith(free_route):
+            return True
+    
+    # Static files are database-free
+    if path.startswith('/static/'):
+        return True
+    
+    # For homepage (/), check if request is non-human
+    if path == '/':
+        return is_non_human_request(request_obj)
+    
+    return False
+
+
 def create_app(config_class: type[Config] | None = None):
     app = Flask(__name__, static_folder='static', static_url_path='/static')
 
@@ -200,27 +312,30 @@ def create_app(config_class: type[Config] | None = None):
     # Configure Babel locale and timezone selectors (Flask-Babel 3.0+ API)
     # Define locale selector function
     def get_locale():
-        """Get the locale for Babel based on session or default."""
-        from flask import session
-        # Try to get language from session
-        language = session.get('language')
-        if language:
-            return language
+        """
+        Get the locale for Babel based on session or default.
         
-        # Try to get from current country (function defined later in file)
-        # Use a try-except to handle cases where function isn't available yet
+        CRITICAL: For database-free routes, returns 'en' without any database access.
+        This ensures health checks, monitoring, and public assets never trigger database connections.
+        """
+        from flask import session, request, has_request_context
+        
+        # Skip database access for database-free routes
+        if has_request_context() and is_database_free_route(request.path, request):
+            return 'en'
+        
+        # Try to get language from session (session-based, no DB access)
         try:
-            # Import here to avoid potential circular dependency
-            from flask import g
-            if hasattr(g, 'current_country') and g.current_country:
-                return g.current_country.language
-            # Fallback: try calling the function directly
-            country = get_current_country()
-            if country and country.language:
-                return country.language
-        except (NameError, AttributeError, Exception):
-            # Function not defined yet or other error - use default
+            language = session.get('language')
+            if language:
+                return language
+        except (RuntimeError, AttributeError):
+            # Outside request context or session not available
             pass
+        
+        # For non-database-free routes, we could call get_current_country(),
+        # but that function will handle database-free routes internally.
+        # To avoid any potential DB access here, we default to English.
         
         # Default to English
         return 'en'
@@ -275,55 +390,67 @@ def create_app(config_class: type[Config] | None = None):
     from app.shipping.routes import shipping_bp
     app.register_blueprint(shipping_bp)
     
-    # Check if bulk_email_job tables exist (informational only)
-    # Migrations should be run via Render's releaseCommand or manually
-    with app.app_context():
-        try:
-            from sqlalchemy.exc import ProgrammingError
-            from sqlalchemy import inspect
-            
-            # Check if bulk_email_job table exists
-            inspector = inspect(db.engine)
-            if 'bulk_email_job' in inspector.get_table_names():
-                app.logger.info("✅ Bulk email job tables exist")
-            else:
-                app.logger.warning(
-                    "⚠️  Bulk email job tables not found. "
-                    "Please run migrations: 'python -m alembic upgrade head' "
-                    "or ensure Render's releaseCommand runs migrations automatically."
-                )
-        except Exception as e:
-            # Non-critical check - log warning but allow app to start
-            app.logger.warning(
-                f"Could not verify bulk_email_job tables on startup: {e}. "
-                "This is not critical, but bulk email features may not work until migrations are run."
-            )
+    # NOTE: Database table checks removed to prevent database access on startup.
+    # Migrations should be run via Render's releaseCommand or manually.
+    # The app will work correctly even if migrations haven't run yet.
 
     # Attach base URL helper and expose PUBLIC_URL-derived base_url to templates
     # This allows `current_app.get_base_url()` in request handlers.
     app.get_base_url = get_base_url
+
+    # Register health endpoint FIRST, before any context processors or middleware
+    # This endpoint must be 100% database-free for uptime monitoring
+    @app.route("/_health", methods=["GET"])
+    def healthcheck():
+        """Database-free health check endpoint for uptime monitoring."""
+        return jsonify({"status": "ok"}), 200
 
     @app.context_processor
     def inject_base_url():
         # Always derive from the helper so changes to PUBLIC_URL are reflected everywhere
         return {"base_url": app.get_base_url()}
 
-    @app.route("/_health", methods=["GET"])
-    def healthcheck():
-        return jsonify({"status": "ok"}), 200
-
     # Add error handler for database connection errors
     @app.errorhandler(OperationalError)
     def handle_database_error(e):
-        """Handle database connection errors gracefully."""
-        app.logger.error(f"Database connection error: {e}", exc_info=True)
-        # Try to rollback any pending transaction
+        """
+        Handle database connection errors gracefully.
+        
+        CRITICAL: For database-free routes, this handler should never be triggered
+        because those routes never access the database. If it is triggered for a
+        database-free route, something is wrong with the isolation.
+        """
+        error_msg = str(e).lower()
+        
+        # Check if this is a compute quota error from Neon
+        is_compute_error = (
+            "compute" in error_msg and "quota" in error_msg
+        ) or "compute time quota exceeded" in error_msg
+        
+        # Log the error (only once, don't spam logs)
+        app.logger.error(
+            f"Database connection error on {request.path}: {e}" + 
+            (" (Neon compute quota exceeded)" if is_compute_error else ""),
+            exc_info=True
+        )
+        
+        # Try to rollback any pending transaction (only if session exists)
+        # Don't attempt new connections - just clean up if possible
         try:
-            db.session.rollback()
+            if hasattr(db, 'session') and db.session.is_active:
+                db.session.rollback()
         except Exception:
+            # Silently fail - we're in error handling, don't make it worse
             pass
         
-        # Return a user-friendly error message
+        # For database-free routes, return a simple error (shouldn't happen, but be safe)
+        if is_database_free_route(request.path, request):
+            return jsonify({
+                "error": "Internal error",
+                "message": "Service temporarily unavailable"
+            }), 503
+        
+        # Return a user-friendly error message for database-requiring routes
         if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({
                 "error": "Database connection error",
@@ -464,6 +591,52 @@ def category_image_url_filter(image_path):
 
 @app.context_processor
 def inject_site_settings():
+    """
+    Inject site settings into templates.
+    
+    CRITICAL: For database-free routes, returns safe defaults without any database access.
+    This ensures health checks, monitoring, and public assets work even when the database
+    is unavailable, paused, or out of compute.
+    """
+    from flask import request, has_request_context
+    
+    # Skip ALL database access for database-free routes - use safe defaults
+    if has_request_context() and is_database_free_route(request.path, request):
+        # Return minimal safe defaults for database-free routes
+        return {
+            'site_settings': None,
+            'site_logo_url': DEFAULT_LOGO_URL,
+            'hero_image_url': None,
+            'cart_currency': 'D',
+            'current_user_avatar_url': None,
+            'current_user_display_name': None,
+            'current_user_google_connected': False,
+            'app_settings': None,
+            'floating_whatsapp': None,
+            'floating_email': None,
+            'floating_email_subject': 'Support Request',
+            'floating_email_body': 'Hello, I need help with ...',
+            'current_country': None,
+            'current_currency': 'D',
+            'current_currency_code': 'GMD',
+            'current_language': 'en',
+            'country_selected': False,
+            'convert_price': lambda price, from_currency="GMD": float(price) if isinstance(price, (int, float)) else 0.0,
+            'get_currency_symbol': lambda currency: 'D',
+            'format_price': lambda price: f"{float(price):,.2f}" if price else "0.00",
+            '_': lambda text: text,
+            'pwa_app_name': 'buxin store',
+            'pwa_short_name': 'buxin store',
+            'pwa_theme_color': '#ffffff',
+            'pwa_background_color': '#ffffff',
+            'pwa_start_url': '/',
+            'pwa_display': 'standalone',
+            'pwa_description': 'buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.',
+            'pwa_logo_path': None,
+            'pwa_favicon_path': None,
+        }
+    
+    # For routes that need database access, proceed normally
     settings = SiteSettings.query.first()
     if not settings:
         settings = SiteSettings()
@@ -2089,6 +2262,16 @@ def calculate_cart_total_weight(cart_items: List[Dict[str, any]], default_weight
 
 @login_manager.user_loader
 def load_user(user_id):
+    """
+    Load user from database.
+    
+    CRITICAL: For database-free routes, returns None without any database access.
+    This ensures health checks and monitoring never trigger database connections.
+    """
+    from flask import has_request_context, request
+    # Skip database access for database-free routes
+    if has_request_context() and is_database_free_route(request.path, request):
+        return None
     return User.query.get(int(user_id))
 
 def merge_carts(user, guest_cart):
@@ -2161,13 +2344,15 @@ def force_onboarding_for_new_users():
     2. Slide 2: What You Can Buy slide  
     3. Slide 3: Country and Language Setup
     4. After completion: Redirect to Sign In
+    
+    CRITICAL: Skips ALL database-free routes to ensure no database access.
     """
-    # Skip for static files, API endpoints, and onboarding-related routes
+    # Skip for database-free routes (health checks, monitoring, static files, etc.)
+    if is_database_free_route(request.path, request):
+        return None
+    
+    # Skip for other non-user routes
     skip_paths = [
-        '/static/',
-        '/favicon',
-        '/manifest.json',
-        '/service-worker.js',
         '/onboarding',
         '/clear-onboarding',
         '/check-onboarding',
@@ -2820,6 +3005,20 @@ def _resolve_wishlist_ids():
 
 @app.context_processor
 def inject_wishlist_context():
+    """
+    Inject wishlist context into templates.
+    
+    CRITICAL: For database-free routes, returns empty wishlist without any database access.
+    """
+    from flask import request, has_request_context
+    
+    # Skip ALL database access for database-free routes
+    if has_request_context() and is_database_free_route(request.path, request):
+        return {
+            'wishlist_product_ids': [],
+            'wishlist_count': 0
+        }
+    
     ids = []
     try:
         ids = _resolve_wishlist_ids()
@@ -4040,7 +4239,18 @@ def api_select_shipping_method():
 # ======================
 
 def get_current_country():
-    """Get the current user's selected country from session or user profile."""
+    """
+    Get the current user's selected country from session or user profile.
+    
+    CRITICAL: For database-free routes, returns None without any database access.
+    This ensures health checks, monitoring, and public assets never trigger database connections.
+    """
+    from flask import request, has_request_context
+    
+    # Skip ALL database access for database-free routes
+    if has_request_context() and is_database_free_route(request.path, request):
+        return None
+    
     try:
         # First, try to get from authenticated user's profile
         if current_user.is_authenticated and current_user.country_id:
@@ -13583,6 +13793,37 @@ def service_worker():
 
 @app.route('/')
 def home():
+    """
+    Homepage route.
+    
+    CRITICAL: For non-human requests (monitoring, bots, crawlers, HEAD requests),
+    returns a simple database-free HTML response without any database queries.
+    This ensures uptime checks, wake-ups, and automated probes never trigger
+    Neon database connections, even when Neon is paused or out of compute.
+    
+    Real user requests proceed normally with full database access for products,
+    categories, and personalized content.
+    """
+    # Check if this is a non-human/interactive request (monitoring, bot, crawler, HEAD)
+    # If so, return a simple database-free response
+    if is_non_human_request(request):
+        # Return a minimal HTML response for monitoring/probes
+        # This is database-free and works even when Neon is unavailable
+        html_response = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>buxin store</title>
+</head>
+<body>
+    <h1>buxin store</h1>
+    <p>Your gateway to the future of technology.</p>
+</body>
+</html>"""
+        return make_response(html_response, 200)
+    
+    # For real user requests, proceed with normal homepage functionality
     # Onboarding check is now handled by @app.before_request (force_onboarding_for_new_users)
     # This ensures ALL routes force onboarding, not just home
     
