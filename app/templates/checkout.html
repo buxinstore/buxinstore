@@ -1030,12 +1030,14 @@
             
             try {
                 // Prepare payment data
+                // CRITICAL: Always use the amount from the checkout page (what the user sees)
                 const paymentData = {
                     pending_payment_id: parseInt(pendingPaymentId),
+                    amount: amount,  // Use the amount from checkout page (what user sees)
                     provider: provider
                 };
                 
-                console.log('Initiating ModemPay payment:', paymentData);
+                console.log('Initiating ModemPay payment with checkout total:', paymentData);
                 
                 // Make API call to ModemPay payment endpoint
                 const response = await fetch('/payments/modempay/pay', {

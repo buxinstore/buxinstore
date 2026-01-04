@@ -570,7 +570,18 @@ def modempay_pay():
                     message='Unauthorized access to this pending payment'
                 )), 403
             
+            # CRITICAL FIX: Use amount from checkout page (what user sees) instead of stale pending_payment.amount
+            checkout_amount = data.get('amount')
+            if checkout_amount:
+                # Update pending_payment with the correct amount from checkout
+                pending_payment.amount = float(checkout_amount)
+                db.session.commit()
+                current_app.logger.info(
+                    f'Updated pending_payment {pending_payment_id} amount from checkout: {checkout_amount}'
+                )
+            
             # Start ModemPay payment with pending_payment_id
+            # The amount will be read from pending_payment.amount (now updated with checkout amount)
             result = PaymentService.start_modempay_payment(
                 pending_payment_id=pending_payment.id,
                 provider=provider_value
