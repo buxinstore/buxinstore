@@ -196,45 +196,27 @@
                                 <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="phone-error"></p>
                             </div>
 
-                            <!-- Country Dropdown -->
+                            <!-- Country Input with Autocomplete -->
                             <div>
                                 <label for="country" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                                     Country <span class="text-red-500">*</span>
                                 </label>
-                                <div class="relative" style="z-index: 50;">
-                                    <button 
-                                        type="button"
-                                        id="checkout-country-toggle"
-                                        class="w-full flex items-center justify-between rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all text-left cursor-pointer"
-                                        aria-haspopup="true"
-                                        aria-expanded="false"
-                                        style="pointer-events: auto;"
+                                <div class="relative">
+                                    <input 
+                                        type="text" 
+                                        id="country" 
+                                        name="country" 
+                                        value="{{ form.country.data or '' }}"
+                                        required
+                                        autocomplete="off"
+                                        placeholder="Type country name..."
+                                        class="block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
                                     >
-                                        <span class="flex items-center gap-3 flex-1 min-w-0">
-                                            <span id="checkout-country-flag" class="flex-shrink-0 w-6 h-6 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
-                                                <i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>
-                                            </span>
-                                            <span id="checkout-country-name" class="flex-1 truncate text-slate-500 dark:text-slate-400">Select a country</span>
-                                        </span>
-                                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 flex-shrink-0 ml-2 transition-transform"></i>
-                                    </button>
-                                    <input type="hidden" id="country" name="country" value="{{ form.country.data or '' }}" required>
+                                    <input type="hidden" id="country-id" name="country_id" value="">
                                     
-                                    <!-- Country Dropdown Menu -->
-                                    <div id="checkout-country-dropdown" class="absolute z-[100] w-full mt-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl shadow-lg hidden max-h-80 overflow-hidden flex flex-col" style="top: 100%; left: 0;">
-                                        <!-- Search Input -->
-                                        <div class="p-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
-                                            <input 
-                                                type="text" 
-                                                id="checkout-country-search"
-                                                placeholder="Search countries..."
-                                                class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                                            >
-                                        </div>
-                                        <!-- Country List -->
-                                        <div id="checkout-country-list" class="overflow-y-auto overscroll-contain p-2 space-y-1 flex-1 min-h-0 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
-                                            <!-- Countries will be loaded via JavaScript -->
-                                        </div>
+                                    <!-- Autocomplete Dropdown -->
+                                    <div id="country-autocomplete-list" class="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl shadow-lg hidden max-h-60 overflow-y-auto">
+                                        <!-- Countries will be loaded here -->
                                     </div>
                                 </div>
                                 <p class="mt-1 text-xs text-red-600 dark:text-red-400 hidden" id="country-error"></p>
@@ -632,37 +614,68 @@
             });
         });
         
-        // Country dropdown functionality
+        // Country autocomplete functionality
         let checkoutCountries = [];
         let selectedCountry = null;
-        let countryToggle, countryDropdown, countryList, countrySearch, countryName, countryFlag, countryInput;
+        let countryInput, countryAutocompleteList, countryIdInput;
         const savedCountryName = '{{ form.country.data or '' }}';
         
-        // Initialize country dropdown elements (called after DOM is ready)
-        function initCountryDropdownElements() {
-            countryToggle = document.getElementById('checkout-country-toggle');
-            countryDropdown = document.getElementById('checkout-country-dropdown');
-            countryList = document.getElementById('checkout-country-list');
-            countrySearch = document.getElementById('checkout-country-search');
-            countryName = document.getElementById('checkout-country-name');
-            countryFlag = document.getElementById('checkout-country-flag');
+        // Initialize country autocomplete elements
+        function initCountryAutocomplete() {
             countryInput = document.getElementById('country');
+            countryAutocompleteList = document.getElementById('country-autocomplete-list');
+            countryIdInput = document.getElementById('country-id');
+            
+            if (!countryInput || !countryAutocompleteList) {
+                console.error('Country input elements not found');
+                return;
+            }
+            
+            // Load countries
+            loadCheckoutCountries();
+            
+            // Handle input typing
+            countryInput.addEventListener('input', function(e) {
+                const query = e.target.value.trim();
+                if (query.length > 0) {
+                    filterCountries(query);
+                    countryAutocompleteList.classList.remove('hidden');
+                } else {
+                    countryAutocompleteList.classList.add('hidden');
+                    selectedCountry = null;
+                    if (countryIdInput) countryIdInput.value = '';
+                }
+                clearError('country');
+            });
+            
+            // Handle focus
+            countryInput.addEventListener('focus', function(e) {
+                const query = e.target.value.trim();
+                if (query.length > 0 && checkoutCountries.length > 0) {
+                    filterCountries(query);
+                    countryAutocompleteList.classList.remove('hidden');
+                }
+            });
+            
+            // Close autocomplete when clicking outside
+            document.addEventListener('click', function(e) {
+                if (countryAutocompleteList && countryInput && 
+                    !countryAutocompleteList.contains(e.target) && 
+                    !countryInput.contains(e.target)) {
+                    countryAutocompleteList.classList.add('hidden');
+                }
+            });
+            
+            // Handle keyboard navigation
+            countryInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    countryAutocompleteList.classList.add('hidden');
+                }
+            });
         }
         
         // Load countries from API
         async function loadCheckoutCountries() {
-            if (!countryToggle || !countryDropdown || !countryList) {
-                console.error('Country dropdown elements not found', {
-                    toggle: !!countryToggle,
-                    dropdown: !!countryDropdown,
-                    list: !!countryList
-                });
-                return;
-            }
-            
-            // Show loading state
-            countryList.innerHTML = '<p class="p-4 text-sm text-slate-500">Loading countries...</p>';
-            
             try {
                 const response = await fetch('/api/countries');
                 if (!response.ok) {
@@ -671,54 +684,45 @@
                 const data = await response.json();
                 if (data.success && data.countries && Array.isArray(data.countries)) {
                     checkoutCountries = data.countries;
-                    if (checkoutCountries.length === 0) {
-                        console.warn('No countries returned from API');
-                        countryList.innerHTML = '<p class="p-4 text-sm text-slate-500">No countries available</p>';
-                        return;
-                    }
-                    renderCheckoutCountryList();
-                    // Auto-select saved country
-                    if (savedCountryName && savedCountryName.trim()) {
+                    // Set initial value if saved
+                    if (savedCountryName && savedCountryName.trim() && countryInput) {
+                        countryInput.value = savedCountryName.trim();
                         const savedCountry = checkoutCountries.find(c => c.name === savedCountryName.trim());
-                        if (savedCountry) {
-                            await selectCheckoutCountry(savedCountry);
+                        if (savedCountry && countryIdInput) {
+                            countryIdInput.value = savedCountry.id;
+                            selectedCountry = savedCountry;
                         }
                     }
-                } else {
-                    console.error('Invalid response from countries API:', data);
-                    countryList.innerHTML = '<p class="p-4 text-sm text-red-500">Error loading countries. Please refresh the page.</p>';
                 }
             } catch (error) {
                 console.error('Error loading countries:', error);
-                if (countryList) {
-                    countryList.innerHTML = '<p class="p-4 text-sm text-red-500">Failed to load countries. Please refresh the page.</p>';
-                }
             }
         }
         
-        // Render country list
-        function renderCheckoutCountryList(filter = '') {
-            if (!countryList) return;
+        // Filter and render countries
+        function filterCountries(query) {
+            if (!countryAutocompleteList || checkoutCountries.length === 0) return;
             
-            const filtered = filter 
-                ? checkoutCountries.filter(c => 
-                    c.name.toLowerCase().includes(filter.toLowerCase()) ||
-                    c.code.toLowerCase().includes(filter.toLowerCase())
-                  )
-                : checkoutCountries;
+            const filtered = checkoutCountries.filter(c => 
+                c.name.toLowerCase().includes(query.toLowerCase()) ||
+                c.code.toLowerCase().includes(query.toLowerCase())
+            ).slice(0, 10); // Limit to 10 results
             
-            countryList.innerHTML = filtered.map(country => {
+            if (filtered.length === 0) {
+                countryAutocompleteList.innerHTML = '<div class="p-3 text-sm text-slate-500">No countries found</div>';
+                return;
+            }
+            
+            countryAutocompleteList.innerHTML = filtered.map(country => {
                 const flagUrl = country.flag_url || 
                     (country.flag_image_path ? 
                         (country.flag_image_path.startsWith('http') ? country.flag_image_path : `/static/${country.flag_image_path}`) :
                         (country.code ? `https://flagcdn.com/w40/${country.code.toLowerCase()}.png` : ''));
                 
-                const isSelected = selectedCountry && selectedCountry.id === country.id;
-                
                 return `
                     <button 
                         type="button"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors ${isSelected ? 'bg-slate-100 dark:bg-slate-700/50 ring-2 ring-cyan-500/30' : ''}"
+                        class="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors"
                         data-country-id="${country.id}"
                         data-country-name="${country.name}"
                     >
@@ -729,7 +733,6 @@
                             <div class="text-sm font-medium text-slate-900 dark:text-white truncate">${country.name}</div>
                             <div class="text-xs text-slate-500 dark:text-slate-400">${country.code}</div>
                         </div>
-                        ${isSelected ? '<i data-lucide="check" class="w-4 h-4 text-cyan-500 flex-shrink-0"></i>' : ''}
                     </button>
                 `;
             }).join('');
@@ -740,264 +743,42 @@
             }
             
             // Add click handlers
-            countryList.querySelectorAll('button[data-country-id]').forEach(btn => {
-                btn.addEventListener('click', async () => {
+            countryAutocompleteList.querySelectorAll('button[data-country-id]').forEach(btn => {
+                btn.addEventListener('click', function() {
                     const countryId = parseInt(btn.dataset.countryId);
-                    const country = checkoutCountries.find(c => c.id === countryId);
-                    if (country) {
-                        await selectCheckoutCountry(country);
-                    }
+                    const countryName = btn.dataset.countryName;
+                    selectCheckoutCountry(countryId, countryName);
                 });
             });
         }
         
         // Select country
-        async function selectCheckoutCountry(country) {
+        function selectCheckoutCountry(countryId, countryName) {
+            const country = checkoutCountries.find(c => c.id === countryId);
+            if (!country) return;
+            
             selectedCountry = country;
-            countryInput.value = country.name;
-            
-            // Update display
-            const flagUrl = country.flag_url || 
-                (country.flag_image_path ? 
-                    (country.flag_image_path.startsWith('http') ? country.flag_image_path : `/static/${country.flag_image_path}`) :
-                    (country.code ? `https://flagcdn.com/w40/${country.code.toLowerCase()}.png` : ''));
-            
-            if (flagUrl) {
-                countryFlag.innerHTML = `<img src="${flagUrl}" alt="${country.name}" class="w-full h-full object-cover" onerror="this.onerror=null; this.innerHTML='<i data-lucide=\\'globe\\' class=\\'w-4 h-4 text-slate-400\\'></i>'; if(window.lucide) window.lucide.createIcons();">`;
-            } else {
-                countryFlag.innerHTML = '<i data-lucide="globe" class="w-4 h-4 text-slate-400"></i>';
-            }
-            
-            countryName.textContent = country.name;
-            countryName.classList.remove('text-slate-500', 'dark:text-slate-400');
-            countryName.classList.add('text-slate-900', 'dark:text-white');
-            
-            // Close dropdown
-            countryDropdown.classList.add('hidden');
-            countryToggle.setAttribute('aria-expanded', 'false');
-            const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
-            if (chevron) {
-                chevron.style.transform = '';
-            }
-            
-            // Re-render Lucide icons
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
+            if (countryInput) countryInput.value = countryName;
+            if (countryIdInput) countryIdInput.value = countryId;
+            if (countryAutocompleteList) countryAutocompleteList.classList.add('hidden');
             
             // Validate and update button state
             clearError('country');
             validationState.country = true;
             updateButtonState();
             
-            // CRITICAL FIX: Do NOT recalculate shipping method when country changes
-            // The shipping method and price are already set from the cart
-            // Only update the hidden input if it's not already set
-            const shippingMethodInput = document.getElementById('shipping_mode_key');
-            if (shippingMethodInput && !shippingMethodInput.value) {
-                // Try to get from page data (set by server from session)
-                const initialValue = shippingMethodInput.getAttribute('value') || '';
-                if (initialValue) {
-                    shippingMethodInput.value = initialValue;
-                }
-            }
-            
-            // DO NOT call autoSelectShippingMethod - it would recalculate and change the total
-            // await autoSelectShippingMethod(country.id); // DISABLED
-            
             // Trigger auto-save
             autoSaveAddress();
         }
         
-        // CRITICAL FIX: Do NOT auto-select shipping method - use the one from cart session
-        // This function is now disabled to prevent checkout from recalculating shipping
-        // Checkout should ONLY use the shipping method and price already selected in cart
-        async function autoSelectShippingMethod(countryId) {
-            // DISABLED: Checkout should NOT recalculate shipping
-            // The shipping method and price are already set in the cart and saved to session
-            // Using those values ensures Cart Total = Checkout Total = Payment Total
-            
-            // Only set the hidden input if it's not already set (from cart selection)
-            const shippingMethodInput = document.getElementById('shipping_mode_key');
-            if (shippingMethodInput && !shippingMethodInput.value) {
-                // If no method is set, try to get it from the page data (set by server)
-                const initialValue = shippingMethodInput.getAttribute('value') || '';
-                if (initialValue) {
-                    shippingMethodInput.value = initialValue;
-                }
-            }
-            
-            // DO NOT call the API to recalculate shipping
-            // DO NOT update the cart summary
-            // DO NOT change the shipping method
-            // The server-side checkout route already uses session['cart_shipping_price'] and session['cart_total']
-            
-            console.log('Checkout: Using shipping method from cart session (no recalculation)');
-        }
-        
-        // Update checkout summary display
-        function updateCheckoutSummary(summary) {
-            const shippingEl = document.querySelector('[data-checkout-shipping]');
-            const totalEl = document.querySelector('[data-checkout-total]');
-            
-            if (shippingEl && summary.shipping !== undefined) {
-                const currency = summary.currency || 'D';
-                shippingEl.textContent = `${currency}${summary.shipping.toFixed(2)}`;
-            }
-            
-            if (totalEl && summary.total !== undefined) {
-                const currency = summary.currency || 'D';
-                totalEl.textContent = `${currency}${summary.total.toFixed(2)}`;
-            }
-            
-            const amountInput = document.getElementById('amount');
-            if (amountInput && summary.total !== undefined) {
-                amountInput.value = summary.total.toFixed(2);
-            }
-        }
-        
-        // Toggle dropdown
-        function toggleCountryDropdown() {
-            if (!countryToggle || !countryDropdown) {
-                console.error('Country dropdown elements not found in toggleCountryDropdown');
-                return;
-            }
-            
-            const isHidden = countryDropdown.classList.contains('hidden');
-            
-            if (isHidden) {
-                // Ensure countries are loaded before opening
-                if (checkoutCountries.length === 0) {
-                    loadCheckoutCountries().then(() => {
-                        countryDropdown.classList.remove('hidden');
-                        countryToggle.setAttribute('aria-expanded', 'true');
-                        const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
-                        if (chevron) {
-                            chevron.style.transform = 'rotate(180deg)';
-                        }
-                        // Focus search input
-                        if (countrySearch) {
-                            setTimeout(() => countrySearch.focus(), 100);
-                        }
-                    }).catch(err => {
-                        console.error('Error loading countries:', err);
-                    });
-                } else {
-                    countryDropdown.classList.remove('hidden');
-                    countryToggle.setAttribute('aria-expanded', 'true');
-                    const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
-                    if (chevron) {
-                        chevron.style.transform = 'rotate(180deg)';
-                    }
-                    // Focus search input
-                    if (countrySearch) {
-                        setTimeout(() => countrySearch.focus(), 100);
-                    }
-                }
-            } else {
-                countryDropdown.classList.add('hidden');
-                countryToggle.setAttribute('aria-expanded', 'false');
-                const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
-                if (chevron) {
-                    chevron.style.transform = '';
-                }
-            }
-        }
-        
-        // Track if dropdown is initialized to prevent duplicate listeners
-        let dropdownInitialized = false;
-        
-        // Initialize country dropdown on page load
-        function initCountryDropdown() {
-            initCountryDropdownElements();
-            
-            if (!countryToggle || !countryDropdown || !countryList) {
-                console.error('Country dropdown elements not found, retrying...', {
-                    toggle: !!countryToggle,
-                    dropdown: !!countryDropdown,
-                    list: !!countryList
-                });
-                setTimeout(initCountryDropdown, 100);
-                return;
-            }
-            
-            // Prevent duplicate initialization
-            if (dropdownInitialized) {
-                return;
-            }
-            
-            // Load countries
-            loadCheckoutCountries();
-            
-            // Set up event listeners - simple click handler like base.html
-            if (countryToggle) {
-                countryToggle.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    toggleCountryDropdown();
-                });
-            }
-            
-            // Search functionality
-            if (countrySearch) {
-                countrySearch.addEventListener('input', (e) => {
-                    renderCheckoutCountryList(e.target.value);
-                });
-            }
-            
-            // Close dropdown when clicking outside (only add once)
-            if (!dropdownInitialized) {
-                document.addEventListener('click', function handleOutsideClick(e) {
-                    if (countryDropdown && countryToggle && 
-                        !countryDropdown.contains(e.target) && 
-                        !countryToggle.contains(e.target)) {
-                        countryDropdown.classList.add('hidden');
-                        if (countryToggle) {
-                            countryToggle.setAttribute('aria-expanded', 'false');
-                            const chevron = countryToggle.querySelector('[data-lucide="chevron-down"]');
-                            if (chevron) {
-                                chevron.style.transform = '';
-                            }
-                        }
-                    }
-                });
-            }
-            
-            dropdownInitialized = true;
-        }
-        
-        // Load countries immediately on page load
-        function initializeCountryDropdownWhenReady() {
-            // Wait a bit to ensure DOM is fully ready
-            setTimeout(() => {
-                initCountryDropdown();
-                
-                // Verify button exists and is clickable
-                const btn = document.getElementById('checkout-country-toggle');
-                if (btn) {
-                    // Test that button is accessible
-                    if (btn.offsetParent === null) {
-                        console.warn('Country toggle button is not visible');
-                    }
-                } else {
-                    console.error('Country toggle button not found in DOM');
-                    // Retry after longer delay
-                    setTimeout(() => {
-                        initCountryDropdown();
-                    }, 500);
-                }
-            }, 50);
-        }
-        
-        // Start initialization when DOM is ready
+        // Initialize on DOM ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
-                initializeCountryDropdownWhenReady();
+                initCountryAutocomplete();
                 initPaymentMethodSelection();
             });
         } else {
-            // DOM is already loaded
-            initializeCountryDropdownWhenReady();
+            initCountryAutocomplete();
             initPaymentMethodSelection();
         }
         
