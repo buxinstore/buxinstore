@@ -996,10 +996,14 @@
         
         // Start initialization when DOM is ready
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeCountryDropdownWhenReady);
+            document.addEventListener('DOMContentLoaded', function() {
+                initializeCountryDropdownWhenReady();
+                initPaymentMethodSelection();
+            });
         } else {
             // DOM is already loaded
             initializeCountryDropdownWhenReady();
+            initPaymentMethodSelection();
         }
         
         // Auto-save address on blur (debounced)
@@ -1044,15 +1048,19 @@
             field.addEventListener('input', autoSaveAddress);
         });
         
-        // Payment method selection and details display
-        const paymentMethodRadios = document.querySelectorAll('input[name="payment_method"]');
-        const paymentDetailsContainer = document.getElementById('payment-details-container');
-        const paymentDetailsContent = document.getElementById('payment-details-content');
-        const receiptUploadContainer = document.getElementById('receipt-upload-container');
-        const receiptInput = document.getElementById('payment_receipt');
-        const receiptPreview = document.getElementById('receipt-preview');
-        const receiptPreviewImg = document.getElementById('receipt-preview-img');
-        const receiptInstructions = document.getElementById('receipt-instructions');
+        // Payment method selection and details display (initialize after DOM is ready)
+        let paymentMethodRadios, paymentDetailsContainer, paymentDetailsContent, receiptUploadContainer, receiptInput, receiptPreview, receiptPreviewImg, receiptInstructions;
+        
+        function initPaymentMethodElements() {
+            paymentMethodRadios = document.querySelectorAll('input[name="payment_method"]');
+            paymentDetailsContainer = document.getElementById('payment-details-container');
+            paymentDetailsContent = document.getElementById('payment-details-content');
+            receiptUploadContainer = document.getElementById('receipt-upload-container');
+            receiptInput = document.getElementById('payment_receipt');
+            receiptPreview = document.getElementById('receipt-preview');
+            receiptPreviewImg = document.getElementById('receipt-preview-img');
+            receiptInstructions = document.getElementById('receipt-instructions');
+        }
         
         // Payment details data
         const paymentDetails = {
@@ -1151,34 +1159,54 @@
             }
         }
         
-        // Handle receipt preview
-        if (receiptInput) {
-            receiptInput.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    if (file.type.startsWith('image/')) {
-                        const reader = new FileReader();
-                        reader.onload = function(e) {
-                            receiptPreviewImg.src = e.target.result;
-                            receiptPreview.classList.remove('hidden');
-                        };
-                        reader.readAsDataURL(file);
+        // Initialize payment method functionality (called after DOM is ready)
+        function initPaymentMethodSelection() {
+            initPaymentMethodElements();
+            
+            if (!paymentDetailsContainer || !paymentDetailsContent || !receiptUploadContainer) {
+                // Payment method elements don't exist (maybe not on this page), skip initialization
+                return;
+            }
+            
+            // Handle receipt preview
+            if (receiptInput) {
+                receiptInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        if (file.type.startsWith('image/')) {
+                            const reader = new FileReader();
+                            reader.onload = function(e) {
+                                if (receiptPreviewImg) {
+                                    receiptPreviewImg.src = e.target.result;
+                                }
+                                if (receiptPreview) {
+                                    receiptPreview.classList.remove('hidden');
+                                }
+                            };
+                            reader.readAsDataURL(file);
+                        } else {
+                            if (receiptPreview) {
+                                receiptPreview.classList.add('hidden');
+                            }
+                        }
                     } else {
-                        receiptPreview.classList.add('hidden');
+                        if (receiptPreview) {
+                            receiptPreview.classList.add('hidden');
+                        }
                     }
-                } else {
-                    receiptPreview.classList.add('hidden');
-                }
-            });
+                });
+            }
+            
+            // Listen for payment method changes
+            if (paymentMethodRadios && paymentMethodRadios.length > 0) {
+                paymentMethodRadios.forEach(radio => {
+                    radio.addEventListener('change', updatePaymentMethodDisplay);
+                });
+            }
+            
+            // Initialize display
+            updatePaymentMethodDisplay();
         }
-        
-        // Listen for payment method changes
-        paymentMethodRadios.forEach(radio => {
-            radio.addEventListener('change', updatePaymentMethodDisplay);
-        });
-        
-        // Initialize display
-        updatePaymentMethodDisplay();
         
         // Form submission
         form.addEventListener('submit', async function(e) {
