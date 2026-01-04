@@ -338,6 +338,20 @@ class PaymentService:
                 raise PaymentValidationException(f"PendingPayment {pending_payment_id} not found")
             reference_id = pending_payment_id
             payment_amount = pending_payment.amount
+            
+            # CRITICAL FIX: Convert amount from user's currency to GMD before sending to ModemPay
+            # ModemPay always expects amounts in GMD, but pending_payment.amount is stored in user's currency
+            from app.utils.currency_rates import convert_price
+            user_currency = pending_payment.shipping_display_currency or 'GMD'
+            if user_currency != 'GMD':
+                # Convert from user's currency to GMD
+                payment_amount_gmd = convert_price(payment_amount, user_currency, 'GMD')
+                current_app.logger.info(
+                    f"Currency conversion for ModemPay: {payment_amount} {user_currency} -> {payment_amount_gmd} GMD "
+                    f"(PendingPayment {pending_payment_id})"
+                )
+                payment_amount = payment_amount_gmd
+            
             if not phone:
                 phone = pending_payment.customer_phone or '+2200000000'
             if not customer_name:
@@ -352,13 +366,23 @@ class PaymentService:
             reference_id = order_id
             if not payment_amount:
                 payment_amount = order.total
+                # CRITICAL FIX: Convert order total from display currency to GMD if needed
+                from app.utils.currency_rates import convert_price
+                order_currency = getattr(order, 'shipping_display_currency', None) or 'GMD'
+                if order_currency != 'GMD':
+                    payment_amount_gmd = convert_price(payment_amount, order_currency, 'GMD')
+                    current_app.logger.info(
+                        f"Currency conversion for ModemPay: {payment_amount} {order_currency} -> {payment_amount_gmd} GMD "
+                        f"(Order {order_id})"
+                    )
+                    payment_amount = payment_amount_gmd
             if not phone:
                 phone = getattr(order, 'customer_phone', None) or '+2200000000'
         else:
             if not payment_amount:
                 raise PaymentValidationException("Either pending_payment_id, order_id, or amount must be provided")
         
-        # Validate payment amount
+        # Validate payment amount (in GMD)
         if not validate_payment_amount(payment_amount, 'modempay'):
             min_amount = 10.0  # ModemPay minimum
             raise PaymentValidationException(f"Payment amount must be at least D{min_amount}. Current amount: D{payment_amount:.2f}")
@@ -387,7 +411,7 @@ class PaymentService:
             if customer_email:
                 customer_info['email'] = customer_email
             
-            # Initiate payment with ModemPay
+            # Initiate payment with ModemPay (amount is now in GMD)
             gateway_response = gateway.initiate_payment(
                 amount=payment_amount,
                 reference=reference,
