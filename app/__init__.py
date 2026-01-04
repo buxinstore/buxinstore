@@ -11040,6 +11040,60 @@ def admin_orders():
                          top_products_data=top_products_data,
                          use_monthly_aggregation=use_monthly_aggregation)
 
+@app.route('/admin/orders/reset-all', methods=['POST'])
+@login_required
+@admin_required
+def admin_reset_all_orders():
+    """
+    Delete all orders and related data (for testing/reset purposes).
+    WARNING: This permanently deletes all orders, order items, payments, and related records.
+    """
+    try:
+        from app.payments.models import Payment, ManualPayment, PendingPayment
+        
+        # Count orders before deletion
+        total_orders = Order.query.count()
+        
+        # Delete order items first (foreign key constraint)
+        order_items_deleted = db.session.query(OrderItem).delete()
+        
+        # Delete manual payments
+        manual_payments_deleted = db.session.query(ManualPayment).delete()
+        
+        # Delete payments
+        payments_deleted = db.session.query(Payment).delete()
+        
+        # Delete pending payments
+        pending_payments_deleted = db.session.query(PendingPayment).delete()
+        
+        # Delete orders
+        orders_deleted = db.session.query(Order).delete()
+        
+        # Commit all deletions
+        db.session.commit()
+        
+        current_app.logger.warning(f"Admin {current_user.id} ({current_user.username}) deleted ALL orders: {orders_deleted} orders, {order_items_deleted} order items, {payments_deleted} payments, {manual_payments_deleted} manual payments, {pending_payments_deleted} pending payments")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully deleted all orders and related data ({orders_deleted} orders, {order_items_deleted} order items, {payments_deleted} payments, {manual_payments_deleted} manual payments, {pending_payments_deleted} pending payments)',
+            'deleted': {
+                'orders': orders_deleted,
+                'order_items': order_items_deleted,
+                'payments': payments_deleted,
+                'manual_payments': manual_payments_deleted,
+                'pending_payments': pending_payments_deleted
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error resetting all orders: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Error deleting orders: {str(e)}'
+        }), 500
+
 @app.route('/admin/order/<int:order_id>', methods=['GET', 'POST'])
 @login_required
 @admin_required
