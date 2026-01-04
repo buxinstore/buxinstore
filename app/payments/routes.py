@@ -981,6 +981,7 @@ def manual_payment_status(manual_payment_id):
     """
     Display payment status/waiting page for manual payments.
     Shows pending/approved/rejected status with receipt.
+    Automatically redirects approved payments to order confirmation page.
     """
     try:
         from app.payments.models import ManualPayment
@@ -991,6 +992,10 @@ def manual_payment_status(manual_payment_id):
         if manual_payment.user_id != current_user.id and not current_user.is_admin:
             flash('You do not have permission to view this payment.', 'error')
             return redirect(url_for('home'))
+        
+        # If payment is approved and has an order, redirect to order confirmation page
+        if manual_payment.status == 'approved' and manual_payment.order_id:
+            return redirect(url_for('order_confirmation', order_id=manual_payment.order_id))
         
         # Get payment details
         payment_details = get_payment_details(manual_payment.payment_method)

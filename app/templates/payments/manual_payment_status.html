@@ -80,9 +80,9 @@
             <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
                 <p class="text-sm text-green-800 dark:text-green-200">
                     <strong>Your payment has been approved!</strong> 
-                    {% if manual_payment.order %}
-                        Your order #{{ manual_payment.order.id }} is now being processed.
-                        <a href="{{ url_for('order_detail', order_id=manual_payment.order.id) }}" class="underline font-semibold">View Order</a>
+                    {% if manual_payment.order_id %}
+                        Your order #{{ manual_payment.order_id }} is now being processed.
+                        <a href="{{ url_for('order_confirmation', order_id=manual_payment.order_id) }}" class="underline font-semibold">View Order Confirmation</a>
                     {% else %}
                         Your order is being processed.
                     {% endif %}
@@ -139,9 +139,9 @@
             <a href="{{ url_for('home') }}" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
                 Back to Home
             </a>
-            {% if manual_payment.order %}
-            <a href="{{ url_for('order_detail', order_id=manual_payment.order.id) }}" class="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors">
-                View Order
+            {% if manual_payment.order_id %}
+            <a href="{{ url_for('order_confirmation', order_id=manual_payment.order_id) }}" class="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors">
+                View Order Confirmation
             </a>
             {% endif %}
         </div>
