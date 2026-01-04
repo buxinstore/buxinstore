@@ -3004,6 +3004,33 @@ def _resolve_wishlist_ids():
 
 
 @app.context_processor
+def inject_pending_payment_notifications():
+    """
+    Inject pending payment notification count for authenticated users.
+    Shows count of pending manual payments waiting for approval.
+    """
+    from flask import request, has_request_context
+    from flask_login import current_user
+    
+    # Skip for database-free routes
+    if has_request_context() and is_database_free_route(request.path, request):
+        return {'pending_payment_count': 0}
+    
+    # Only for authenticated users
+    if current_user.is_authenticated:
+        try:
+            from app.payments.models import ManualPayment
+            count = ManualPayment.query.filter_by(
+                user_id=current_user.id,
+                status='pending'
+            ).count()
+            return {'pending_payment_count': count}
+        except Exception:
+            return {'pending_payment_count': 0}
+    
+    return {'pending_payment_count': 0}
+
+@app.context_processor
 def inject_wishlist_context():
     """
     Inject wishlist context into templates.
@@ -11044,7 +11071,24 @@ def admin_order_detail(order_id):
             joinedload(LegacyShippingRule.country)
         ).get(order.shipping_rule_id)
     
-    return render_template('admin/admin/order_detail.html', order=order, order_country=order_country, order_country_obj=order_country_obj)
+    # Get manual payment info if exists
+    manual_payment = None
+    manual_payment_details = None
+    try:
+        from app.payments.models import ManualPayment
+        from app.payments.payment_details import get_payment_details
+        manual_payment = ManualPayment.query.filter_by(order_id=order_id).first()
+        if manual_payment:
+            manual_payment_details = get_payment_details(manual_payment.payment_method)
+    except Exception as e:
+        current_app.logger.debug(f"Could not load manual payment info: {e}")
+    
+    return render_template('admin/admin/order_detail.html', 
+                         order=order, 
+                         order_country=order_country, 
+                         order_country_obj=order_country_obj,
+                         manual_payment=manual_payment,
+                         manual_payment_details=manual_payment_details)
 
 @app.route('/admin/pending-payments')
 @login_required
@@ -15362,6 +15406,184 @@ def init_scheduler():
 init_scheduler()
 
 # Update order status and send email
+@app.route('/admin/manual-payments')
+@login_required
+@admin_required
+def admin_manual_payments():
+    """
+    Admin page to view and manage manual payment requests.
+    Shows all manual payments with filters for status.
+    """
+    try:
+        from app.payments.models import ManualPayment
+        from app.payments.payment_details import get_payment_details
+        
+        # Get filter parameters
+        status_filter = request.args.get('status', 'all')  # all, pending, approved, rejected
+        page = request.args.get('page', 1, type=int)
+        per_page = 20
+        
+        # Build query
+        query = ManualPayment.query
+        
+        if status_filter != 'all':
+            query = query.filter(ManualPayment.status == status_filter)
+        
+        # Order by created_at descending (newest first)
+        query = query.order_by(ManualPayment.created_at.desc())
+        
+        # Paginate
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        manual_payments = pagination.items
+        
+        # Get payment details for display
+        payments_with_details = []
+        for payment in manual_payments:
+            details = get_payment_details(payment.payment_method)
+            payments_with_details.append({
+                'payment': payment,
+                'details': details
+            })
+        
+        return render_template(
+            'admin/admin/manual_payments.html',
+            payments_with_details=payments_with_details,
+            pagination=pagination,
+            status_filter=status_filter
+        )
+        
+    except Exception as e:
+        current_app.logger.error(f"Error loading manual payments: {str(e)}", exc_info=True)
+        flash('An error occurred while loading manual payments.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/manual-payment/<int:manual_payment_id>')
+@login_required
+@admin_required
+def admin_manual_payment_detail(manual_payment_id):
+    """
+    Admin page to view manual payment details and approve/reject.
+    """
+    try:
+        from app.payments.models import ManualPayment
+        from app.payments.payment_details import get_payment_details
+        from app.payments.services import PaymentService
+        
+        manual_payment = ManualPayment.query.get_or_404(manual_payment_id)
+        payment_details = get_payment_details(manual_payment.payment_method)
+        
+        return render_template(
+            'admin/admin/manual_payment_detail.html',
+            manual_payment=manual_payment,
+            payment_details=payment_details,
+            pending_payment=manual_payment.pending_payment,
+            user=manual_payment.user
+        )
+        
+    except Exception as e:
+        current_app.logger.error(f"Error loading manual payment detail: {str(e)}", exc_info=True)
+        flash('An error occurred while loading payment details.', 'error')
+        return redirect(url_for('admin_manual_payments'))
+
+
+@app.route('/admin/manual-payment/<int:manual_payment_id>/approve', methods=['POST'])
+@login_required
+@admin_required
+def admin_approve_manual_payment(manual_payment_id):
+    """
+    Approve a manual payment and create order.
+    """
+    try:
+        from app.payments.models import ManualPayment
+        from app.payments.services import PaymentService
+        
+        manual_payment = ManualPayment.query.get_or_404(manual_payment_id)
+        
+        if manual_payment.status != 'pending':
+            flash(f'Payment is already {manual_payment.status}. Cannot approve.', 'error')
+            return redirect(url_for('admin_manual_payment_detail', manual_payment_id=manual_payment_id))
+        
+        # Convert pending payment to order
+        result = PaymentService.convert_pending_payment_to_order(manual_payment.pending_payment_id)
+        
+        if result.get('success'):
+            # Update manual payment
+            manual_payment.status = 'approved'
+            manual_payment.approved_by = current_user.id
+            manual_payment.approved_at = datetime.utcnow()
+            manual_payment.order_id = result.get('order_id')
+            
+            # Update pending payment status
+            manual_payment.pending_payment.status = 'completed'
+            
+            db.session.commit()
+            
+            current_app.logger.info(
+                f'Manual payment {manual_payment_id} approved by admin {current_user.id}. '
+                f'Order created: {manual_payment.order_id}'
+            )
+            
+            flash('Payment approved and order created successfully!', 'success')
+            return redirect(url_for('admin_manual_payment_detail', manual_payment_id=manual_payment_id))
+        else:
+            flash(f'Failed to create order: {result.get("message", "Unknown error")}', 'error')
+            return redirect(url_for('admin_manual_payment_detail', manual_payment_id=manual_payment_id))
+            
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error approving manual payment: {str(e)}", exc_info=True)
+        flash('An error occurred while approving payment.', 'error')
+        return redirect(url_for('admin_manual_payment_detail', manual_payment_id=manual_payment_id))
+
+
+@app.route('/admin/manual-payment/<int:manual_payment_id>/reject', methods=['POST'])
+@login_required
+@admin_required
+def admin_reject_manual_payment(manual_payment_id):
+    """
+    Reject a manual payment with reason.
+    """
+    try:
+        from app.payments.models import ManualPayment
+        
+        manual_payment = ManualPayment.query.get_or_404(manual_payment_id)
+        rejection_reason = request.form.get('rejection_reason', '').strip()
+        
+        if manual_payment.status != 'pending':
+            flash(f'Payment is already {manual_payment.status}. Cannot reject.', 'error')
+            return redirect(url_for('admin_manual_payment_detail', manual_payment_id=manual_payment_id))
+        
+        if not rejection_reason:
+            flash('Please provide a reason for rejection.', 'error')
+            return redirect(url_for('admin_manual_payment_detail', manual_payment_id=manual_payment_id))
+        
+        # Update manual payment
+        manual_payment.status = 'rejected'
+        manual_payment.approved_by = current_user.id
+        manual_payment.approved_at = datetime.utcnow()
+        manual_payment.rejection_reason = rejection_reason
+        
+        # Update pending payment status
+        manual_payment.pending_payment.status = 'failed'
+        
+        db.session.commit()
+        
+        current_app.logger.info(
+            f'Manual payment {manual_payment_id} rejected by admin {current_user.id}. '
+            f'Reason: {rejection_reason}'
+        )
+        
+        flash('Payment rejected successfully.', 'success')
+        return redirect(url_for('admin_manual_payment_detail', manual_payment_id=manual_payment_id))
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error rejecting manual payment: {str(e)}", exc_info=True)
+        flash('An error occurred while rejecting payment.', 'error')
+        return redirect(url_for('admin_manual_payment_detail', manual_payment_id=manual_payment_id))
+
+
 @app.route('/admin/order/<int:order_id>/update-status', methods=['POST'])
 @login_required
 @admin_required

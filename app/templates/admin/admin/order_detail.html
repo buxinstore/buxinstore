@@ -136,7 +136,26 @@
                         Payment Method
                     </dt>
                     <dd class="mt-1 text-sm text-gray-900 dark:text-white sm:mt-0 sm:col-span-2">
-                        {% if order.payment_method %}
+                        {% if order.manual_payments %}
+                            {% for manual_payment in order.manual_payments %}
+                                <div class="mb-2">
+                                    <span class="font-semibold">
+                                        {% if manual_payment.payment_method == 'bank_transfer' %}🏦 Bank Transfer
+                                        {% elif manual_payment.payment_method == 'western_union' %}🌍 Western Union
+                                        {% elif manual_payment.payment_method == 'moneygram' %}💸 MoneyGram
+                                        {% elif manual_payment.payment_method == 'ria' %}💳 Ria Money Transfer
+                                        {% elif manual_payment.payment_method == 'wave' %}📱 Wave
+                                        {% else %}{{ manual_payment.payment_method|replace('_', ' ')|title }}
+                                        {% endif %}
+                                    </span>
+                                    {% if manual_payment.receipt_url %}
+                                        <a href="{{ manual_payment.receipt_url }}" target="_blank" class="ml-2 text-cyan-600 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">
+                                            View Receipt
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        {% elif order.payment_method %}
                             {{ order.payment_method|title }}
                         {% else %}
                             Not specified

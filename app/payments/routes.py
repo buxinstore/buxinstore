@@ -3,7 +3,7 @@ Payment Routes
 All payment-related API endpoints.
 """
 
-from flask import request, jsonify, current_app, render_template, redirect, url_for
+from flask import request, jsonify, current_app, render_template, redirect, url_for, flash
 from datetime import datetime
 from flask_login import login_required, current_user
 from app.payments import payment_bp
@@ -17,6 +17,8 @@ from app.payments.exceptions import (
 )
 from app.payments.utils import format_payment_response
 from app.payments.config import VALID_PAYMENT_METHODS, PAYMENT_METHOD_DISPLAY_NAMES
+from app.payments.payment_details import get_payment_details, is_manual_payment_method
+from app.utils.cloudinary_utils import upload_to_cloudinary
 # Order model will be imported from app when needed to avoid circular imports
 
 
@@ -858,3 +860,149 @@ def test_modempay_auth():
             'success': False,
             'message': str(e)
         }), 500
+
+
+@payment_bp.route('/manual/submit', methods=['POST'])
+@login_required
+def manual_payment_submit():
+    """
+    Submit a manual payment with receipt upload.
+    Supports: Bank Transfer, Western Union, Ria, Wave, MoneyGram
+    
+    Expected form data:
+    - pending_payment_id: int
+    - payment_method: str (bank_transfer, western_union, ria, wave, moneygram)
+    - amount: float
+    - receipt: file (image or PDF)
+    """
+    try:
+        from app.payments.models import ManualPayment, PendingPayment
+        
+        # Get form data
+        pending_payment_id = request.form.get('pending_payment_id')
+        payment_method = request.form.get('payment_method')
+        amount = request.form.get('amount')
+        receipt_file = request.files.get('receipt')
+        
+        # Validate required fields
+        if not pending_payment_id:
+            return jsonify(format_payment_response(
+                success=False,
+                message='Pending payment ID is required'
+            )), 400
+        
+        if not payment_method:
+            return jsonify(format_payment_response(
+                success=False,
+                message='Payment method is required'
+            )), 400
+        
+        if not is_manual_payment_method(payment_method):
+            return jsonify(format_payment_response(
+                success=False,
+                message=f'Invalid payment method: {payment_method}'
+            )), 400
+        
+        if not receipt_file or receipt_file.filename == '':
+            return jsonify(format_payment_response(
+                success=False,
+                message='Payment receipt is required'
+            )), 400
+        
+        # Get pending payment
+        pending_payment = PendingPayment.query.get(int(pending_payment_id))
+        if not pending_payment:
+            return jsonify(format_payment_response(
+                success=False,
+                message='Pending payment not found'
+            )), 404
+        
+        # Verify ownership
+        if pending_payment.user_id != current_user.id and not current_user.is_admin:
+            return jsonify(format_payment_response(
+                success=False,
+                message='Unauthorized access to this pending payment'
+            )), 403
+        
+        # Upload receipt to Cloudinary
+        upload_result = upload_to_cloudinary(
+            receipt_file,
+            folder='payment_receipts',
+            resource_type='auto'
+        )
+        
+        if not upload_result or not upload_result.get('url'):
+            return jsonify(format_payment_response(
+                success=False,
+                message='Failed to upload receipt. Please try again.'
+            )), 500
+        
+        # Create manual payment record
+        manual_payment = ManualPayment(
+            pending_payment_id=pending_payment.id,
+            user_id=current_user.id,
+            payment_method=payment_method,
+            amount=float(amount) if amount else pending_payment.amount,
+            receipt_url=upload_result['url'],
+            receipt_public_id=upload_result.get('public_id'),
+            status='pending'
+        )
+        
+        db.session.add(manual_payment)
+        db.session.commit()
+        
+        current_app.logger.info(
+            f'Manual payment submitted: ID={manual_payment.id}, '
+            f'Method={payment_method}, Amount={manual_payment.amount}, '
+            f'User={current_user.id}'
+        )
+        
+        return jsonify(format_payment_response(
+            success=True,
+            message='Payment receipt uploaded successfully. Waiting for admin approval.',
+            data={
+                'manual_payment_id': manual_payment.id,
+                'status': 'pending'
+            }
+        )), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error submitting manual payment: {str(e)}", exc_info=True)
+        return jsonify(format_payment_response(
+            success=False,
+            message='An error occurred while submitting your payment. Please try again.'
+        )), 500
+
+
+@payment_bp.route('/manual/<int:manual_payment_id>/status', methods=['GET'])
+@login_required
+def manual_payment_status(manual_payment_id):
+    """
+    Display payment status/waiting page for manual payments.
+    Shows pending/approved/rejected status with receipt.
+    """
+    try:
+        from app.payments.models import ManualPayment
+        
+        manual_payment = ManualPayment.query.get_or_404(manual_payment_id)
+        
+        # Verify ownership
+        if manual_payment.user_id != current_user.id and not current_user.is_admin:
+            flash('You do not have permission to view this payment.', 'error')
+            return redirect(url_for('home'))
+        
+        # Get payment details
+        payment_details = get_payment_details(manual_payment.payment_method)
+        
+        return render_template(
+            'payments/manual_payment_status.html',
+            manual_payment=manual_payment,
+            payment_details=payment_details,
+            pending_payment=manual_payment.pending_payment
+        )
+        
+    except Exception as e:
+        current_app.logger.error(f"Error loading manual payment status: {str(e)}", exc_info=True)
+        flash('An error occurred while loading payment status.', 'error')
+        return redirect(url_for('home'))

@@ -1,0 +1,257 @@
+{% extends 'admin/admin/base.html' %}
+
+{% block header %}Manual Payment Details #{{ manual_payment.id }}{% endblock %}
+
+{% block content %}
+<div class="py-4 space-y-6">
+    <!-- Status Banner -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                    Payment #{{ manual_payment.id }}
+                </h2>
+                <div class="flex items-center gap-4">
+                    {% if manual_payment.status == 'pending' %}
+                        <span class="px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
+                            ⏳ Pending Approval
+                        </span>
+                    {% elif manual_payment.status == 'approved' %}
+                        <span class="px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">
+                            ✅ Approved
+                        </span>
+                    {% elif manual_payment.status == 'rejected' %}
+                        <span class="px-3 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200">
+                            ❌ Rejected
+                        </span>
+                    {% endif %}
+                    <span class="text-sm text-gray-500 dark:text-gray-400">
+                        Submitted: {{ manual_payment.created_at.strftime('%B %d, %Y at %I:%M %p') }}
+                    </span>
+                </div>
+            </div>
+            {% if manual_payment.status == 'pending' %}
+            <div class="flex gap-3">
+                <form method="POST" action="{{ url_for('admin_approve_manual_payment', manual_payment_id=manual_payment.id) }}" class="inline">
+                    <button type="submit" 
+                            onclick="return confirm('Are you sure you want to approve this payment? This will create an order.')"
+                            class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                        ✅ Approve Payment
+                    </button>
+                </form>
+                <button type="button" 
+                        onclick="document.getElementById('reject-form').classList.toggle('hidden')"
+                        class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                    ❌ Reject Payment
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Rejection Form (hidden by default) -->
+    {% if manual_payment.status == 'pending' %}
+    <div id="reject-form" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hidden">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Reject Payment</h3>
+        <form method="POST" action="{{ url_for('admin_reject_manual_payment', manual_payment_id=manual_payment.id) }}">
+            <div class="mb-4">
+                <label for="rejection_reason" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Rejection Reason <span class="text-red-500">*</span>
+                </label>
+                <textarea 
+                    id="rejection_reason" 
+                    name="rejection_reason" 
+                    rows="4"
+                    required
+                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2 focus:ring-2 focus:ring-red-500"
+                    placeholder="Please provide a reason for rejecting this payment..."
+                ></textarea>
+            </div>
+            <div class="flex gap-3">
+                <button type="submit" 
+                        onclick="return confirm('Are you sure you want to reject this payment?')"
+                        class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                    Confirm Rejection
+                </button>
+                <button type="button" 
+                        onclick="document.getElementById('reject-form').classList.add('hidden')"
+                        class="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors">
+                    Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Payment Information -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Payment Details -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Payment Information</h3>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Payment Method</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {% if payment_details %}
+                            <span class="text-xl">{{ payment_details.icon }}</span>
+                            {{ payment_details.display_name }}
+                        {% else %}
+                            {{ manual_payment.payment_method|replace('_', ' ')|title }}
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Amount</dt>
+                    <dd class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
+                        {{ "%.2f"|format(manual_payment.amount) }} 
+                        {% if pending_payment and pending_payment.shipping_display_currency %}
+                            {{ pending_payment.shipping_display_currency }}
+                        {% else %}
+                            GMD
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Status</dt>
+                    <dd class="mt-1">
+                        {% if manual_payment.status == 'pending' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
+                                Pending
+                            </span>
+                        {% elif manual_payment.status == 'approved' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200">
+                                Approved
+                            </span>
+                        {% elif manual_payment.status == 'rejected' %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200">
+                                Rejected
+                            </span>
+                        {% endif %}
+                    </dd>
+                </div>
+                {% if manual_payment.approved_at %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">
+                        {% if manual_payment.status == 'approved' %}Approved{% else %}Rejected{% endif %} At
+                    </dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {{ manual_payment.approved_at.strftime('%B %d, %Y at %I:%M %p') }}
+                    </dd>
+                </div>
+                {% if manual_payment.approver %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">
+                        {% if manual_payment.status == 'approved' %}Approved{% else %}Rejected{% endif %} By
+                    </dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {{ manual_payment.approver.username }}
+                    </dd>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% if manual_payment.rejection_reason %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Rejection Reason</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {{ manual_payment.rejection_reason }}
+                    </dd>
+                </div>
+                {% endif %}
+                {% if manual_payment.order %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Order</dt>
+                    <dd class="mt-1">
+                        <a href="{{ url_for('admin_order_detail', order_id=manual_payment.order.id) }}" 
+                           class="text-cyan-600 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">
+                            View Order #{{ manual_payment.order.id }}
+                        </a>
+                    </dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+
+        <!-- User Information -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Customer Information</h3>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Username</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {{ user.username if user else 'N/A' }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Email</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {{ user.email if user else 'N/A' }}
+                    </dd>
+                </div>
+                {% if pending_payment %}
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Phone</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {{ pending_payment.customer_phone or 'N/A' }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Delivery Address</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">
+                        {{ pending_payment.delivery_address or 'N/A' }}
+                    </dd>
+                </div>
+                {% endif %}
+            </dl>
+        </div>
+    </div>
+
+    <!-- Payment Receipt -->
+    {% if manual_payment.receipt_url %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Payment Receipt</h3>
+        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900/50">
+            <img src="{{ manual_payment.receipt_url }}" 
+                 alt="Payment Receipt" 
+                 class="max-w-full h-auto rounded-lg cursor-pointer"
+                 onclick="window.open(this.src, '_blank')"
+                 style="max-height: 600px;">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Click image to view full size</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Payment Method Details -->
+    {% if payment_details %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Payment Method Details</h3>
+        <div class="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                {% if payment_details.details %}
+                    {% for key, value in payment_details.details.items() %}
+                        <div>
+                            <strong>{{ key|replace('_', ' ')|title }}:</strong> 
+                            <span class="{% if 'ifsc' in key.lower() or 'wave_number' in key.lower() %}font-bold text-cyan-600 dark:text-cyan-400{% endif %}">{{ value }}</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div class="flex gap-4">
+        <a href="{{ url_for('admin_manual_payments') }}" 
+           class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+            ← Back to Manual Payments
+        </a>
+        {% if manual_payment.order %}
+        <a href="{{ url_for('admin_order_detail', order_id=manual_payment.order.id) }}" 
+           class="px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors">
+            View Order #{{ manual_payment.order.id }}
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

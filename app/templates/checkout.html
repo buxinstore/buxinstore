@@ -294,6 +294,117 @@
                             <input type="hidden" id="amount" name="amount" value="{{ "%.2f"|format(checkout_summary.total) }}">
                             <input type="hidden" id="pending_payment_id" name="pending_payment_id" value="{{ pending_payment_id or '' }}">
 
+                            <!-- Payment Method Selection -->
+                            <div class="pt-4 border-t border-slate-200 dark:border-slate-800">
+                                <label class="block text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                                    Choose Payment Method <span class="text-red-500">*</span>
+                                </label>
+                                
+                                <div class="space-y-3" id="payment-method-selection">
+                                    <!-- ModemPay Option -->
+                                    <label class="flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 payment-method-option" data-payment-method="modempay">
+                                        <input type="radio" name="payment_method" value="modempay" class="mt-1 h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 dark:border-gray-600" checked>
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xl">💳</span>
+                                                <span class="font-semibold text-slate-900 dark:text-white">ModemPay</span>
+                                            </div>
+                                            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Pay securely with Wave, QMoney, AfriMoney, ECOBANK, or Card</p>
+                                        </div>
+                                    </label>
+
+                                    <!-- Bank Transfer -->
+                                    <label class="flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 payment-method-option" data-payment-method="bank_transfer">
+                                        <input type="radio" name="payment_method" value="bank_transfer" class="mt-1 h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 dark:border-gray-600">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xl">🏦</span>
+                                                <span class="font-semibold text-slate-900 dark:text-white">Bank Transfer</span>
+                                            </div>
+                                            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Transfer directly to our bank account</p>
+                                        </div>
+                                    </label>
+
+                                    <!-- Western Union -->
+                                    <label class="flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 payment-method-option" data-payment-method="western_union">
+                                        <input type="radio" name="payment_method" value="western_union" class="mt-1 h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 dark:border-gray-600">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xl">🌍</span>
+                                                <span class="font-semibold text-slate-900 dark:text-white">Western Union</span>
+                                            </div>
+                                            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Send money via Western Union</p>
+                                        </div>
+                                    </label>
+
+                                    <!-- MoneyGram -->
+                                    <label class="flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 payment-method-option" data-payment-method="moneygram">
+                                        <input type="radio" name="payment_method" value="moneygram" class="mt-1 h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 dark:border-gray-600">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xl">💸</span>
+                                                <span class="font-semibold text-slate-900 dark:text-white">MoneyGram</span>
+                                            </div>
+                                            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Send money via MoneyGram</p>
+                                        </div>
+                                    </label>
+
+                                    <!-- Ria -->
+                                    <label class="flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 payment-method-option" data-payment-method="ria">
+                                        <input type="radio" name="payment_method" value="ria" class="mt-1 h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 dark:border-gray-600">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xl">💳</span>
+                                                <span class="font-semibold text-slate-900 dark:text-white">Ria Money Transfer</span>
+                                            </div>
+                                            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Send money via Ria Money Transfer</p>
+                                        </div>
+                                    </label>
+
+                                    <!-- Wave (Manual) -->
+                                    <label class="flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 payment-method-option" data-payment-method="wave">
+                                        <input type="radio" name="payment_method" value="wave" class="mt-1 h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 dark:border-gray-600">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xl">📱</span>
+                                                <span class="font-semibold text-slate-900 dark:text-white">Wave (Manual Payment)</span>
+                                            </div>
+                                            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Send payment to Wave number and upload receipt</p>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <!-- Payment Details Display (shown based on selected method) -->
+                                <div id="payment-details-container" class="mt-4 hidden">
+                                    <div class="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+                                        <h4 class="text-sm font-semibold text-slate-900 dark:text-white mb-3">Payment Details</h4>
+                                        <div id="payment-details-content" class="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                                            <!-- Payment details will be populated by JavaScript -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Receipt Upload (for manual payment methods only) -->
+                                <div id="receipt-upload-container" class="mt-4 hidden">
+                                    <label for="payment_receipt" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                        Upload Payment Receipt <span class="text-red-500">*</span>
+                                    </label>
+                                    <input 
+                                        type="file" 
+                                        id="payment_receipt" 
+                                        name="payment_receipt"
+                                        accept="image/*,.pdf"
+                                        class="block w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-cyan-50 file:text-cyan-700 hover:file:bg-cyan-100 dark:file:bg-cyan-900/20 dark:file:text-cyan-300"
+                                    >
+                                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400" id="receipt-instructions">
+                                        Upload a screenshot or photo of your payment receipt
+                                    </p>
+                                    <div id="receipt-preview" class="mt-2 hidden">
+                                        <img id="receipt-preview-img" src="" alt="Receipt preview" class="max-w-xs rounded-lg border border-slate-200 dark:border-slate-700">
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Proceed to Payment Button -->
                             <div class="pt-2">
                                 <button 
@@ -933,6 +1044,142 @@
             field.addEventListener('input', autoSaveAddress);
         });
         
+        // Payment method selection and details display
+        const paymentMethodRadios = document.querySelectorAll('input[name="payment_method"]');
+        const paymentDetailsContainer = document.getElementById('payment-details-container');
+        const paymentDetailsContent = document.getElementById('payment-details-content');
+        const receiptUploadContainer = document.getElementById('receipt-upload-container');
+        const receiptInput = document.getElementById('payment_receipt');
+        const receiptPreview = document.getElementById('receipt-preview');
+        const receiptPreviewImg = document.getElementById('receipt-preview-img');
+        const receiptInstructions = document.getElementById('receipt-instructions');
+        
+        // Payment details data
+        const paymentDetails = {
+            'bank_transfer': {
+                title: 'Bank Transfer Details',
+                content: `
+                    <div class="space-y-2">
+                        <div><strong>Account Holder Name:</strong> ABDOUKADIR JABBI</div>
+                        <div><strong>Bank Name:</strong> State Bank of India (SBI)</div>
+                        <div><strong>Branch Name:</strong> Surajpur Greater Noida</div>
+                        <div><strong>Account Number:</strong> 60541424234</div>
+                        <div><strong>IFSC Code:</strong> <span class="font-bold text-red-600 dark:text-red-400">SBIN0014022</span> <span class="text-xs">(VERY IMPORTANT)</span></div>
+                    </div>
+                `,
+                instructions: 'After payment, upload your bank transfer receipt/screenshot here.'
+            },
+            'western_union': {
+                title: 'Western Union Details',
+                content: `
+                    <div class="space-y-2">
+                        <div><strong>Receiver Name:</strong> Abdoukadir Jabbi</div>
+                        <div><strong>Country:</strong> India</div>
+                        <div><strong>Phone:</strong> +91 93190 38312</div>
+                    </div>
+                `,
+                instructions: 'Send payment via Western Union and upload your receipt here.'
+            },
+            'moneygram': {
+                title: 'MoneyGram Details',
+                content: `
+                    <div class="space-y-2">
+                        <div><strong>Receiver Name:</strong> Abdoukadir Jabbi</div>
+                        <div><strong>Country:</strong> India</div>
+                        <div><strong>Phone:</strong> +91 93190 38312</div>
+                    </div>
+                `,
+                instructions: 'Send payment via MoneyGram and upload your receipt here.'
+            },
+            'ria': {
+                title: 'Ria Money Transfer Details',
+                content: `
+                    <div class="space-y-2">
+                        <div><strong>Receiver Name:</strong> Abdoukadir Jabbi</div>
+                        <div><strong>Country:</strong> India</div>
+                        <div><strong>Phone:</strong> +91 93190 38312</div>
+                    </div>
+                `,
+                instructions: 'Send payment via Ria Money Transfer and upload your receipt here.'
+            },
+            'wave': {
+                title: 'Wave Payment Details',
+                content: `
+                    <div class="space-y-2">
+                        <div><strong>Receiver Name:</strong> Foday M J</div>
+                        <div><strong>Wave Number:</strong> <span class="font-bold text-cyan-600 dark:text-cyan-400">5427090</span></div>
+                        <div class="text-xs text-slate-600 dark:text-slate-400">Send payment to this Wave number and upload the screenshot.</div>
+                    </div>
+                `,
+                instructions: 'Send payment to the Wave number above and upload your payment screenshot here.'
+            }
+        };
+        
+        // Handle payment method selection
+        function updatePaymentMethodDisplay() {
+            const selectedMethod = document.querySelector('input[name="payment_method"]:checked')?.value || 'modempay';
+            const isManualPayment = selectedMethod !== 'modempay';
+            
+            // Update visual selection
+            document.querySelectorAll('.payment-method-option').forEach(option => {
+                const method = option.dataset.paymentMethod;
+                if (method === selectedMethod) {
+                    option.classList.remove('border-gray-200', 'dark:border-gray-700');
+                    option.classList.add('border-cyan-500', 'bg-cyan-50', 'dark:bg-cyan-900/20');
+                } else {
+                    option.classList.remove('border-cyan-500', 'bg-cyan-50', 'dark:bg-cyan-900/20');
+                    option.classList.add('border-gray-200', 'dark:border-gray-700');
+                }
+            });
+            
+            // Show/hide payment details
+            if (isManualPayment && paymentDetails[selectedMethod]) {
+                paymentDetailsContainer.classList.remove('hidden');
+                paymentDetailsContent.innerHTML = paymentDetails[selectedMethod].content;
+            } else {
+                paymentDetailsContainer.classList.add('hidden');
+            }
+            
+            // Show/hide receipt upload
+            if (isManualPayment) {
+                receiptUploadContainer.classList.remove('hidden');
+                if (paymentDetails[selectedMethod]) {
+                    receiptInstructions.textContent = paymentDetails[selectedMethod].instructions;
+                }
+            } else {
+                receiptUploadContainer.classList.add('hidden');
+            }
+        }
+        
+        // Handle receipt preview
+        if (receiptInput) {
+            receiptInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            receiptPreviewImg.src = e.target.result;
+                            receiptPreview.classList.remove('hidden');
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        receiptPreview.classList.add('hidden');
+                    }
+                } else {
+                    receiptPreview.classList.add('hidden');
+                }
+            });
+        }
+        
+        // Listen for payment method changes
+        paymentMethodRadios.forEach(radio => {
+            radio.addEventListener('change', updatePaymentMethodDisplay);
+        });
+        
+        // Initialize display
+        updatePaymentMethodDisplay();
+        
         // Form submission
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -1007,17 +1254,8 @@
             // Get form values
             const pendingPaymentId = document.getElementById('pending_payment_id').value;
             const amount = parseFloat(document.getElementById('amount').value);
-            const provider = 'modempay'; // Always use ModemPay
-            
-            // Validation - ModemPay requires minimum 10 GMD
-            const MIN_AMOUNT = 10.0;
-            if (isNaN(amount) || amount < MIN_AMOUNT) {
-                showMessage(`Payment amount must be at least D${MIN_AMOUNT}. Current amount: D${amount.toFixed(2)}`, 'error');
-                proceedButton.disabled = false;
-                buttonText.classList.remove('hidden');
-                buttonLoading.classList.add('hidden');
-                return;
-            }
+            const selectedPaymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value || 'modempay';
+            const isManualPayment = selectedPaymentMethod !== 'modempay';
             
             // Validate pending_payment_id
             if (!pendingPaymentId) {
@@ -1028,27 +1266,92 @@
                 return;
             }
             
+            // Validate amount
+            if (isNaN(amount) || amount <= 0) {
+                showMessage(`Invalid payment amount: ${amount.toFixed(2)}`, 'error');
+                proceedButton.disabled = false;
+                buttonText.classList.remove('hidden');
+                buttonLoading.classList.add('hidden');
+                return;
+            }
+            
+            // For manual payments, validate receipt upload
+            if (isManualPayment) {
+                const receiptFile = receiptInput?.files[0];
+                if (!receiptFile) {
+                    showMessage('Please upload your payment receipt before proceeding.', 'error');
+                    receiptUploadContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    proceedButton.disabled = false;
+                    buttonText.classList.remove('hidden');
+                    buttonLoading.classList.add('hidden');
+                    return;
+                }
+            }
+            
+            // Validation - ModemPay requires minimum 10 GMD
+            if (!isManualPayment) {
+                const MIN_AMOUNT = 10.0;
+                if (amount < MIN_AMOUNT) {
+                    showMessage(`Payment amount must be at least D${MIN_AMOUNT}. Current amount: D${amount.toFixed(2)}`, 'error');
+                    proceedButton.disabled = false;
+                    buttonText.classList.remove('hidden');
+                    buttonLoading.classList.add('hidden');
+                    return;
+                }
+            }
+            
             try {
-                // Prepare payment data
-                // CRITICAL: Always use the amount from the checkout page (what the user sees)
-                const paymentData = {
-                    pending_payment_id: parseInt(pendingPaymentId),
-                    amount: amount,  // Use the amount from checkout page (what user sees)
-                    provider: provider
-                };
-                
-                console.log('Initiating ModemPay payment with checkout total:', paymentData);
-                
-                // Make API call to ModemPay payment endpoint
-                const response = await fetch('/payments/modempay/pay', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
-                    },
-                    credentials: 'same-origin',
-                    body: JSON.stringify(paymentData)
-                });
+                if (isManualPayment) {
+                    // Handle manual payment submission
+                    const receiptFile = receiptInput.files[0];
+                    const formData = new FormData();
+                    formData.append('pending_payment_id', pendingPaymentId);
+                    formData.append('payment_method', selectedPaymentMethod);
+                    formData.append('amount', amount);
+                    formData.append('receipt', receiptFile);
+                    
+                    console.log('Submitting manual payment:', selectedPaymentMethod);
+                    
+                    const response = await fetch('/payments/manual/submit', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        },
+                        credentials: 'same-origin',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Redirect to payment status/waiting page
+                        window.location.href = `/payments/manual/${data.manual_payment_id}/status`;
+                    } else {
+                        showMessage(data.message || 'Failed to submit payment. Please try again.', 'error');
+                        proceedButton.disabled = false;
+                        buttonText.classList.remove('hidden');
+                        buttonLoading.classList.add('hidden');
+                    }
+                } else {
+                    // Handle ModemPay payment
+                    const paymentData = {
+                        pending_payment_id: parseInt(pendingPaymentId),
+                        amount: amount,  // Use the amount from checkout page (what user sees)
+                        provider: 'modempay'
+                    };
+                    
+                    console.log('Initiating ModemPay payment with checkout total:', paymentData);
+                    
+                    // Make API call to ModemPay payment endpoint
+                    const response = await fetch('/payments/modempay/pay', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(paymentData)
+                    });
                 
                 // Parse response
                 const data = await response.json();

@@ -163,6 +163,10 @@
                             <i class="fas fa-shopping-cart mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
                             Orders
                         </a>
+                        <a href="{{ url_for('admin_manual_payments', status='pending') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {{ 'bg-gray-100 dark:bg-gray-700' if request.endpoint and 'admin_manual_payment' in request.endpoint else '' }}">
+                            <i class="fas fa-money-check-alt mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                            Manual Payments
+                        </a>
                         <a href="{{ url_for('admin_order_management') }}" class="group flex items-center px-2 py-2 text-base font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white">
                             <i class="fas fa-truck mr-4 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
                             Order Management
@@ -282,6 +286,10 @@
                     <a href="{{ url_for('admin_orders') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white">
                         <i class="fas fa-shopping-cart mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
                         Orders
+                    </a>
+                    <a href="{{ url_for('admin_manual_payments', status='pending') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint and 'admin_manual_payment' in request.endpoint %}bg-gray-100 dark:bg-gray-700{% endif %}">
+                        <i class="fas fa-money-check-alt mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>
+                        Manual Payments
                     </a>
                     <a href="{{ url_for('admin_order_management') }}" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white {% if request.endpoint == 'admin_order_management' %}bg-gray-100 dark:bg-gray-700{% endif %}">
                         <i class="fas fa-truck mr-3 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i>

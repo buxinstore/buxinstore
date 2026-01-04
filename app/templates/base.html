@@ -548,6 +548,15 @@
                       <span class="wishlist-count-badge{% if wishlist_count == 0 %} hidden{% endif %}" data-wishlist-count-badge>{{ wishlist_count }}</span>
                     </span>
                   </a>
+                  {% if pending_payment_count and pending_payment_count > 0 %}
+                  <a href="{{ url_for('orders') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors relative">
+                    <i data-lucide="clock" class="w-5 h-5 text-yellow-500"></i>
+                    <span class="text-sm font-medium">Payment Pending</span>
+                    <span class="absolute right-3 top-1/2 -translate-y-1/2 bg-yellow-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                      {{ pending_payment_count }}
+                    </span>
+                  </a>
+                  {% endif %}
                   <a href="{{ url_for('forum.index') }}" class="w-full flex items-center gap-3 p-3 text-[color:var(--app-text)] hover:bg-[color:var(--app-surface-hover)] rounded-lg transition-colors">
                     <i data-lucide="message-square" class="w-5 h-5 text-cyan-500"></i>
                     <span class="text-sm font-medium">Discussion Forum</span>
