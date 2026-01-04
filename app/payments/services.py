@@ -343,6 +343,13 @@ class PaymentService:
             # ModemPay always expects amounts in GMD, but pending_payment.amount is stored in user's currency
             from app.utils.currency_rates import convert_price
             user_currency = pending_payment.shipping_display_currency or 'GMD'
+            
+            # Log the initial state for debugging
+            current_app.logger.info(
+                f"ModemPay payment initiation - PendingPayment {pending_payment_id}: "
+                f"amount={payment_amount}, currency={user_currency}, shipping_price={pending_payment.shipping_price}"
+            )
+            
             if user_currency != 'GMD':
                 # Convert from user's currency to GMD
                 payment_amount_gmd = convert_price(payment_amount, user_currency, 'GMD')
@@ -351,6 +358,11 @@ class PaymentService:
                     f"(PendingPayment {pending_payment_id})"
                 )
                 payment_amount = payment_amount_gmd
+            else:
+                current_app.logger.info(
+                    f"No currency conversion needed - amount already in GMD: {payment_amount} GMD "
+                    f"(PendingPayment {pending_payment_id})"
+                )
             
             if not phone:
                 phone = pending_payment.customer_phone or '+2200000000'

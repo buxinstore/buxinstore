@@ -139,6 +139,18 @@ class ModemPayGateway(BasePaymentGateway):
             "order_id": order_id
         })
 
+        # Log the amount being sent to ModemPay for debugging
+        try:
+            from flask import has_request_context
+            if has_request_context():
+                from flask import current_app
+                current_app.logger.info(
+                    f"ModemPay gateway: Preparing payment with amount={amount} (type={type(amount)}), "
+                    f"converted to int: {int(float(amount))}"
+                )
+        except Exception:
+            pass
+        
         base_payload: Dict[str, Any] = {
             "amount": int(float(amount)),
             "customer_name": customer_info.get('name') or "Test User",
