@@ -966,9 +966,12 @@ app.config['WTF_CSRF_CHECK_DEFAULT'] = True
 # ======================
 # Session Cookie Configuration (Production-Ready)
 # ======================
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('IS_RENDER', 'false').lower() == 'true'  # True in production
+app.config['SESSION_COOKIE_SECURE'] = (
+    os.environ.get('IS_RENDER', 'false').lower() == 'true'
+    or os.environ.get('RENDER', 'false').lower() == 'true'
+)  # Required for cross-origin session cookies on Render
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SAMESITE'] = 'None' if os.environ.get('FRONTEND_URL') else 'Lax'
 # Set domain for cross-subdomain if needed (uncomment if using subdomains)
 # app.config['SESSION_COOKIE_DOMAIN'] = '.techbuxin.com'
 
@@ -992,10 +995,29 @@ def add_cache_control_headers(response):
         request.path.startswith('/china/') or
         request.path.startswith('/gambia/') or
         request.path.startswith('/forum/') or
+        request.path.startswith('/api/cart/') or
+        request.path.startswith('/api/storefront/cart/') or
         request.method == 'POST'):
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
+    return response
+
+@app.after_request
+def add_frontend_cors_headers(response):
+    """Allow the configured static storefront to call the Flask API."""
+    origin = request.headers.get('Origin')
+    configured_origins = {
+        item.strip().rstrip('/')
+        for item in os.environ.get('FRONTEND_URL', '').split(',')
+        if item.strip()
+    }
+    if origin and origin.rstrip('/') in configured_origins:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PATCH, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRFToken, X-Requested-With'
+        response.headers.add('Vary', 'Origin')
     return response
 
 # ======================
@@ -13759,6 +13781,180 @@ def orders():
     return render_template('orders.html', orders=orders)
 
 # Main routes
+def _storefront_price_value(base_price, profit_rules, currency_code):
+    base_price = float(base_price or 0)
+    matches = [
+        rule for rule in profit_rules
+        if float(rule.min_price) <= base_price
+        and (rule.max_price is None or float(rule.max_price) >= base_price)
+    ]
+    if matches:
+        matches.sort(key=lambda rule: (-rule.priority, float(rule.min_price)))
+        base_price += float(matches[0].profit_amount or 0)
+
+    from .utils.currency_rates import convert_price
+    return convert_price(base_price, 'GMD', currency_code)
+
+
+def _storefront_product_payload(product, profit_rules, currency_code):
+    image = product_image_url_filter(product.image) if product.image else None
+    from .utils.currency_rates import format_price
+    checkout_price = _storefront_price_value(product.price, profit_rules, currency_code)
+    return {
+        'id': product.id,
+        'name': product.name,
+        'description': product.description or '',
+        'price': float(product.price or 0),
+        'checkout_price': checkout_price,
+        'display_price': format_price(checkout_price, currency_code),
+        'stock': int(product.stock or 0),
+        'image': image,
+        'category_id': product.category_id,
+        'category': product.category.name if product.category else None,
+        'available_in_gambia': bool(product.available_in_gambia),
+    }
+
+
+def _storefront_country():
+    country_code = request.args.get('country', '').strip().upper()
+    if country_code:
+        country = Country.query.filter_by(code=country_code, is_active=True).first()
+        if country:
+            return country
+    return get_current_country()
+
+
+@app.route('/api/storefront/catalog', methods=['GET'])
+def storefront_catalog_api():
+    """Public catalog API for the GitHub Pages storefront."""
+    country = _storefront_country()
+    currency_code = country.currency if country else 'GMD'
+    include_gambia = bool(country and country.code.upper() == 'GM')
+    query = get_product_base_query(include_gambia_products=include_gambia).filter(Product.stock > 0)
+
+    search = request.args.get('q', '').strip()
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter((Product.name.ilike(pattern)) | (Product.description.ilike(pattern)))
+
+    category_id = request.args.get('category', type=int)
+    if category_id:
+        query = query.filter(Product.category_id == category_id)
+
+    sort = request.args.get('sort', 'newest')
+    if sort == 'price_low':
+        query = query.order_by(Product.price.asc())
+    elif sort == 'price_high':
+        query = query.order_by(Product.price.desc())
+    elif sort == 'popular':
+        query = query.order_by(Product.stock.desc(), Product.created_at.desc())
+    else:
+        query = query.order_by(Product.created_at.desc())
+
+    page = max(request.args.get('page', 1, type=int) or 1, 1)
+    page_size = 24
+    total_products = query.count()
+    products = query.options(joinedload(Product.category)).offset((page - 1) * page_size).limit(page_size).all()
+    categories = get_categories_with_counts(include_gambia_products=include_gambia)
+    profit_rules = ProfitRule.query.filter_by(is_active=True).all()
+    settings = SiteSettings.query.first()
+    from .utils.currency_rates import get_currency_symbol
+
+    return jsonify({
+        'success': True,
+        'currency': currency_code,
+        'currency_symbol': country.currency_symbol if country and country.currency_symbol else get_currency_symbol(currency_code),
+        'country': country.code if country else None,
+        'hero': {
+            'title': settings.hero_title if settings and settings.hero_title else 'Build the Future',
+            'subtitle': settings.hero_subtitle if settings and settings.hero_subtitle else 'Premium electronics and robotics components',
+            'image': product_image_url_filter(settings.hero_image_path) if settings and settings.hero_image_path else None,
+        },
+        'categories': [
+            {'id': item['id'], 'name': item['name'], 'image': category_image_url_filter(item['image']) if item.get('image') else None, 'count': item['count']}
+            for item in categories
+        ],
+        'products': [_storefront_product_payload(item, profit_rules, currency_code) for item in products],
+        'pagination': {'page': page, 'per_page': page_size, 'has_more': total_products > page * page_size},
+    })
+
+
+@app.route('/api/storefront/products/<int:product_id>', methods=['GET'])
+def storefront_product_api(product_id):
+    """Return one publicly visible product for static product detail views."""
+    country = _storefront_country()
+    include_gambia = bool(country and country.code.upper() == 'GM')
+    product = get_product_base_query(include_gambia_products=include_gambia).options(joinedload(Product.category)).filter_by(id=product_id).first()
+    if not product:
+        return jsonify({'success': False, 'message': 'Product not found'}), 404
+    currency_code = country.currency if country else 'GMD'
+    profit_rules = ProfitRule.query.filter_by(is_active=True).all()
+    from .utils.currency_rates import get_currency_symbol
+    return jsonify({
+        'success': True,
+        'currency': currency_code,
+        'currency_symbol': country.currency_symbol if country and country.currency_symbol else get_currency_symbol(currency_code),
+        'product': _storefront_product_payload(product, profit_rules, currency_code),
+    })
+
+
+@app.route('/api/storefront/cart/sync', methods=['POST'])
+@csrf.exempt
+def storefront_cart_sync_api():
+    """Replace the session cart with a validated cart from the static storefront."""
+    origin = request.headers.get('Origin', '').rstrip('/')
+    allowed_origins = {
+        value.strip().rstrip('/')
+        for value in os.environ.get('FRONTEND_URL', '').split(',')
+        if value.strip()
+    }
+    if not origin or origin not in allowed_origins or not request.is_json:
+        return jsonify({'success': False, 'message': 'This storefront is not allowed to update the cart.'}), 403
+
+    payload = request.get_json(silent=True) or {}
+    requested_items = payload.get('items')
+    if not isinstance(requested_items, list) or len(requested_items) > 50:
+        return jsonify({'success': False, 'message': 'Cart must contain between 0 and 50 products.'}), 400
+
+    quantities = {}
+    try:
+        for item in requested_items:
+            product_id = int(item.get('id'))
+            quantity = int(item.get('quantity'))
+            if product_id <= 0 or quantity <= 0:
+                raise ValueError
+            quantities[product_id] = quantities.get(product_id, 0) + quantity
+    except (AttributeError, TypeError, ValueError):
+        return jsonify({'success': False, 'message': 'Each cart item needs a valid product and quantity.'}), 400
+
+    products = Product.query.filter(Product.id.in_(quantities.keys())).all() if quantities else []
+    products_by_id = {product.id: product for product in products}
+    if len(products_by_id) != len(quantities):
+        return jsonify({'success': False, 'message': 'One or more products are no longer available.'}), 400
+    for product_id, quantity in quantities.items():
+        product = products_by_id[product_id]
+        if quantity > int(product.stock or 0):
+            return jsonify({'success': False, 'message': f'Only {product.stock} of {product.name} are available.'}), 400
+
+    if current_user.is_authenticated:
+        CartItem.query.filter_by(user_id=current_user.id).delete(synchronize_session=False)
+        for product_id, quantity in quantities.items():
+            db.session.add(CartItem(user_id=current_user.id, product_id=product_id, quantity=quantity))
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('Failed to synchronize static storefront cart')
+            return jsonify({'success': False, 'message': 'Could not save your cart. Please try again.'}), 500
+    else:
+        session['cart'] = {str(product_id): quantity for product_id, quantity in quantities.items()}
+        session.modified = True
+
+    cart_items, _ = update_cart()
+    summary = serialize_cart_summary(cart_items)
+    return jsonify({'success': True, 'cart': summary, 'count': summary.get('count', 0)})
+
+
 @app.route('/products')
 def all_products():
     # Get all products, ordered by newest first

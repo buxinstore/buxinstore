@@ -20,4 +20,6 @@ services:
         value: https://store.techbuxin.com/auth/google/callback
       - key: PUBLIC_URL
         value: https://store.techbuxin.com
+      - key: FRONTEND_URL
+        value: https://buxinstore.github.io
 

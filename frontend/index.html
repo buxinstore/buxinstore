@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8fafc">
+  <meta name="description" content="Shop robotics, electronics and maker components from buxin store.">
+  <title>buxin store — Build the Future</title>
+  <link rel="preconnect" href="https://store.techbuxin.com">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#/" aria-label="buxin store home"><span class="brand-mark">b</span><span>buxin<span class="brand-light">store</span></span></a>
+    <form class="search" id="search-form" role="search"><label class="sr-only" for="search-input">Search products</label><span aria-hidden="true">⌕</span><input id="search-input" name="q" placeholder="Search components, kits and more" autocomplete="off"><kbd>↵</kbd></form>
+    <nav class="header-actions" aria-label="Main navigation"><a href="#/products">Shop</a><a class="cart-link" href="#/cart" aria-label="Shopping cart">Cart <span id="cart-count">0</span></a></nav>
+  </header>
+
+  <main id="app" class="page-shell" aria-live="polite">
+    <section class="loading-state"><span class="spinner"></span><p>Loading the store…</p></section>
+  </main>
+
+  <footer class="site-footer"><a class="brand" href="#/"><span class="brand-mark">b</span><span>buxin<span class="brand-light">store</span></span></a><p>Robotics, electronics and ideas made real.</p><small>Checkout and payments are securely handled by our store service.</small></footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
