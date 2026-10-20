@@ -15,6 +15,7 @@ remain in place and continue to serve the live Render storefront during rollout.
 - The workflow enables GitHub Pages with the GitHub Actions source when repository policy allows it. Otherwise, set **Settings → Pages → Build and deployment → Source** to **GitHub Actions**.
 - `config.js` points the frontend to `https://buxinstore.onrender.com`, the Render service hostname from `render.yaml`.
 - `render.yaml` sets `FRONTEND_URL=https://buxinstore.github.io` for CORS and cross-origin session cookies. If the Render service is not managed by the Blueprint, set the same environment variable in the Render dashboard.
+- `FRONTEND_PATH=/buxinstore` supplies the GitHub Pages project subpath for post-login and password-reset links; keep it in sync with the repository Pages URL.
 
 The original Flask pages and routes remain available on Render during the
 migration. Keep the existing Render domain live until the static checkout flow

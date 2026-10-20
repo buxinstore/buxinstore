@@ -14,6 +14,7 @@ from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from typing import Dict, List, Tuple, Optional
 import os
 import json
+import html
 from werkzeug.utils import secure_filename
 from functools import wraps
 from sqlalchemy.orm import joinedload
@@ -13898,6 +13899,209 @@ def storefront_product_api(product_id):
         'currency_symbol': country.currency_symbol if country and country.currency_symbol else get_currency_symbol(currency_code),
         'product': _storefront_product_payload(product, profit_rules, currency_code),
     })
+
+
+def _static_storefront_origin_allowed():
+    origin = request.headers.get('Origin', '').rstrip('/')
+    allowed_origins = {
+        value.strip().rstrip('/')
+        for value in os.environ.get('FRONTEND_URL', '').split(',')
+        if value.strip()
+    }
+    return bool(origin and origin in allowed_origins)
+
+
+def _static_storefront_base_url():
+    origin = next(iter({
+        value.strip().rstrip('/')
+        for value in os.environ.get('FRONTEND_URL', '').split(',')
+        if value.strip()
+    }), '')
+    path = os.environ.get('FRONTEND_PATH', '').strip('/')
+    return f'{origin}/{path}' if origin and path else origin
+
+
+@app.route('/api/auth/session', methods=['GET'])
+def storefront_auth_session_api():
+    """Expose the signed-in state needed by the static Pages header."""
+    if not current_user.is_authenticated:
+        return jsonify({'success': True, 'authenticated': False})
+    return jsonify({
+        'success': True,
+        'authenticated': True,
+        'user': {
+            'id': current_user.id,
+            'username': current_user.username,
+            'display_name': current_user.display_name or current_user.username,
+            'is_admin': bool(current_user.is_admin or current_user.role == 'admin'),
+        },
+    })
+
+
+@app.route('/api/storefront/orders', methods=['GET'])
+@login_required
+def storefront_orders_api():
+    """Return the signed-in customer's order history for the Pages account area."""
+    orders = Order.query.filter_by(user_id=current_user.id) \
+        .options(joinedload(Order.items).joinedload(OrderItem.product)) \
+        .order_by(Order.created_at.desc()).all()
+    return jsonify({
+        'success': True,
+        'orders': [{
+            'id': order.id,
+            'status': order.status,
+            'created_at': order.created_at.isoformat() if order.created_at else None,
+            'total': float(order.total_cost if order.total_cost is not None else order.total or 0),
+            'items': [{
+                'name': item.product.name if item.product else 'Product',
+                'image': product_image_url_filter(item.product.image) if item.product and item.product.image else None,
+                'quantity': int(item.quantity or 0),
+                'price': float(item.price or 0),
+            } for item in order.items],
+        } for order in orders],
+    })
+
+
+@app.route('/api/auth/login', methods=['POST'])
+@csrf.exempt
+def storefront_auth_login_api():
+    """Authenticate static storefront credentials and set the normal Flask session."""
+    if not _static_storefront_origin_allowed() or not request.is_json:
+        return jsonify({'success': False, 'message': 'This storefront is not allowed to sign in.'}), 403
+    payload = request.get_json(silent=True) or {}
+    identity = str(payload.get('username', '')).strip()
+    password = str(payload.get('password', ''))
+    if not identity or not password:
+        return jsonify({'success': False, 'message': 'Enter your username or email and password.'}), 400
+    user = User.query.filter(db.or_(User.username == identity, User.email == identity)).first()
+    if not user or not user.check_password(password):
+        return jsonify({'success': False, 'message': 'Invalid username or password.'}), 401
+    if user.role in ['china_partner', 'gambia_team']:
+        return jsonify({'success': False, 'message': 'Please use the appropriate team sign-in page.'}), 403
+
+    login_user(user, remember=bool(payload.get('remember')))
+    user.last_login_at = datetime.utcnow()
+    ensure_user_profile(user)
+    db.session.commit()
+    merge_carts(user, session.get('cart'))
+    session['onboarding_completed'] = True
+    frontend_url = _static_storefront_base_url()
+    response = make_response(jsonify({
+        'success': True,
+        'user': {'id': user.id, 'username': user.username, 'display_name': user.display_name or user.username},
+        'redirect_url': f'{frontend_url}/#/' if frontend_url else '/',
+    }))
+    response.set_cookie('buxin_onboarding_completed', 'true', max_age=31536000,
+                        secure=True, httponly=False, samesite='None')
+    return response
+
+
+@app.route('/api/auth/register', methods=['POST'])
+@csrf.exempt
+def storefront_auth_register_api():
+    """Create a customer account from the static storefront registration form."""
+    if not _static_storefront_origin_allowed() or not request.is_json:
+        return jsonify({'success': False, 'message': 'This storefront is not allowed to register accounts.'}), 403
+    payload = request.get_json(silent=True) or {}
+    username = str(payload.get('username', '')).strip()
+    email = str(payload.get('email', '')).strip().lower()
+    password = str(payload.get('password', ''))
+    confirm_password = str(payload.get('confirm_password', ''))
+    if not payload.get('terms'):
+        return jsonify({'success': False, 'message': 'Please accept the Terms of Service and Privacy Policy.'}), 400
+    if len(username) < 3 or not re.match(r'^[a-zA-Z0-9_.-]+$', username):
+        return jsonify({'success': False, 'message': 'Choose a username with at least 3 letters, numbers, dots, underscores, or hyphens.'}), 400
+    try:
+        email = validate_email(email, check_deliverability=False).email
+    except EmailNotValidError:
+        return jsonify({'success': False, 'message': 'Enter a valid email address.'}), 400
+    if len(password) < 8:
+        return jsonify({'success': False, 'message': 'Password must be at least 8 characters long.'}), 400
+    if password != confirm_password:
+        return jsonify({'success': False, 'message': 'Passwords do not match.'}), 400
+    if User.query.filter_by(username=username).first():
+        return jsonify({'success': False, 'message': 'Username already exists.'}), 409
+    if User.query.filter_by(email=email).first():
+        return jsonify({'success': False, 'message': 'Email already registered.'}), 409
+
+    user = User(username=username, email=email)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.flush()
+    ensure_user_profile(user)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Account created. You can now sign in.'}), 201
+
+
+@app.route('/api/auth/password-reset', methods=['POST'])
+@csrf.exempt
+def storefront_password_reset_request_api():
+    if not _static_storefront_origin_allowed() or not request.is_json:
+        return jsonify({'success': False, 'message': 'This storefront is not allowed to request password resets.'}), 403
+    email_address = str((request.get_json(silent=True) or {}).get('email', '')).strip().lower()
+    if not email_address:
+        return jsonify({'success': False, 'message': 'Enter your email address.'}), 400
+    user = User.query.filter_by(email=email_address).first()
+    if user:
+        try:
+            token = URLSafeTimedSerializer(current_app.config['SECRET_KEY']).dumps(
+                {'user_id': user.id}, salt='password-reset'
+            )
+            frontend_url = _static_storefront_base_url()
+            reset_url = f'{frontend_url}/#/reset-password/{token}'
+            html_body = (
+                '<html><body style="font-family:Arial,sans-serif;line-height:1.6;color:#333">'
+                '<div style="max-width:600px;margin:auto;padding:20px">'
+                '<h2 style="color:#06b6d4">buxin store</h2>'
+                f'<p>Hi {html.escape(user.display_name or user.username)},</p>'
+                '<p>Use this link to reset your password. It expires in 30 minutes.</p>'
+                f'<p><a href="{html.escape(reset_url, quote=True)}">Reset password</a></p>'
+                '</div></body></html>'
+            )
+            from app.utils.email_queue import queue_single_email
+            queue_single_email(current_app._get_current_object(), user.email,
+                              _format_email_subject('Reset Your Password'), html_body)
+        except Exception as exc:
+            current_app.logger.error('Static storefront password reset email could not be queued: %s', exc)
+            return jsonify({'success': False, 'message': 'Could not send the reset email. Please try again later.'}), 500
+    return jsonify({'success': True, 'message': 'If that email is registered, a reset link will arrive shortly.'})
+
+
+@app.route('/api/auth/password-reset/confirm', methods=['POST'])
+@csrf.exempt
+def storefront_password_reset_confirm_api():
+    if not _static_storefront_origin_allowed() or not request.is_json:
+        return jsonify({'success': False, 'message': 'This storefront is not allowed to reset passwords.'}), 403
+    payload = request.get_json(silent=True) or {}
+    password = str(payload.get('password', '')).strip()
+    confirm_password = str(payload.get('confirm_password', '')).strip()
+    if len(password) < 6:
+        return jsonify({'success': False, 'message': 'Password must be at least 6 characters long.'}), 400
+    if password != confirm_password:
+        return jsonify({'success': False, 'message': 'Passwords do not match.'}), 400
+    try:
+        data = URLSafeTimedSerializer(current_app.config['SECRET_KEY']).loads(
+            str(payload.get('token', '')), salt='password-reset', max_age=1800
+        )
+        user = db.session.get(User, data.get('user_id'))
+    except (SignatureExpired, BadSignature):
+        user = None
+    if not user:
+        return jsonify({'success': False, 'message': 'This reset link is invalid or expired. Request a new one.'}), 400
+    user.set_password(password)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Password updated. You can now sign in.'})
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+@csrf.exempt
+@login_required
+def storefront_auth_logout_api():
+    if not _static_storefront_origin_allowed() or not request.is_json:
+        return jsonify({'success': False, 'message': 'This storefront is not allowed to sign out.'}), 403
+    logout_user()
+    session.clear()
+    return jsonify({'success': True})
 
 
 @app.route('/api/storefront/cart/sync', methods=['POST'])

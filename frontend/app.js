@@ -6,6 +6,7 @@
   const toast = document.querySelector('#toast');
   const searchInput = document.querySelector('#search-input');
   let catalog = { products: [], categories: [], hero: {} };
+  let authState = { authenticated: false, user: null };
   let toastTimer;
 
   const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, char => ({
@@ -101,6 +102,91 @@
         <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-4 text-center text-[color:var(--app-text)]"><div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2"><i data-lucide="headphones" class="w-5 h-5 text-blue-500"></i></div><h4 class="font-medium text-sm mb-1">24/7 Support</h4><p class="text-xs text-[color:var(--app-muted)]">Dedicated support</p></div>
       </div>`;
     refreshIcons();
+  }
+
+  function renderAuth(register = false) {
+    const params = new URLSearchParams(location.hash.split('?')[1] || '');
+    const registered = params.get('registered') === '1';
+    const loginUrl = '#/login';
+    const registerUrl = '#/register';
+    const nextUrl = `${window.location.origin}${window.location.pathname}#/`;
+    const googleUrl = `${apiBase}/auth/google/login?next=${encodeURIComponent(nextUrl)}`;
+    app.innerHTML = `<div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+      <div class="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <h1 class="text-3xl font-extrabold text-slate-900 dark:text-white">${register ? 'Create a new account' : 'Sign in to your account'}</h1>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">${register ? `Already have an account? <a href="${loginUrl}" class="font-semibold text-cyan-500">Sign in</a>` : `Or <a href="${registerUrl}" class="font-semibold text-cyan-500">create a new account</a>`}</p>
+      </div>
+      <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md"><div class="bg-[color:var(--app-card)] dark:bg-slate-900/70 border border-[color:var(--app-border)] dark:border-slate-800 py-8 px-6 sm:px-8 shadow-sm rounded-3xl">
+        <div id="auth-message" class="${registered ? 'mb-4 rounded-xl border border-emerald-200/60 bg-emerald-500/10 text-emerald-600 p-4 text-sm' : 'hidden'}">${registered ? 'Account created. Sign in with your new credentials.' : ''}</div>
+        <form id="auth-form" class="space-y-6" data-auth-mode="${register ? 'register' : 'login'}">
+          <div><label for="auth-username" class="block text-sm font-medium text-slate-700 dark:text-slate-300">${register ? 'Username' : 'Username or email'}</label><div class="mt-1"><input id="auth-username" name="username" type="text" required autocomplete="username" class="appearance-none block w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"></div></div>
+          ${register ? `<div><label for="auth-email" class="block text-sm font-medium text-slate-700 dark:text-slate-300">Email address</label><div class="mt-1"><input id="auth-email" name="email" type="email" autocomplete="email" required class="appearance-none block w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"></div></div>` : ''}
+          <div><label for="auth-password" class="block text-sm font-medium text-slate-700 dark:text-slate-300">Password</label><div class="mt-1"><input id="auth-password" name="password" type="password" required autocomplete="${register ? 'new-password' : 'current-password'}" ${register ? 'minlength="8"' : ''} class="appearance-none block w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"></div></div>
+          ${register ? `<div><label for="auth-confirm-password" class="block text-sm font-medium text-slate-700 dark:text-slate-300">Confirm Password</label><div class="mt-1"><input id="auth-confirm-password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" required class="appearance-none block w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"></div></div><div class="flex items-center"><input id="auth-terms" name="terms" type="checkbox" required class="h-4 w-4 text-cyan-500 focus:ring-cyan-400 border-slate-300 rounded"><label for="auth-terms" class="ml-2 block text-sm text-slate-700 dark:text-slate-300">I agree to the Terms of Service and Privacy Policy.</label></div>` : `<div class="flex items-center justify-between"><label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input id="auth-remember" name="remember" type="checkbox" class="h-4 w-4 text-cyan-500 focus:ring-cyan-400 border-slate-300 rounded">Remember me</label><a href="#/forgot-password" class="text-sm font-semibold text-cyan-500">Forgot your password?</a></div>`}
+          <div><button id="auth-submit" type="submit" class="w-full flex justify-center py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/20 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-all">${register ? 'Create Account' : 'Sign in'}</button></div>
+        </form>
+        <div class="mt-6"><div class="relative"><div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-200 dark:border-slate-700"></div></div><div class="relative flex justify-center text-sm"><span class="px-2 bg-[color:var(--app-card)] dark:bg-slate-900/70 text-[color:var(--app-muted)]">Or continue with</span></div></div>
+          <a href="${googleUrl}" class="mt-6 w-full inline-flex items-center justify-center gap-3 py-2.5 px-4 border border-[color:var(--app-border)] rounded-xl shadow-sm bg-[color:var(--app-card)] text-sm font-medium text-[color:var(--app-muted)] hover:border-cyan-400 hover:text-cyan-500 transition-colors"><i class="fab fa-google text-red-500"></i>${register ? 'Sign up' : 'Sign in'} with Google</a>
+        </div>
+      </div></div></div>`;
+    refreshIcons();
+  }
+
+  function renderPasswordReset(token = '') {
+    const confirm = Boolean(token);
+    app.innerHTML = `<div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8"><div class="sm:mx-auto sm:w-full sm:max-w-md text-center"><h1 class="text-3xl font-extrabold text-slate-900 dark:text-white">${confirm ? 'Choose a new password' : 'Reset your password'}</h1><p class="mt-2 text-sm text-slate-500 dark:text-slate-400">${confirm ? 'Your reset link expires after 30 minutes.' : 'Enter your email address and we’ll send a reset link if the account exists.'}</p></div>
+      <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md"><div class="bg-[color:var(--app-card)] dark:bg-slate-900/70 border border-[color:var(--app-border)] dark:border-slate-800 py-8 px-6 sm:px-8 shadow-sm rounded-3xl"><div id="auth-message" class="hidden"></div>
+        <form id="auth-form" data-auth-mode="${confirm ? 'password-confirm' : 'password-reset'}" data-token="${escapeHtml(token)}" class="space-y-6">
+          ${confirm ? `<div><label for="auth-password" class="block text-sm font-medium text-slate-700 dark:text-slate-300">New password</label><input id="auth-password" name="password" type="password" required minlength="6" autocomplete="new-password" class="mt-1 appearance-none block w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-cyan-400"></div><div><label for="auth-confirm-password" class="block text-sm font-medium text-slate-700 dark:text-slate-300">Confirm password</label><input id="auth-confirm-password" name="confirm_password" type="password" required minlength="6" autocomplete="new-password" class="mt-1 appearance-none block w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-cyan-400"></div>` : `<div><label for="auth-email" class="block text-sm font-medium text-slate-700 dark:text-slate-300">Email address</label><input id="auth-email" name="email" type="email" required autocomplete="email" class="mt-1 appearance-none block w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-cyan-400"></div>`}
+          <button id="auth-submit" type="submit" class="w-full flex justify-center py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-500">${confirm ? 'Update password' : 'Send reset link'}</button></form>
+        <p class="mt-6 text-center"><a href="#/login" class="text-sm font-semibold text-cyan-500">← Back to sign in</a></p></div></div></div>`;
+  }
+
+  function updateAccountHeader() {
+    const link = document.querySelector('#account-link');
+    const label = document.querySelector('#account-label');
+    if (!link || !label) return;
+    if (authState.authenticated) {
+      link.href = '#/account';
+      label.textContent = authState.user?.display_name || authState.user?.username || 'Account';
+    } else {
+      link.href = '#/login';
+      label.textContent = 'Sign in';
+    }
+  }
+
+  async function loadAuthState() {
+    try {
+      const result = await api('/api/auth/session');
+      authState = { authenticated: Boolean(result.authenticated), user: result.user || null };
+      updateAccountHeader();
+    } catch {
+      authState = { authenticated: false, user: null };
+    }
+  }
+
+  async function viewAccount() {
+    if (!authState.authenticated) { location.hash = '#/login'; return; }
+    const result = await api('/api/profile');
+    const profile = result.profile || {};
+    app.innerHTML = `<div class="max-w-3xl mx-auto"><header class="mb-6"><h1 class="text-2xl font-bold">Your account</h1><p class="text-sm text-[color:var(--app-muted)] mt-1">Manage your profile and view your orders.</p></header>
+      <div class="flex gap-3 mb-5"><a href="#/orders" class="px-4 py-2 rounded-xl bg-[color:var(--app-card)] border border-[color:var(--app-border)] text-sm font-semibold">Your orders</a><button type="button" data-logout class="px-4 py-2 rounded-xl border border-[color:var(--app-border)] text-sm font-semibold text-red-500">Sign out</button></div>
+      <form id="profile-form" class="space-y-4 bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-3xl p-6"><div id="profile-message" class="hidden"></div>
+        <div class="grid sm:grid-cols-2 gap-4"><label class="block text-sm">First name<input name="first_name" value="${escapeHtml(profile.first_name || '')}" class="mt-1 block w-full rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-input)] px-3 py-2"></label><label class="block text-sm">Last name<input name="last_name" value="${escapeHtml(profile.last_name || '')}" class="mt-1 block w-full rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-input)] px-3 py-2"></label></div>
+        <label class="block text-sm">Username<input name="username" value="${escapeHtml(profile.username || '')}" class="mt-1 block w-full rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-input)] px-3 py-2"></label>
+        <label class="block text-sm">Email<input name="email" type="email" value="${escapeHtml(profile.email || '')}" class="mt-1 block w-full rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-input)] px-3 py-2"></label>
+        <label class="block text-sm">Phone number<input name="phone_number" value="${escapeHtml(profile.phone_number || '')}" class="mt-1 block w-full rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-input)] px-3 py-2"></label>
+        <label class="block text-sm">Address<input name="address" value="${escapeHtml(profile.address || '')}" class="mt-1 block w-full rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-input)] px-3 py-2"></label>
+        <div class="grid sm:grid-cols-2 gap-4"><label class="block text-sm">City<input name="city" value="${escapeHtml(profile.city || '')}" class="mt-1 block w-full rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-input)] px-3 py-2"></label><label class="block text-sm">Country<input name="country" value="${escapeHtml(profile.country || '')}" class="mt-1 block w-full rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-input)] px-3 py-2"></label></div>
+        <button class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold" type="submit">Save profile</button></form></div>`;
+  }
+
+  async function viewOrders() {
+    if (!authState.authenticated) { location.hash = '#/login'; return; }
+    const result = await api('/api/storefront/orders');
+    app.innerHTML = `<div class="max-w-4xl mx-auto"><header class="mb-6"><h1 class="text-2xl font-bold">Your orders</h1><p class="text-sm text-[color:var(--app-muted)] mt-1">View your order history and purchase details.</p></header>
+      ${result.orders.length ? `<div class="space-y-3">${result.orders.map(order => `<article class="p-5 bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-2xl"><div class="flex flex-wrap items-center justify-between gap-2"><strong class="text-cyan-500">Order #${Number(order.id)}</strong><span class="px-2 py-1 rounded-full text-xs bg-amber-500/15 text-amber-700">${escapeHtml(order.status || 'Pending')}</span><time class="text-sm text-[color:var(--app-muted)]">${order.created_at ? new Date(order.created_at).toLocaleDateString() : ''}</time><strong>${escapeHtml(catalog.currency_symbol || 'D')}${Number(order.total || 0).toFixed(2)}</strong></div><ul class="mt-4 divide-y divide-[color:var(--app-border)]">${order.items.map(item => `<li class="py-2 flex items-center gap-3">${item.image ? `<img class="w-10 h-10 rounded-lg object-cover" src="${escapeHtml(item.image)}" alt="">` : ''}<span class="text-sm flex-1">${escapeHtml(item.name)}</span><span class="text-sm text-[color:var(--app-muted)]">× ${Number(item.quantity)}</span></li>`).join('')}</ul></article>`).join('')}</div>` : '<div class="p-8 text-center bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-2xl">You have no orders yet. <a class="text-cyan-500 font-semibold" href="#/products">Continue shopping</a></div>'}
+      <p class="mt-5"><a href="#/account" class="text-cyan-500 text-sm font-semibold">← Back to your account</a></p></div>`;
   }
 
   function refreshIcons() {
@@ -232,7 +318,13 @@
     const [path, queryString = ''] = raw.split('?');
     const params = new URLSearchParams(queryString);
     const route = path || '';
-    if (route === 'products') viewProducts(params).catch(showError);
+    if (route === 'login') renderAuth(false);
+    else if (route === 'register') renderAuth(true);
+    else if (route === 'forgot-password') renderPasswordReset();
+    else if (route.startsWith('reset-password/')) renderPasswordReset(route.slice('reset-password/'.length));
+    else if (route === 'account') viewAccount().catch(showError);
+    else if (route === 'orders') viewOrders().catch(showError);
+    else if (route === 'products') viewProducts(params).catch(showError);
     else if (route === 'categories') {
       app.innerHTML = `<header class="mb-6"><h1 class="text-xl font-bold">Shop by category</h1><p class="text-sm text-[color:var(--app-muted)] mt-1">Browse all available product categories.</p></header>${categoryTiles(catalog.categories)}`;
     } else if (route.startsWith('product/')) viewProduct(route.slice('product/'.length)).catch(showError);
@@ -249,12 +341,17 @@
 
   async function start() {
     app.innerHTML = '<section class="py-16 text-center text-[color:var(--app-muted)]">Loading the store…</section>';
+    await loadAuthState();
     try {
       const result = await api('/api/storefront/catalog');
       catalog = result;
       renderRoute();
       saveCart(readCart());
-    } catch (error) { showError(error); }
+    } catch (error) {
+      const route = location.hash.replace(/^#\/?/, '').split('?')[0];
+      if (['login', 'register', 'forgot-password', 'account', 'orders', 'cart'].includes(route) || route.startsWith('reset-password/')) renderRoute();
+      else showError(error);
+    }
   }
 
   document.querySelector('#search-form').addEventListener('submit', event => {
@@ -264,6 +361,13 @@
   });
 
   app.addEventListener('click', event => {
+    const logoutButton = event.target.closest('[data-logout]');
+    if (logoutButton) {
+      api('/api/auth/logout', { method: 'POST', body: JSON.stringify({}) })
+        .then(() => { authState = { authenticated: false, user: null }; updateAccountHeader(); location.hash = '#/'; })
+        .catch(error => notify(error.message));
+      return;
+    }
     const button = event.target.closest('[data-add]');
     if (!button) return;
     const product = catalog.products.find(item => String(item.id) === button.dataset.add);
@@ -275,6 +379,70 @@
     else items.push({ id: product.id, name: product.name, price: product.price, checkout_price: product.checkout_price, display_price: product.display_price, image: product.image, quantity });
     saveCart(items);
     notify(`${product.name} added to your cart`);
+  });
+
+  app.addEventListener('submit', async event => {
+    const profileForm = event.target.closest('#profile-form');
+    if (profileForm) {
+      event.preventDefault();
+      const payload = Object.fromEntries(new FormData(profileForm));
+      const notice = document.querySelector('#profile-message');
+      try {
+        await api('/api/profile', { method: 'PATCH', body: JSON.stringify(payload) });
+        notice.textContent = 'Your profile was saved.';
+        notice.className = 'mb-4 rounded-xl border border-emerald-200/60 bg-emerald-500/10 text-emerald-600 p-4 text-sm';
+      } catch (error) {
+        notice.textContent = error.message;
+        notice.className = 'mb-4 rounded-xl border border-rose-200/60 bg-rose-500/10 text-rose-600 p-4 text-sm';
+      }
+      return;
+    }
+    const form = event.target.closest('#auth-form');
+    if (!form) return;
+    event.preventDefault();
+    const mode = form.dataset.authMode || (form.dataset.register === 'true' ? 'register' : 'login');
+    const register = mode === 'register';
+    let endpoint = register ? '/api/auth/register' : '/api/auth/login';
+    let payload = { username: form.elements.username?.value.trim(), password: form.elements.password?.value };
+    if (mode === 'password-reset') {
+      endpoint = '/api/auth/password-reset';
+      payload = { email: form.elements.email.value.trim() };
+    } else if (mode === 'password-confirm') {
+      endpoint = '/api/auth/password-reset/confirm';
+      payload = { token: form.dataset.token, password: form.elements.password.value, confirm_password: form.elements.confirm_password.value };
+    } else if (register) {
+      payload.email = form.elements.email.value.trim();
+      payload.confirm_password = form.elements.confirm_password.value;
+      payload.terms = form.elements.terms.checked;
+    } else {
+      payload.remember = form.elements.remember.checked;
+    }
+    const button = document.querySelector('#auth-submit');
+    const notice = document.querySelector('#auth-message');
+    button.disabled = true;
+      button.textContent = mode === 'password-reset' ? 'Sending…' : mode === 'password-confirm' ? 'Updating…' : register ? 'Creating account…' : 'Signing in…';
+    try {
+      const result = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+      if (mode === 'password-reset') {
+        notice.textContent = result.message;
+        notice.className = 'mb-4 rounded-xl border border-emerald-200/60 bg-emerald-500/10 text-emerald-600 p-4 text-sm';
+        button.disabled = false;
+        button.textContent = 'Send reset link';
+      } else if (mode === 'password-confirm') {
+        location.hash = '#/login?password_reset=1';
+      } else if (register) {
+        location.hash = '#/login?registered=1';
+      } else {
+        authState = { authenticated: true, user: result.user };
+        updateAccountHeader();
+        location.hash = '#/';
+      }
+    } catch (error) {
+      notice.textContent = error.message || 'Could not submit the form. Please try again.';
+      notice.className = 'mb-4 rounded-xl border border-rose-200/60 bg-rose-500/10 text-rose-600 p-4 text-sm';
+      button.disabled = false;
+      button.textContent = mode === 'password-reset' ? 'Send reset link' : mode === 'password-confirm' ? 'Update password' : register ? 'Create Account' : 'Sign in';
+    }
   });
 
   window.addEventListener('hashchange', renderRoute);

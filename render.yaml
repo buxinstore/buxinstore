@@ -22,4 +22,6 @@ services:
         value: https://store.techbuxin.com
       - key: FRONTEND_URL
         value: https://buxinstore.github.io
+      - key: FRONTEND_PATH
+        value: /buxinstore
 
