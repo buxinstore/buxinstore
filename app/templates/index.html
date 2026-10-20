@@ -4,7 +4,7 @@
 
 {% block content %}
   <!-- Hero Section -->
-  <div class="mb-8 rounded-2xl p-6 backdrop-blur-sm border border-[color:var(--app-border)] bg-[color:var(--app-card)] transition-colors duration-300">
+  <section class="storefront-hero mb-8 rounded-2xl p-6 sm:p-8 backdrop-blur-sm border border-[color:var(--app-border)] bg-[color:var(--app-card)] transition-colors duration-300">
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-2xl font-bold mb-2 text-[color:var(--app-text)]">{{ site_settings.hero_title or 'Build the Future' }}</h2>
@@ -26,7 +26,7 @@
       </div>
       {% endif %}
     </div>
-  </div>
+  </section>
 
   <!-- Shop by Category -->
   <div class="mb-8">
@@ -69,7 +69,7 @@
       </a>
     </div>
 
-    <div id="products-container" class="grid grid-cols-2 xl:grid-cols-7 2xl:grid-cols-10 gap-3">
+    <div id="products-container" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4">
       {% for product in featured_products %}
       <div class="product-card cursor-pointer bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl overflow-hidden hover:border-cyan-500/50 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/10 text-[color:var(--app-text)]"
            data-wishlist-card
