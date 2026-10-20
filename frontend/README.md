@@ -4,6 +4,10 @@ This first migration stage moves catalog browsing, search, product details, and
 the local cart to GitHub Pages. Catalog data and prices come from Flask's
 `/api/storefront/*` endpoints. At checkout, the cart is validated and synced to
 the existing Flask session before the browser continues to Render's checkout.
+The static storefront reuses the Flask storefront's Tailwind classes, header,
+homepage sections, product-card layout, and `app/static/css/theme.css` theme;
+the latter is copied to `assets/theme.css` for Pages. Flask templates and routes
+remain in place and continue to serve the live Render storefront during rollout.
 
 ## Deploy
 

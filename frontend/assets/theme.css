@@ -1,0 +1,763 @@
+/* ============================================
+   THEME SYSTEM - COMPREHENSIVE REWRITE
+   Default: Light Mode
+   ============================================ */
+
+/* Color Scheme Declaration - Prevents OS auto-dark detection override */
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* ============================================
+   CSS Variables - Light Mode (Default)
+   ============================================ */
+:root {
+  --app-bg: #ffffff;
+  --app-card: #ffffff;
+  --app-text: #0f172a;
+  --app-muted: #64748b;
+  --app-border: rgba(0, 0, 0, 0.1);
+  --app-surface-hover: rgba(15, 23, 42, 0.05);
+  --app-input: #f1f5f9;
+}
+
+/* CSS Variables - Dark Mode */
+html.dark {
+  --app-bg: #0f172a;
+  --app-card: #0b1324;
+  --app-text: #f1f5f9;
+  --app-muted: #94a3b8;
+  --app-border: rgba(255, 255, 255, 0.15);
+  --app-surface-hover: rgba(148, 163, 184, 0.12);
+  --app-input: rgba(15, 23, 42, 0.75);
+}
+
+/* ============================================
+   Body and Base Styles
+   ============================================ */
+body {
+  background-color: var(--app-bg) !important;
+  color: var(--app-text) !important;
+  transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out;
+}
+
+html:not(.theme-initialized) body {
+  visibility: hidden;
+}
+
+html.theme-initialized body {
+  visibility: visible;
+}
+
+/* ============================================
+   CRITICAL: Icon Transparency Fixes
+   ALL icons must have transparent backgrounds
+   ============================================ */
+
+/* Base icon transparency - applies to ALL icon types */
+i,
+svg,
+[class*="icon"],
+[data-lucide],
+[data-lucide-icon] {
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Lucide Icons - Ensure proper color inheritance */
+i[data-lucide],
+svg[data-lucide-icon] {
+  color: inherit !important;
+  stroke: currentColor !important;
+  fill: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  display: inline-block;
+}
+
+/* Font Awesome Icons */
+i[class*="fa-"],
+i[class*="fas"],
+i[class*="far"],
+i[class*="fab"],
+i[class*="fal"] {
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+  display: inline-block;
+}
+
+/* All SVG elements */
+svg {
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+  display: inline-block;
+}
+
+/* Icon containers and wrappers */
+button i,
+a i,
+span i,
+div i,
+button svg,
+a svg,
+span svg,
+div svg {
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Icon parent elements - prevent background bleed */
+[class*="icon"]:not([class*="bg-"]),
+.icon-wrapper,
+.icon-container {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* ============================================
+   Button and Text Element Fixes
+   Buttons need backgrounds, but text spans should be transparent
+   ============================================ */
+
+/* Gradient buttons - PRESERVE Tailwind gradient and maintain white text */
+button[class*="bg-gradient"],
+[class*="bg-gradient"] button,
+.add-to-cart-btn[class*="bg-gradient"],
+#pay-button[class*="bg-gradient"],
+button#pay-button {
+  /* Don't override Tailwind's gradient - just ensure text is white and background is transparent */
+  background-color: transparent !important;
+  color: white !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Ensure gradient buttons don't get overridden by other rules */
+button.bg-gradient-to-r,
+.add-to-cart-btn.bg-gradient-to-r,
+#pay-button.bg-gradient-to-r {
+  background-color: transparent !important;
+  color: white !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Gradient badges and spans - preserve Tailwind gradient */
+span[class*="bg-gradient"],
+#cart-count-badge[class*="bg-gradient"],
+.cart-count-badge[class*="bg-gradient"],
+#cart-count-badge {
+  /* Don't override Tailwind's gradient - just ensure text is white */
+  background-color: transparent !important;
+  color: white !important;
+}
+
+/* Ensure cart badge gradient is preserved */
+#cart-count-badge.bg-gradient-to-r {
+  background-color: transparent !important;
+  color: white !important;
+}
+
+/* Button text elements - transparent backgrounds, inherit text color */
+button span,
+button .add-to-cart-text,
+.add-to-cart-text,
+button .text,
+button .label,
+#button-text {
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+  display: inline-block;
+  color: inherit !important;
+  pointer-events: none !important; /* Allow clicks to pass through to button */
+}
+
+/* Gradient button text - ensure white text */
+button[class*="bg-gradient"] span,
+button[class*="bg-gradient"] .add-to-cart-text,
+[class*="bg-gradient"] .add-to-cart-text,
+[class*="bg-gradient"] button span,
+button[class*="bg-gradient"] #button-text,
+#pay-button span,
+#pay-button #button-text {
+  color: white !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Cart count badge - ensure gradient background and white text */
+#cart-count-badge,
+.cart-count-badge {
+  background-image: linear-gradient(to right, rgb(6, 182, 212), rgb(59, 130, 246)) !important;
+  background-color: transparent !important;
+  color: white !important;
+}
+
+/* Cart count badge text - ensure white text */
+#cart-count-badge .cart-count,
+.cart-count-badge .cart-count,
+#cart-count-badge span,
+.cart-count-badge span {
+  color: white !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Regular buttons without explicit backgrounds - add subtle background in light mode */
+html:not(.dark) button:not([class*="bg-"]):not([class*="bg-gradient"]) {
+  background-color: var(--app-surface-hover) !important;
+  color: var(--app-text) !important;
+}
+
+html:not(.dark) button:not([class*="bg-"]):not([class*="bg-gradient"]):hover {
+  background-color: var(--app-surface-hover) !important;
+  opacity: 0.8;
+}
+
+/* Link text elements */
+a span,
+a .text,
+a .label {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* All span elements (unless explicitly styled) */
+span:not([class*="bg-"]):not([class*="badge"]):not([class*="pill"]):not([class*="chip"]) {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Add to Cart button - preserve gradient if present */
+.add-to-cart-btn[class*="bg-gradient"] {
+  background-image: linear-gradient(to right, rgb(6, 182, 212), rgb(59, 130, 246)) !important;
+  background-color: transparent !important;
+  color: white !important;
+}
+
+/* Add to Cart text - transparent background, inherit color */
+.add-to-cart-text {
+  background-color: transparent !important;
+  background: transparent !important;
+  color: inherit !important;
+}
+
+/* ============================================
+   Override Tailwind dark: classes in light mode
+   ============================================ */
+
+/* Dark mode background classes - override in light mode */
+html:not(.dark) .dark\:bg-slate-900,
+html:not(.dark) .dark\:bg-slate-800,
+html:not(.dark) .dark\:bg-slate-700,
+html:not(.dark) .dark\:bg-gray-800,
+html:not(.dark) .dark\:bg-gray-900,
+html:not(.dark) [class*="dark:bg-slate-"],
+html:not(.dark) [class*="dark:bg-gray-"] {
+  background-color: var(--app-card) !important;
+  background-image: none !important;
+}
+
+/* Dark mode text classes - override in light mode */
+html:not(.dark) .dark\:text-white,
+html:not(.dark) .dark\:text-slate-100,
+html:not(.dark) .dark\:text-slate-200,
+html:not(.dark) .dark\:text-slate-300,
+html:not(.dark) .dark\:text-gray-100,
+html:not(.dark) .dark\:text-gray-200,
+html:not(.dark) .dark\:text-gray-300,
+html:not(.dark) [class*="dark:text-"] {
+  color: var(--app-text) !important;
+}
+
+html:not(.dark) .dark\:text-slate-400,
+html:not(.dark) .dark\:text-slate-500,
+html:not(.dark) .dark\:text-gray-400,
+html:not(.dark) .dark\:text-gray-500 {
+  color: var(--app-muted) !important;
+}
+
+/* Dark mode border classes */
+html:not(.dark) .dark\:border-slate-700,
+html:not(.dark) .dark\:border-slate-600,
+html:not(.dark) .dark\:border-gray-700,
+html:not(.dark) .dark\:border-gray-600,
+html:not(.dark) [class*="dark:border-"] {
+  border-color: var(--app-border) !important;
+}
+
+/* Dark mode hover classes */
+html:not(.dark) .dark\:hover\:bg-slate-800:hover,
+html:not(.dark) .dark\:hover\:bg-slate-700:hover,
+html:not(.dark) .dark\:hover\:bg-gray-800:hover,
+html:not(.dark) [class*="dark:hover:bg-"]:hover {
+  background-color: var(--app-surface-hover) !important;
+}
+
+html:not(.dark) .dark\:hover\:text-white:hover,
+html:not(.dark) [class*="dark:hover:text-"]:hover {
+  color: var(--app-text) !important;
+}
+
+/* ============================================
+   Light mode surface backgrounds
+   Map Tailwind classes to CSS variables
+   ============================================ */
+.bg-white,
+.bg-gray-50,
+.bg-gray-100,
+.bg-gray-200,
+.bg-slate-50,
+.bg-slate-100,
+.bg-slate-200,
+[class*="bg-white/"],
+[class*="bg-gray-50/"],
+[class*="bg-slate-50/"] {
+  background-color: var(--app-card) !important;
+}
+
+/* Hover states */
+.hover\:bg-slate-100:hover,
+.hover\:bg-slate-200:hover,
+.hover\:bg-gray-50:hover,
+.hover\:bg-gray-100:hover,
+.hover\:bg-white:hover {
+  background-color: var(--app-surface-hover) !important;
+}
+
+/* Text colors */
+.text-black,
+.text-slate-900,
+.text-slate-800,
+.text-gray-900,
+.text-gray-800 {
+  color: var(--app-text) !important;
+}
+
+.text-slate-700,
+.text-slate-600,
+.text-slate-500,
+.text-slate-400,
+.text-gray-700,
+.text-gray-600,
+.text-gray-500,
+.text-gray-400 {
+  color: var(--app-muted) !important;
+}
+
+/* Border utilities */
+.border-gray-100,
+.border-gray-200,
+.border-gray-300,
+.border-slate-100,
+.border-slate-200,
+.border-slate-300 {
+  border-color: var(--app-border) !important;
+}
+
+/* ============================================
+   Input Elements
+   ============================================ */
+input,
+textarea,
+select {
+  background-color: var(--app-input) !important;
+  color: var(--app-text) !important;
+  border-color: var(--app-border) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--app-muted) !important;
+}
+
+html:not(.dark) .dark\:bg-slate-800\/50,
+html:not(.dark) [class*="dark:bg-"] input,
+html:not(.dark) [class*="dark:bg-"] textarea,
+html:not(.dark) [class*="dark:bg-"] select {
+  background-color: var(--app-input) !important;
+}
+
+/* ============================================
+   MOBILE-SPECIFIC FIXES
+   Aggressive transparency enforcement for mobile
+   ============================================ */
+@media (max-width: 768px) {
+  /* Force transparent backgrounds on ALL icon-related elements */
+  html:not(.dark) i,
+  html:not(.dark) svg,
+  html:not(.dark) [data-lucide],
+  html:not(.dark) [data-lucide-icon],
+  html:not(.dark) [class*="icon"],
+  html:not(.dark) i[class*="fa-"] {
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
+  }
+
+  /* Icon containers and wrappers on mobile */
+  html:not(.dark) button i,
+  html:not(.dark) a i,
+  html:not(.dark) span i,
+  html:not(.dark) div i,
+  html:not(.dark) button svg,
+  html:not(.dark) a svg {
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
+  }
+
+  /* Button text elements on mobile - transparent backgrounds */
+  html:not(.dark) button span,
+  html:not(.dark) button .add-to-cart-text,
+  html:not(.dark) .add-to-cart-text,
+  html:not(.dark) button .text {
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
+    color: inherit !important;
+  }
+
+  /* Gradient buttons on mobile - preserve Tailwind gradient and white text */
+  html:not(.dark) button[class*="bg-gradient"],
+  html:not(.dark) .add-to-cart-btn[class*="bg-gradient"],
+  html:not(.dark) #pay-button[class*="bg-gradient"],
+  html:not(.dark) button#pay-button {
+    /* Don't override Tailwind's gradient - just ensure text is white */
+    background-color: transparent !important;
+    color: white !important;
+  }
+
+  html:not(.dark) button[class*="bg-gradient"] span,
+  html:not(.dark) button[class*="bg-gradient"] .add-to-cart-text,
+  html:not(.dark) button[class*="bg-gradient"] #button-text,
+  html:not(.dark) #pay-button span,
+  html:not(.dark) #pay-button #button-text {
+    color: white !important;
+    background-color: transparent !important;
+    background: transparent !important;
+  }
+
+  /* Cart badge on mobile - preserve Tailwind gradient and white text */
+  html:not(.dark) #cart-count-badge,
+  html:not(.dark) .cart-count-badge {
+    /* Don't override Tailwind's gradient - just ensure text is white */
+    background-color: transparent !important;
+    color: white !important;
+  }
+
+  html:not(.dark) #cart-count-badge .cart-count,
+  html:not(.dark) .cart-count-badge .cart-count,
+  html:not(.dark) #cart-count-badge span,
+  html:not(.dark) .cart-count-badge span {
+    color: white !important;
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
+  }
+
+  /* Regular buttons on mobile - add subtle background for visibility */
+  html:not(.dark) button:not([class*="bg-"]):not([class*="bg-gradient"]) {
+    background-color: var(--app-surface-hover) !important;
+    color: var(--app-text) !important;
+  }
+
+  /* Text spans on mobile */
+  html:not(.dark) span:not([class*="bg-"]):not([class*="badge"]):not([class*="pill"]) {
+    background-color: transparent !important;
+    background: transparent !important;
+  }
+}
+
+/* ============================================
+   Backdrop and Overlay Elements
+   ============================================ */
+html:not(.dark) [class*="backdrop-blur"] {
+  background-color: var(--app-card) !important;
+}
+
+/* ============================================
+   Dark Mode Specific Overrides
+   ============================================ */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: var(--app-input) !important;
+  color: var(--app-text) !important;
+  border-color: var(--app-border) !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: var(--app-muted) !important;
+}
+
+/* ============================================
+   Theme Transition Control
+   ============================================ */
+html.theme-changing * {
+  transition: none !important;
+}
+
+html.theme-changing {
+  transition: none !important;
+}
+
+/* ============================================
+   Mobile Curved Floating Bottom Navigation Bar
+   ============================================ */
+
+/* Navigation CSS Variables - Light Mode */
+:root {
+  --nav-bg: #ffffff;
+  --nav-border: rgba(0, 0, 0, 0.08);
+  --nav-icon: #64748b;
+  --nav-icon-active: #06b6d4;
+  --nav-shadow: rgba(0, 0, 0, 0.1);
+}
+
+/* Navigation CSS Variables - Dark Mode */
+html.dark {
+  --nav-bg: rgba(15, 23, 42, 0.95);
+  --nav-border: rgba(255, 255, 255, 0.1);
+  --nav-icon: #94a3b8;
+  --nav-icon-active: #22d3ee;
+  --nav-shadow: rgba(0, 0, 0, 0.6);
+}
+
+/* HIDE ON DESKTOP */
+@media (min-width: 769px) {
+  .curved-nav,
+  .mobile-bottom-nav {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  
+  body {
+    padding-bottom: 0 !important;
+  }
+}
+
+/* MOBILE CURVED FLOATING NAV BAR */
+@media (max-width: 768px) {
+  .curved-nav,
+  .mobile-bottom-nav {
+    position: fixed !important;
+    bottom: 12px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: calc(100% - 24px) !important;
+    max-width: 500px !important;
+    height: auto !important;
+    min-height: 70px;
+    background: var(--nav-bg) !important;
+    border-radius: 28px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    padding: 10px 8px !important;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(10px + constant(safe-area-inset-bottom, 0px)) !important;
+    box-shadow: 0 10px 40px var(--nav-shadow), 
+                0 4px 12px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+    backdrop-filter: blur(20px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+    border: 1px solid var(--nav-border) !important;
+    z-index: 999999 !important;
+    transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease !important;
+    margin: 0 auto !important;
+    box-sizing: border-box !important;
+  }
+  
+  .curved-nav .nav-item.active,
+  .mobile-bottom-nav .nav-item.active {
+    transform: translateY(-8px) !important;
+  }
+
+  .curved-nav .nav-item,
+  .mobile-bottom-nav .nav-item {
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    color: var(--nav-icon) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 6px 4px !important;
+    margin: 0 !important;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
+                color 0.3s ease, 
+                opacity 0.3s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+    touch-action: manipulation !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    opacity: 0.75 !important;
+    position: relative !important;
+    border: none !important;
+    background: transparent !important;
+    outline: none !important;
+  }
+
+  .curved-nav .nav-item:active,
+  .mobile-bottom-nav .nav-item:active,
+  .curved-nav .nav-item.nav-item-clicked,
+  .mobile-bottom-nav .nav-item.nav-item-clicked {
+    transform: scale(0.92) !important;
+    opacity: 0.6 !important;
+  }
+  
+  .curved-nav .nav-item.active:active,
+  .mobile-bottom-nav .nav-item.active:active,
+  .curved-nav .nav-item.active.nav-item-clicked,
+  .mobile-bottom-nav .nav-item.active.nav-item-clicked {
+    transform: translateY(-8px) scale(0.95) !important;
+  }
+
+  .curved-nav,
+  .mobile-bottom-nav {
+    transform: translateX(-50%) !important;
+  }
+
+  /* Navigation icons - CRITICAL: transparent backgrounds */
+  .curved-nav .nav-item i[data-lucide],
+  .mobile-bottom-nav .nav-item i[data-lucide],
+  .curved-nav .nav-item i[class*="fa-"],
+  .mobile-bottom-nav .nav-item i[class*="fa-"],
+  .curved-nav .nav-item svg,
+  .mobile-bottom-nav .nav-item svg {
+    width: 24px !important;
+    height: 24px !important;
+    stroke-width: 2 !important;
+    color: inherit !important;
+    background-color: transparent !important;
+    background: transparent !important;
+    background-image: none !important;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                color 0.3s ease,
+                stroke-width 0.3s ease !important;
+    display: block !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+  }
+
+  .curved-nav .nav-item span,
+  .mobile-bottom-nav .nav-item span {
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    line-height: 1.2 !important;
+    color: inherit !important;
+    background-color: transparent !important;
+    background: transparent !important;
+    transition: color 0.3s ease, font-weight 0.3s ease !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+    display: block !important;
+  }
+
+  .curved-nav .nav-item.active,
+  .mobile-bottom-nav .nav-item.active {
+    transform: translateY(-8px) !important;
+    color: var(--nav-icon-active) !important;
+    opacity: 1 !important;
+  }
+
+  .curved-nav .nav-item.active i[data-lucide],
+  .mobile-bottom-nav .nav-item.active i[data-lucide] {
+    transform: scale(1.3) !important;
+    color: var(--nav-icon-active) !important;
+    stroke-width: 2.5 !important;
+  }
+
+  .curved-nav .nav-item.active span,
+  .mobile-bottom-nav .nav-item.active span {
+    font-weight: 600 !important;
+    color: var(--nav-icon-active) !important;
+  }
+
+  body {
+    padding-bottom: calc(94px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(94px + constant(safe-area-inset-bottom, 0px)) !important;
+  }
+  
+  .min-h-screen {
+    padding-bottom: calc(94px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(94px + constant(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+  .curved-nav,
+  .mobile-bottom-nav {
+    bottom: 10px !important;
+    width: calc(100% - 20px) !important;
+    min-height: 68px !important;
+    border-radius: 24px !important;
+    padding: 8px 4px !important;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(8px + constant(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .curved-nav .nav-item,
+  .mobile-bottom-nav .nav-item {
+    padding: 5px 2px !important;
+    gap: 3px !important;
+  }
+
+  .curved-nav .nav-item i[data-lucide],
+  .mobile-bottom-nav .nav-item i[data-lucide] {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .curved-nav .nav-item span,
+  .mobile-bottom-nav .nav-item span {
+    font-size: 10px !important;
+  }
+
+  body {
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(90px + constant(safe-area-inset-bottom, 0px)) !important;
+  }
+  
+  .min-h-screen {
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(90px + constant(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* Very small devices */
+@media (max-width: 360px) {
+  .curved-nav .nav-item span,
+  .mobile-bottom-nav .nav-item span {
+    font-size: 9px !important;
+  }
+  
+  .curved-nav .nav-item i[data-lucide],
+  .mobile-bottom-nav .nav-item i[data-lucide] {
+    width: 20px !important;
+    height: 20px !important;
+  }
+}

@@ -11,49 +11,6 @@
 html.dark {
   color-scheme: dark;
 }
-/* Storefront polish: keep the shopping experience readable at every width. */
-.storefront-hero {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(ellipse at 86% 12%, rgba(34, 211, 238, 0.14), transparent 34%),
-    linear-gradient(125deg, var(--app-card), var(--app-bg));
-}
-
-.storefront-hero h2 {
-  font-size: clamp(1.75rem, 4vw, 2.6rem);
-  line-height: 1.12;
-  letter-spacing: -0.035em;
-}
-
-#products-container .product-card {
-  min-width: 0;
-  border-radius: 1rem;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
-
-#products-container .product-card > div:first-child > a {
-  background: linear-gradient(145deg, #f1f5f9, #e2e8f0);
-}
-
-#products-container .product-card img {
-  transition: transform 240ms ease;
-}
-
-#products-container .product-card:hover img {
-  transform: scale(1.045);
-}
-
-@media (max-width: 639px) {
-  .storefront-hero {
-    padding: 1.25rem;
-    border-radius: 1.25rem;
-  }
-
-  #products-container .product-card {
-    border-radius: 0.85rem;
-  }
-}
 
 /* ============================================
    CSS Variables - Light Mode (Default)

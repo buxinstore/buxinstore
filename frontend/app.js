@@ -40,55 +40,74 @@
   function saveCart(items) {
     localStorage.setItem('buxin-static-cart', JSON.stringify(items));
     cartCount.textContent = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-    cartCount.hidden = !items.length;
+    document.querySelector('#cart-count-badge').classList.toggle('hidden', !items.length);
   }
 
   function notify(message) {
     toast.textContent = message;
-    toast.classList.add('show');
+    toast.classList.remove('hidden');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 2400);
   }
 
   function categoryTiles(categories) {
-    if (!categories.length) return '<p class="empty-state">Categories will appear here when the catalog is available.</p>';
-    return `<div class="category-list">${categories.map(category => `
-      <a class="category-tile" href="#/products?category=${encodeURIComponent(category.id)}">
-        ${category.image ? `<img class="category-image" src="${escapeHtml(imageUrl(category.image))}" alt="" loading="lazy">` : '<span class="category-image category-fallback" aria-hidden="true">✳</span>'}
-        <span><strong>${escapeHtml(category.name)}</strong><small>${Number(category.count || 0)} ${Number(category.count) === 1 ? 'item' : 'items'}</small></span>
+    if (!categories.length) return '<p class="text-sm text-[color:var(--app-muted)]">Categories will appear here when the catalog is available.</p>';
+    return `<div class="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">${categories.map(category => `
+      <a href="#/products?category=${encodeURIComponent(category.id)}" class="flex-shrink-0 bg-[color:var(--app-card)] hover:bg-[color:var(--app-surface-hover)] border border-[color:var(--app-border)] hover:border-cyan-500 rounded-xl p-4 transition-all hover:scale-105 min-w-[140px] text-[color:var(--app-text)]">
+        <div class="w-16 h-16 rounded-lg overflow-hidden mb-3 mx-auto border border-[color:var(--app-border)]">
+          ${category.image ? `<img src="${escapeHtml(imageUrl(category.image))}" alt="${escapeHtml(category.name)}" class="w-full h-full object-cover" loading="lazy">` : `<div class="w-full h-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center"><i data-lucide="cpu" class="w-6 h-6 text-white"></i></div>`}
+        </div>
+        <h4 class="font-semibold text-sm mb-1 text-center">${escapeHtml(category.name)}</h4>
+        <p class="text-xs text-[color:var(--app-muted)] text-center">${Number(category.count || 0)} ${Number(category.count) === 1 ? 'item' : 'items'}</p>
       </a>`).join('')}</div>`;
   }
 
   function productCards(products) {
-    if (!products.length) return '<div class="empty-state">No products found. Try another search or category.</div>';
-    return `<div class="product-grid">${products.map(product => `
-      <article class="product-card">
-        <a class="product-photo" href="#/product/${product.id}" aria-label="View ${escapeHtml(product.name)}">
-          ${product.image ? `<img src="${escapeHtml(imageUrl(product.image))}" alt="${escapeHtml(product.name)}" loading="lazy">` : '<span class="product-placeholder">Product image coming soon</span>'}
-          <span class="stock-tag">${product.stock > 0 ? 'In stock' : 'Sold out'}</span>
-        </a>
-        <div class="product-info">
-          <span class="product-category">${escapeHtml(product.category || 'Components')}</span>
-          <a class="product-name" href="#/product/${product.id}">${escapeHtml(product.name)}</a>
-          <div class="product-bottom"><span class="price">${escapeHtml(product.display_price || 'Price on request')}</span>
-            <button class="add-button" type="button" data-add="${product.id}" ${product.stock < 1 ? 'disabled' : ''}>Add</button>
-          </div>
+    if (!products.length) return '<div class="p-8 text-center text-[color:var(--app-muted)] border border-[color:var(--app-border)] rounded-xl">No products found. Try another search or category.</div>';
+    return `<div class="grid grid-cols-2 xl:grid-cols-7 2xl:grid-cols-10 gap-3">${products.map(product => `
+      <div class="product-card cursor-pointer bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl overflow-hidden hover:border-cyan-500/50 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-cyan-500/10 text-[color:var(--app-text)]" data-product-id="${product.id}">
+        <div class="relative">
+          <a href="#/product/${product.id}" class="block h-40 overflow-hidden">
+            ${product.image ? `<img src="${escapeHtml(imageUrl(product.image))}" alt="${escapeHtml(product.name)}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-200" loading="lazy" onerror="this.src='https://placehold.co/400x400/34d399/ffffff?text=No+Image'; this.onerror=null;">` : '<div class="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center"><i data-lucide="image" class="w-10 h-10 text-[color:var(--app-muted)]"></i></div>'}
+          </a>
+          ${product.available_in_gambia ? '<div class="absolute top-2 left-2 w-8 h-8 bg-[color:var(--app-card)]/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center z-10" title="Available in Gambia"><span class="text-xl">🇬🇲</span></div>' : ''}
+          ${product.stock === 0 ? '<div class="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-lg font-medium z-10">Out of Stock</div>' : ''}
         </div>
-      </article>`).join('')}</div>`;
+        <div class="p-3"><p class="text-xs text-[color:var(--app-muted)] mb-1">${escapeHtml(product.category || 'Electronics')}</p>
+          <a href="#/product/${product.id}" class="block font-semibold text-sm mb-2 line-clamp-2">${escapeHtml(product.name)}</a>
+          <div class="mt-1 mb-2"><span class="text-sm font-semibold text-green-600">${escapeHtml(product.display_price || 'Price on request')}</span></div>
+          <div class="flex items-center justify-end"><button type="button" data-add="${product.id}" class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:shadow-lg hover:shadow-cyan-500/30 transition-all ${product.stock < 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${product.stock < 1 ? 'disabled' : ''}>${product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}</button></div>
+        </div>
+      </div>`).join('')}</div>`;
   }
 
   function viewHome() {
     const hero = catalog.hero || {};
     const featured = catalog.products.slice(0, 8);
     app.innerHTML = `
-      <section class="hero"><div class="hero-copy"><span class="eyebrow">Curiosity, meet capability</span>
-        <h1>${escapeHtml(hero.title || 'Build the Future')}</h1>
-        <p>${escapeHtml(hero.subtitle || 'Premium electronics and robotics components for your next great idea.')}</p>
-        <a class="button" href="#/products">Explore the collection <span aria-hidden="true">→</span></a>
-      </div></section>
-      <section class="section"><div class="section-head"><div><h2>Shop by category</h2><p>Find the right parts for your next build.</p></div><a class="text-link" href="#/categories">All categories →</a></div>${categoryTiles(catalog.categories)}</section>
-      <section class="section"><div class="section-head"><div><h2>Featured products</h2><p>Useful tools and components, ready to ship.</p></div><a class="text-link" href="#/products">View all →</a></div>${productCards(featured)}</section>`;
+      <section class="mb-8 rounded-2xl p-6 backdrop-blur-sm border border-[color:var(--app-border)] bg-[color:var(--app-card)] transition-colors duration-300">
+        <div class="flex items-center justify-between"><div>
+          <h2 class="text-2xl font-bold mb-2 text-[color:var(--app-text)]">${escapeHtml(hero.title || 'Build the Future')}</h2>
+          <p class="text-[color:var(--app-muted)]">${escapeHtml(hero.subtitle || 'Premium electronics and robotics components')}</p>
+          <div class="mt-4"><a href="${escapeHtml(hero.button_link || '#featured')}" class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-medium hover:shadow-lg hover:shadow-cyan-500/30 transition-all">${escapeHtml(hero.button_text || 'Shop Now')} <i data-lucide="arrow-right" class="ml-2 w-4 h-4"></i></a></div>
+        </div>${hero.image ? `<div class="w-24 h-24 rounded-2xl overflow-hidden border border-cyan-200 shadow-lg"><img src="${escapeHtml(imageUrl(hero.image))}" alt="Hero image" class="w-full h-full object-cover"></div>` : '<div class="w-24 h-24 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center animate-pulse"><i data-lucide="cpu" class="w-10 h-10 text-white"></i></div>'}</div>
+      </section>
+      <div class="mb-8" id="categories"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold">Shop by Category</h3><a href="#/categories" class="text-cyan-400 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all">View All <i data-lucide="chevron-right" class="w-4 h-4"></i></a></div>${categoryTiles(catalog.categories)}</div>
+      <div class="mb-8" id="featured"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold">Featured Products</h3><a href="#/products" class="text-cyan-400 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all">See All <i data-lucide="chevron-right" class="w-4 h-4"></i></a></div>${productCards(featured)}</div>
+      <div class="grid grid-cols-2 gap-4 mb-8">
+        <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-4 text-center text-[color:var(--app-text)]"><div class="w-10 h-10 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-2"><i data-lucide="truck" class="w-5 h-5 text-cyan-500"></i></div><h4 class="font-medium text-sm mb-1">Free Delivery in The Gambia</h4><p class="text-xs text-[color:var(--app-muted)]">On orders over D10,000</p></div>
+        <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-4 text-center text-[color:var(--app-text)]"><div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2"><i data-lucide="shield-check" class="w-5 h-5 text-green-500"></i></div><h4 class="font-medium text-sm mb-1">Secure Payment</h4><p class="text-xs text-[color:var(--app-muted)]">100% secure payment</p></div>
+        <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-4 text-center text-[color:var(--app-text)]"><div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-2"><i data-lucide="refresh-cw" class="w-5 h-5 text-amber-500"></i></div><h4 class="font-medium text-sm mb-1">Easy Returns</h4><p class="text-xs text-[color:var(--app-muted)]">30-day return policy</p></div>
+        <div class="bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl p-4 text-center text-[color:var(--app-text)]"><div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2"><i data-lucide="headphones" class="w-5 h-5 text-blue-500"></i></div><h4 class="font-medium text-sm mb-1">24/7 Support</h4><p class="text-xs text-[color:var(--app-muted)]">Dedicated support</p></div>
+      </div>`;
+    refreshIcons();
   }
+
+  function refreshIcons() {
+    if (window.lucide?.createIcons) window.lucide.createIcons();
+  }
+
+  document.querySelector('#copyright-year').textContent = new Date().getFullYear();
 
   async function viewProducts(params) {
     const query = params.get('q') || '';
@@ -97,16 +116,17 @@
     if (query) apiParams.set('q', query);
     if (categoryId) apiParams.set('category', categoryId);
     if (params.get('page')) apiParams.set('page', params.get('page'));
-    app.innerHTML = '<section class="loading-state"><span class="spinner"></span><p>Loading products…</p></section>';
+    app.innerHTML = '<section class="py-16 text-center text-[color:var(--app-muted)]">Loading products…</section>';
     const result = await api(`/api/storefront/catalog?${apiParams.toString()}`);
     catalog.categories = result.categories;
     catalog.pagination = result.pagination;
     catalog.products = result.products;
     const filtered = result.products;
-    app.innerHTML = `<header class="page-title"><h1>Shop all products</h1><p>Browse the buxin store catalog.</p></header>
-      <div class="catalog-tools"><label class="sr-only" for="catalog-search">Search products</label><input id="catalog-search" type="search" value="${escapeHtml(query)}" placeholder="Search products">
-        <label class="sr-only" for="category-select">Filter by category</label><select id="category-select"><option value="">All categories</option>${catalog.categories.map(category => `<option value="${category.id}" ${String(category.id) === categoryId ? 'selected' : ''}>${escapeHtml(category.name)}</option>`).join('')}</select></div>
-      <div id="catalog-results">${productCards(filtered)}</div>${result.pagination?.has_more ? '<div class="section-head" style="justify-content:center"><button class="button" id="load-more">Load more products</button></div>' : ''}`;
+    app.innerHTML = `<header class="mb-6"><h1 class="text-xl font-bold">Shop all products</h1><p class="text-sm text-[color:var(--app-muted)] mt-1">Browse the buxin store catalog.</p></header>
+      <div class="flex flex-col sm:flex-row gap-3 mb-5"><label class="sr-only" for="catalog-search">Search products</label><input id="catalog-search" class="flex-1 bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-xl px-4 py-3 text-sm" type="search" value="${escapeHtml(query)}" placeholder="Search products">
+        <label class="sr-only" for="category-select">Filter by category</label><select id="category-select" class="bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-xl px-4 py-3 text-sm"><option value="">All categories</option>${catalog.categories.map(category => `<option value="${category.id}" ${String(category.id) === categoryId ? 'selected' : ''}>${escapeHtml(category.name)}</option>`).join('')}</select></div>
+      <div id="catalog-results">${productCards(filtered)}</div>${result.pagination?.has_more ? '<div class="flex justify-center mt-6"><button class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg" id="load-more">Load more products</button></div>' : ''}`;
+    refreshIcons();
     const field = document.querySelector('#catalog-search');
     let searchTimer;
     field.addEventListener('input', () => {
@@ -135,7 +155,7 @@
         catalog.products.push(...more.products);
         const template = document.createElement('template');
         template.innerHTML = productCards(more.products);
-        const grid = document.querySelector('#catalog-results .product-grid');
+        const grid = document.querySelector('#catalog-results > .grid');
         template.content.querySelectorAll('.product-card').forEach(card => grid?.append(card));
         result.pagination = more.pagination;
         if (more.pagination?.has_more) { button.disabled = false; button.textContent = 'Load more products'; }
@@ -147,13 +167,14 @@
   async function viewProduct(id) {
     const product = catalog.products.find(item => String(item.id) === String(id)) || (await api(`/api/storefront/products/${encodeURIComponent(id)}`)).product;
     if (!catalog.products.some(item => String(item.id) === String(product.id))) catalog.products.push(product);
-    app.innerHTML = `<div class="detail-layout"><div class="detail-image">${product.image ? `<img src="${escapeHtml(imageUrl(product.image))}" alt="${escapeHtml(product.name)}">` : '<span class="product-placeholder">Product image coming soon</span>'}</div>
-      <section class="detail-copy"><span class="product-category">${escapeHtml(product.category || 'Components')}</span><h1>${escapeHtml(product.name)}</h1>
-      <span class="stock-tag stock-tag-inline">${product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}</span><p class="detail-price">${escapeHtml(product.display_price || 'Price on request')}</p>
-      <p class="detail-description">${escapeHtml(product.description || 'Contact us for more information about this product.')}</p>
-      <div><div class="quantity-control"><button type="button" data-qty="-1" aria-label="Decrease quantity">−</button><input id="detail-quantity" type="number" min="1" max="${Math.max(product.stock, 1)}" value="1" aria-label="Quantity"><button type="button" data-qty="1" aria-label="Increase quantity">+</button></div>
-      <button class="button" data-add="${product.id}" ${product.stock < 1 ? 'disabled' : ''}>Add to cart</button></div>
-      <p><a class="text-link" href="#/products">← Back to products</a></p></section></div>`;
+    app.innerHTML = `<div class="grid md:grid-cols-2 gap-8 items-start"><div class="aspect-square rounded-xl overflow-hidden bg-[color:var(--app-input)]">${product.image ? `<img class="w-full h-full object-cover" src="${escapeHtml(imageUrl(product.image))}" alt="${escapeHtml(product.name)}">` : '<div class="w-full h-full flex items-center justify-center text-[color:var(--app-muted)]"><i data-lucide="image" class="w-12 h-12"></i></div>'}</div>
+      <section class="pt-2"><span class="text-xs text-[color:var(--app-muted)]">${escapeHtml(product.category || 'Components')}</span><h1 class="text-2xl font-bold mt-2">${escapeHtml(product.name)}</h1>
+      <span class="inline-block mt-3 text-xs px-2 py-1 rounded-lg ${product.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}</span><p class="text-xl font-bold text-green-600 mt-4">${escapeHtml(product.display_price || 'Price on request')}</p>
+      <p class="text-sm leading-7 text-[color:var(--app-muted)] mt-4 whitespace-pre-line">${escapeHtml(product.description || 'Contact us for more information about this product.')}</p>
+      <div class="mt-5 flex flex-wrap items-center gap-3"><div class="inline-flex items-center border border-[color:var(--app-border)] rounded-lg overflow-hidden"><button class="w-10 h-10 hover:bg-[color:var(--app-surface-hover)]" type="button" data-qty="-1" aria-label="Decrease quantity">−</button><input class="w-12 text-center bg-transparent" id="detail-quantity" type="number" min="1" max="${Math.max(product.stock, 1)}" value="1" aria-label="Quantity"><button class="w-10 h-10 hover:bg-[color:var(--app-surface-hover)]" type="button" data-qty="1" aria-label="Increase quantity">+</button></div>
+      <button class="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-4 py-2 rounded-lg font-medium ${product.stock < 1 ? 'opacity-50 cursor-not-allowed' : ''}" data-add="${product.id}" ${product.stock < 1 ? 'disabled' : ''}>Add to cart</button></div>
+      <p class="mt-5"><a class="text-cyan-500 text-sm font-medium" href="#/products">← Back to products</a></p></section></div>`;
+    refreshIcons();
     app.querySelectorAll('[data-qty]').forEach(button => button.addEventListener('click', () => {
       const input = document.querySelector('#detail-quantity');
       input.value = Math.min(Number(input.max), Math.max(1, Number(input.value) + Number(button.dataset.qty)));
@@ -163,14 +184,14 @@
   function viewCart() {
     const items = readCart();
     if (!items.length) {
-      app.innerHTML = `<header class="page-title"><h1>Your cart</h1></header><div class="empty-state">Your cart is empty. <a class="text-link" href="#/products">Find something to build with →</a></div>`;
+      app.innerHTML = `<header class="mb-6"><h1 class="text-xl font-bold">Your cart</h1></header><div class="p-8 text-center border border-[color:var(--app-border)] rounded-xl">Your cart is empty. <a class="text-cyan-500 font-medium" href="#/products">Find something to build with →</a></div>`;
       return;
     }
     const total = items.reduce((sum, item) => sum + Number(item.checkout_price ?? item.price ?? 0) * Number(item.quantity || 0), 0);
     const currency = catalog.currency_symbol || 'D';
-    app.innerHTML = `<header class="page-title"><h1>Your cart</h1><p>${items.length} ${items.length === 1 ? 'product' : 'products'}</p></header>
-      <section>${items.map(item => `<div class="cart-row"><img src="${escapeHtml(imageUrl(item.image))}" alt=""><div><span class="cart-row-name">${escapeHtml(item.name)}</span><small>Quantity ${Number(item.quantity)}</small></div><span class="price">${escapeHtml(item.display_price || '')}</span><button class="remove-button" data-remove="${item.id}">Remove</button></div>`).join('')}</section>
-      <section class="cart-total"><div><span>Estimated subtotal</span><span>${escapeHtml(currency)} ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div><button class="button" id="checkout-button">Continue to secure checkout →</button></section>`;
+    app.innerHTML = `<header class="mb-6"><h1 class="text-xl font-bold">Your cart</h1><p class="text-sm text-[color:var(--app-muted)] mt-1">${items.length} ${items.length === 1 ? 'product' : 'products'}</p></header>
+      <section class="border-t border-[color:var(--app-border)]">${items.map(item => `<div class="grid grid-cols-[58px_minmax(0,1fr)_auto] md:grid-cols-[74px_minmax(0,1fr)_auto_auto] gap-3 md:gap-4 items-center py-3 border-b border-[color:var(--app-border)]"><img class="w-14 h-14 md:w-[74px] md:h-[74px] object-cover rounded-lg bg-[color:var(--app-input)]" src="${escapeHtml(imageUrl(item.image))}" alt=""><div><span class="font-semibold">${escapeHtml(item.name)}</span><small class="block text-xs text-[color:var(--app-muted)] mt-1">Quantity ${Number(item.quantity)}</small></div><span class="font-semibold">${escapeHtml(item.display_price || '')}</span><button class="text-red-500 text-sm" data-remove="${item.id}">Remove</button></div>`).join('')}</section>
+      <section class="mt-6 ml-auto max-w-sm p-5 bg-[color:var(--app-card)] border border-[color:var(--app-border)] rounded-xl"><div class="flex justify-between mb-4 font-semibold"><span>Estimated subtotal</span><span>${escapeHtml(currency)} ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div><button class="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-4 py-3 rounded-lg font-medium" id="checkout-button">Continue to secure checkout →</button></section>`;
     app.querySelectorAll('[data-remove]').forEach(button => button.addEventListener('click', () => {
       saveCart(readCart().filter(item => String(item.id) !== button.dataset.remove));
       viewCart();
@@ -213,20 +234,21 @@
     const route = path || '';
     if (route === 'products') viewProducts(params).catch(showError);
     else if (route === 'categories') {
-      app.innerHTML = `<header class="page-title"><h1>Shop by category</h1><p>Browse all available product categories.</p></header>${categoryTiles(catalog.categories)}`;
+      app.innerHTML = `<header class="mb-6"><h1 class="text-xl font-bold">Shop by category</h1><p class="text-sm text-[color:var(--app-muted)] mt-1">Browse all available product categories.</p></header>${categoryTiles(catalog.categories)}`;
     } else if (route.startsWith('product/')) viewProduct(route.slice('product/'.length)).catch(showError);
     else if (route === 'cart') viewCart();
     else viewHome();
     searchInput.value = params.get('q') || '';
+    refreshIcons();
   }
 
   function showError(error) {
-    app.innerHTML = `<div class="error-state"><strong>We couldn’t load the store just now.</strong>${escapeHtml(error.message || 'Please try again in a moment.')}<p><button class="button" id="retry-button">Try again</button></p></div>`;
+    app.innerHTML = `<div class="p-8 text-center border border-[color:var(--app-border)] rounded-xl"><strong class="block font-semibold mb-2">We couldn’t load the store just now.</strong><span class="text-sm text-[color:var(--app-muted)]">${escapeHtml(error.message || 'Please try again in a moment.')}</span><p><button class="mt-4 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg" id="retry-button">Try again</button></p></div>`;
     document.querySelector('#retry-button').addEventListener('click', start);
   }
 
   async function start() {
-    app.innerHTML = '<section class="loading-state"><span class="spinner"></span><p>Loading the store…</p></section>';
+    app.innerHTML = '<section class="py-16 text-center text-[color:var(--app-muted)]">Loading the store…</section>';
     try {
       const result = await api('/api/storefront/catalog');
       catalog = result;
@@ -256,6 +278,20 @@
   });
 
   window.addEventListener('hashchange', renderRoute);
+  document.querySelector('#theme-toggle').addEventListener('click', () => {
+    const dark = !document.documentElement.classList.contains('dark');
+    document.documentElement.classList.toggle('dark', dark);
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+    document.querySelector('#theme-color-meta').content = dark ? '#0f172a' : '#ffffff';
+    updateThemeIcon();
+  });
+  function updateThemeIcon() {
+    const dark = document.documentElement.classList.contains('dark');
+    document.querySelector('[data-theme-icon="light"]')?.classList.toggle('hidden', dark);
+    document.querySelector('[data-theme-icon="dark"]')?.classList.toggle('hidden', !dark);
+  }
   saveCart(readCart());
+  refreshIcons();
+  updateThemeIcon();
   start();
 })();

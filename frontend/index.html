@@ -1,28 +1,72 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f8fafc">
-  <meta name="description" content="Shop robotics, electronics and maker components from buxin store.">
-  <title>buxin store — Build the Future</title>
-  <link rel="preconnect" href="https://store.techbuxin.com">
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#ffffff" id="theme-color-meta">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="buxin store - Your gateway to the future of technology. Explore robotics, coding, and artificial intelligence.">
+  <title>buxin store</title>
+  <script>
+    (() => {
+      const theme = localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      document.documentElement.classList.add('theme-initialized');
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="assets/theme.css">
   <script src="config.js"></script>
   <script src="app.js" defer></script>
 </head>
-<body>
-  <header class="site-header">
-    <a class="brand" href="#/" aria-label="buxin store home"><span class="brand-mark">b</span><span>buxin<span class="brand-light">store</span></span></a>
-    <form class="search" id="search-form" role="search"><label class="sr-only" for="search-input">Search products</label><span aria-hidden="true">⌕</span><input id="search-input" name="q" placeholder="Search components, kits and more" autocomplete="off"><kbd>↵</kbd></form>
-    <nav class="header-actions" aria-label="Main navigation"><a href="#/products">Shop</a><a class="cart-link" href="#/cart" aria-label="Shopping cart">Cart <span id="cart-count">0</span></a></nav>
-  </header>
-
-  <main id="app" class="page-shell" aria-live="polite">
-    <section class="loading-state"><span class="spinner"></span><p>Loading the store…</p></section>
-  </main>
-
-  <footer class="site-footer"><a class="brand" href="#/"><span class="brand-mark">b</span><span>buxin<span class="brand-light">store</span></span></a><p>Robotics, electronics and ideas made real.</p><small>Checkout and payments are securely handled by our store service.</small></footer>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<body class="bg-[color:var(--app-bg)] text-[color:var(--app-text)] pb-20 transition-colors duration-300">
+  <div class="min-h-screen bg-[color:var(--app-bg)]">
+    <div class="sticky top-0 z-50 bg-[color:var(--app-card)] backdrop-blur-xl border-b border-[color:var(--app-border)]">
+      <div class="px-4 py-4">
+        <div class="flex items-center justify-between mb-4">
+          <a href="#/" class="flex items-center" aria-label="buxin store home">
+            <img src="https://res.cloudinary.com/dfjffnmzf/image/upload/v1763781131/Gemini_Generated_Image_ufkia2ufkia2ufki_pcf2lq.png" alt="buxin store" class="h-12 w-auto">
+          </a>
+          <div class="flex items-center gap-2">
+            <button type="button" id="theme-toggle" class="relative p-2 hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-all" aria-label="Toggle dark mode">
+              <i data-lucide="sun" class="w-5 h-5 hidden" data-theme-icon="light"></i>
+              <i data-lucide="moon" class="w-5 h-5 hidden" data-theme-icon="dark"></i>
+            </button>
+            <a href="#/cart" class="p-2 hover:bg-[color:var(--app-surface-hover)] rounded-xl transition-colors relative" aria-label="Shopping cart">
+              <i data-lucide="shopping-cart" class="w-6 h-6"></i>
+              <span id="cart-count-badge" class="absolute -top-1 -right-1 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs w-5 h-5 rounded-full items-center justify-center font-bold hidden"><span id="cart-count">0</span></span>
+            </a>
+            <a href="https://store.techbuxin.com/login" class="flex items-center gap-2 p-1 pl-2 pr-3 hover:bg-[color:var(--app-surface-hover)] rounded-full transition-colors">
+              <span class="hidden sm:flex flex-col text-right leading-tight"><span class="text-xs text-[color:var(--app-muted)]">Account</span><span class="text-sm font-semibold">Sign in</span></span>
+              <img src="https://store.techbuxin.com/static/images/default-avatar.svg" alt="Profile" class="h-10 w-10 rounded-full border-2 border-white/70 object-cover shadow-sm">
+            </a>
+          </div>
+        </div>
+        <div class="relative">
+          <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[color:var(--app-muted)]"></i>
+          <form id="search-form" class="w-full"><input id="search-input" type="search" name="q" placeholder="Search products..." class="w-full bg-[color:var(--app-input)] border border-[color:var(--app-border)] rounded-xl py-3 pl-11 pr-4 text-sm text-[color:var(--app-text)] placeholder:text-[color:var(--app-muted)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all"></form>
+        </div>
+      </div>
+    </div>
+    <main id="app" class="px-4 py-6 bg-[color:var(--app-bg)]" aria-live="polite">
+      <div class="py-16 text-center text-[color:var(--app-muted)]">Loading store…</div>
+    </main>
+    <footer class="bg-[color:var(--app-card)] backdrop-blur-xl border-t border-[color:var(--app-border)] mt-12 py-8 text-[color:var(--app-text)]">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="mt-4 border-t border-[color:var(--app-border)] pt-8 flex flex-col md:flex-row justify-between items-center">
+          <p class="text-sm text-[color:var(--app-muted)]">&copy; <span id="copyright-year"></span> buxin store. All rights reserved.</p>
+          <div class="mt-4 md:mt-0 flex space-x-6">
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]" aria-label="Facebook"><i data-lucide="facebook" class="w-5 h-5"></i></a>
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]" aria-label="Twitter"><i data-lucide="twitter" class="w-5 h-5"></i></a>
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]" aria-label="Instagram"><i data-lucide="instagram" class="w-5 h-5"></i></a>
+            <a href="#" class="text-[color:var(--app-muted)] hover:text-[color:var(--app-text)]" aria-label="YouTube"><i data-lucide="youtube" class="w-5 h-5"></i></a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+  <div id="toast" class="fixed bottom-5 right-5 z-[80] hidden rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl" role="status" aria-live="polite"></div>
 </body>
 </html>

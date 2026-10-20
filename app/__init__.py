@@ -13868,6 +13868,8 @@ def storefront_catalog_api():
         'hero': {
             'title': settings.hero_title if settings and settings.hero_title else 'Build the Future',
             'subtitle': settings.hero_subtitle if settings and settings.hero_subtitle else 'Premium electronics and robotics components',
+            'button_text': settings.hero_button_text if settings and settings.hero_button_text else 'Shop Now',
+            'button_link': settings.hero_button_link if settings and settings.hero_button_link else '#featured',
             'image': product_image_url_filter(settings.hero_image_path) if settings and settings.hero_image_path else None,
         },
         'categories': [
